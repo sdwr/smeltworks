@@ -1,0 +1,2918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smeltworks v3</title>
+<style>
+  :root {
+    --bg: #07080c;
+    --panel2: #1d222e;
+    --panel3: #262c3b;
+    --line: #2f3648;
+    --line2: #3d465c;
+    --text: #e6ebf5;
+    --dim: #939bad;
+    --dimmer: #626a7d;
+    --ember: #ff9a3c;
+    --ember-hot: #ffc76b;
+    --ember-dim: #b3641f;
+    --good: #6ee7a8;
+    --bad: #ef6b6b;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'Cascadia Mono', 'Consolas', monospace;
+
+    --bar-w: 320px;
+    --amt-size: 33px;
+    --slot: 46px;      /* an inventory slot, in screen pixels — never zoomed */
+    --cell: 40px;      /* a crafting cell, in world units — zoomed with the map */
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: var(--font); font-size: 15px;
+    user-select: none; -webkit-user-select: none;
+  }
+  /* the map on top, the bag pinned along the bottom */
+  body { display: flex; flex-direction: column; }
+
+  /* ================= forge (the viewport) ================= */
+
+  #forge {
+    position: relative; flex: 1 1 auto; min-height: 0; width: 100%; overflow: hidden;
+    cursor: grab; touch-action: none;
+    background:
+      radial-gradient(60% 40% at 50% 102%, rgba(255,154,60,.20), transparent 68%),
+      radial-gradient(110% 80% at 50% -10%, #191e2b, var(--bg) 72%);
+  }
+  #forge.grabbing { cursor: grabbing; }
+  #forge::after {
+    content: ''; position: absolute; left: -20%; right: -20%; bottom: -12%; height: 40%;
+    background: radial-gradient(closest-side, rgba(255,120,30,.18), transparent 72%);
+    filter: blur(26px); animation: haze 7s ease-in-out infinite; pointer-events: none;
+  }
+  @keyframes haze {
+    0%,100% { transform: scaleY(1) translateY(0); opacity: .75; }
+    50%     { transform: scaleY(1.22) translateY(-10px); opacity: 1; }
+  }
+
+  /* ================= world (the pannable, zoomable map) ================= */
+
+  #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+
+  #embers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .ember {
+    position: absolute; bottom: -20px; border-radius: 50%;
+    background: var(--ember); filter: blur(1px); animation: emberUp linear infinite;
+  }
+  @keyframes emberUp {
+    0%   { transform: translate(0,0) scale(.5); opacity: 0; }
+    12%  { opacity: .85; }
+    70%  { opacity: .5; }
+    100% { transform: translate(var(--drift), -104vh) scale(1.15); opacity: 0; }
+  }
+
+  #title {
+    position: absolute; bottom: 84px; left: 26px; z-index: 3;
+    font-size: 13px; letter-spacing: .42em; text-transform: uppercase;
+    color: var(--dimmer); pointer-events: none;
+  }
+  #title b { color: var(--ember-dim); letter-spacing: .42em; text-shadow: 0 0 22px rgba(255,154,60,.45); }
+  #hint {
+    position: absolute; bottom: 18px; left: 26px; z-index: 3;
+    max-width: min(720px, calc(100% - 320px));
+    font-size: 11px; color: #454b5b; letter-spacing: .05em; line-height: 1.7;
+    pointer-events: none;
+  }
+  @media (max-width: 720px) { #hint { display: none; } #title { bottom: 20px; } }
+
+  #camui {
+    position: absolute; bottom: 18px; right: 22px; z-index: 25;
+    display: flex; gap: 6px; align-items: center;
+  }
+  #camui button {
+    font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+    background: rgba(10,13,19,.7); border: 1px solid var(--line); color: var(--dimmer);
+    border-radius: 6px; padding: 7px 12px; cursor: pointer; font-family: var(--font);
+    transition: all .13s;
+  }
+  #camui button:hover { border-color: var(--line2); color: var(--dim); }
+  #camui .zbtn { width: 32px; padding: 7px 0; text-align: center; font-size: 13px; letter-spacing: 0; }
+  #camui #zlevel {
+    font-family: var(--mono); font-size: 10px; color: var(--dimmer);
+    min-width: 40px; text-align: center;
+  }
+  #camui #btn-reset:hover { border-color: var(--bad); color: var(--bad); }
+
+  /* ================= links ================= */
+
+  #arc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+  .lbase { fill: none; stroke: #1c212c; stroke-width: 6; stroke-linecap: round; }
+  .lglow {
+    fill: none; stroke: var(--lc); stroke-width: 12; stroke-linecap: round;
+    opacity: .13; transition: stroke-dasharray .16s linear;
+  }
+  .lfill {
+    fill: none; stroke: var(--lc); stroke-width: 3.5; stroke-linecap: round;
+    transition: stroke-dasharray .16s linear;
+  }
+  .link.lit .lglow { stroke-width: 20; animation: glowPulse 1.25s ease-in-out infinite; }
+  .link.lit .lfill { stroke-width: 5.5; animation: linkPulse 1.25s ease-in-out infinite; }
+  @keyframes linkPulse { 0%,100% { opacity: .72; } 50% { opacity: 1; } }
+  @keyframes glowPulse { 0%,100% { opacity: .20; } 50% { opacity: .42; } }
+  .link.feed .lbase { stroke-dasharray: 11 10; stroke-width: 5; }
+  .link.feed .lfill { stroke-width: 3; }
+  .link.done { opacity: .3; }
+  .link.done .lfill { stroke-width: 2.5; }
+  .link.done .lglow { opacity: 0; }
+  .link.dormant { opacity: .34; }
+  .link.dormant .lglow { opacity: 0; }
+
+  #linklabels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+  .llabel {
+    position: absolute; transform: translate(-50%, -50%);
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+    padding: 3px 7px; border-radius: 5px; white-space: nowrap;
+    background: rgba(9,11,16,.92); border: 1px solid var(--line); color: var(--dim);
+    transition: opacity .2s;
+  }
+  .llabel.ready {
+    color: #0c0f15; background: var(--lc); border-color: var(--lc);
+    box-shadow: 0 0 18px -2px var(--lc); animation: linkPulse 1.25s ease-in-out infinite;
+  }
+  .llabel.gone { opacity: 0; }
+
+  /* ================= ore tile ================= */
+
+  .ore {
+    position: absolute; z-index: 4;
+    width: var(--bar-w); transform: translate(-50%, -50%);
+    padding: 10px 13px 11px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.035), transparent 40%),
+      linear-gradient(180deg, #1b2029, #14171f);
+    box-shadow: 0 10px 26px -12px #000, inset 0 1px 0 rgba(255,255,255,.05);
+    transition: border-color .18s, box-shadow .18s, transform .14s, opacity .25s;
+  }
+  .ore:not(.run) { opacity: .92; }
+  .ore.run { z-index: 5; border-color: color-mix(in srgb, var(--ore) 70%, var(--line)); }
+  .ore.locked { opacity: .55; background: #0e1117; border-style: dashed; }
+  .ore.ready {
+    opacity: .96; border-style: solid; border-color: var(--ore);
+    box-shadow: 0 0 34px -10px var(--ore), 0 10px 26px -14px #000;
+    animation: readyPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes readyPulse {
+    0%,100% { box-shadow: 0 0 40px -14px var(--ore), 0 14px 30px -14px #000; }
+    50%     { box-shadow: 0 0 62px -6px  var(--ore), 0 14px 30px -14px #000; }
+  }
+  .ore.facility {
+    background:
+      linear-gradient(180deg, rgba(243,173,85,.12), transparent 45%),
+      linear-gradient(180deg, #25201a, #161513);
+  }
+  .ore.facility.hot {
+    border-color: var(--ore);
+    box-shadow: 0 0 32px -10px var(--ore), 0 12px 28px -14px #000;
+  }
+  .ore.bench {
+    background:
+      linear-gradient(180deg, rgba(214,138,76,.10), transparent 45%),
+      linear-gradient(180deg, #221c16, #151310);
+  }
+  .ore.worked {
+    opacity: 1; border-color: var(--ember);
+    box-shadow: 0 0 34px -8px var(--ember), 0 12px 28px -14px #000;
+    animation: workedPulse 1.9s ease-in-out infinite;
+  }
+  @keyframes workedPulse {
+    0%,100% { box-shadow: 0 0 30px -10px var(--ember), 0 12px 28px -14px #000; }
+    50%     { box-shadow: 0 0 52px -4px  var(--ember), 0 12px 28px -14px #000; }
+  }
+  .tag.work {
+    background: rgba(255,154,60,.16); color: var(--ember-hot);
+    border-color: rgba(255,154,60,.45); box-shadow: 0 0 12px -3px var(--ember);
+  }
+  .ore.facility .fill {
+    background: linear-gradient(90deg, #48250f, #d96820 55%, #ffd26b);
+  }
+  .ore.pop { animation: pop .40s ease-out; }
+  @keyframes pop {
+    0%   { box-shadow: 0 10px 26px -12px #000, inset 0 1px 0 rgba(255,255,255,.05); }
+    26%  { box-shadow: 0 0 40px -6px var(--ore), 0 10px 26px -12px #000,
+                       inset 0 1px 0 rgba(255,255,255,.30); }
+    100% { box-shadow: 0 10px 26px -12px #000, inset 0 1px 0 rgba(255,255,255,.05); }
+  }
+  .ore.appear { animation: appear .55s cubic-bezier(.2,.9,.3,1); }
+  @keyframes appear {
+    0%   { opacity: 0; transform: translate(-50%,-50%) scale(.84); }
+    55%  { opacity: 1; }
+    100% { opacity: .92; transform: translate(-50%,-50%) scale(1); }
+  }
+  .ore.hit { animation: hit .34s ease-out; }
+  @keyframes hit {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ore) 60%, transparent),
+                       0 10px 26px -12px #000; }
+    100% { box-shadow: 0 0 0 14px transparent, 0 10px 26px -12px #000; }
+  }
+
+  .obody { cursor: pointer; }
+  .obody:hover .ore-name { text-shadow: 0 0 22px var(--ore); }
+  .ore.passive .obody { cursor: inherit; }
+
+  .ore-head { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+  .ore-name {
+    font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ore); font-size: 12.5px;
+    text-shadow: 0 0 16px color-mix(in srgb, var(--ore) 55%, transparent);
+  }
+  .ore-tags { margin-left: auto; display: flex; gap: 5px; }
+  .tag {
+    font-size: 9px; font-weight: 600; letter-spacing: .1em;
+    padding: 2px 5px; border-radius: 4px;
+    background: #262d3c; color: var(--dim); border: 1px solid #333c4f;
+  }
+  .tag.on {
+    background: rgba(110,231,168,.14); color: var(--good);
+    border-color: rgba(110,231,168,.38); box-shadow: 0 0 12px -4px var(--good);
+  }
+  .tag.cold {
+    background: rgba(95,120,160,.14); color: #7f93b4; border-color: rgba(95,120,160,.4);
+  }
+
+  .amt { display: flex; align-items: baseline; gap: 7px; margin-bottom: 8px; }
+  .amt .cur {
+    font-family: var(--mono); font-size: var(--amt-size); font-weight: 700;
+    line-height: 1; letter-spacing: -.02em; color: var(--ore);
+    text-shadow: 0 0 26px color-mix(in srgb, var(--ore) 60%, transparent);
+  }
+  .amt .capv { font-family: var(--mono); font-size: 13px; color: var(--dimmer); letter-spacing: .08em; }
+  .amt .rate {
+    margin-left: auto; font-family: var(--mono); font-size: 12px;
+    color: var(--good); text-shadow: 0 0 14px rgba(110,231,168,.45);
+  }
+  .amt .rate.neg { color: var(--dimmer); text-shadow: none; }
+
+  .trackrow { display: flex; align-items: center; gap: 7px; }
+  .trackrow .track { flex: 1 1 auto; min-width: 0; }
+  .cur.tick { animation: tick .34s ease-out; }
+  @keyframes tick {
+    0%   { color: var(--ore); text-shadow: 0 0 26px color-mix(in srgb, var(--ore) 60%, transparent); }
+    20%  { color: #fff;       text-shadow: 0 0 12px #fff, 0 0 38px var(--ore); }
+    100% { color: var(--ore); text-shadow: 0 0 26px color-mix(in srgb, var(--ore) 60%, transparent); }
+  }
+  .ore.full .cur { color: var(--ember-hot); animation: fullPulse 1.1s ease-in-out infinite; }
+  @keyframes fullPulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+  .track {
+    position: relative; height: 24px; border-radius: 5px;
+    background: #06070a; border: 1px solid #262d3c; overflow: hidden;
+    box-shadow: inset 0 2px 7px rgba(0,0,0,.85);
+  }
+  .fill {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background:
+      linear-gradient(100deg,
+        color-mix(in srgb, var(--ore) 30%, #000) 0%, var(--ore) 42%,
+        color-mix(in srgb, var(--ore) 55%, #fff) 52%, var(--ore) 62%,
+        color-mix(in srgb, var(--ore) 30%, #000) 100%);
+    background-size: 260% 100%; animation: molten 3.4s linear infinite;
+    box-shadow: 0 0 18px -3px var(--ore); transition: width .14s linear;
+  }
+  @keyframes molten { from { background-position: 160% 0; } to { background-position: -100% 0; } }
+  .gloss {
+    position: absolute; inset: 0 0 auto 0; height: 45%;
+    background: linear-gradient(180deg, rgba(255,255,255,.20), transparent); pointer-events: none;
+  }
+  .tstatus {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .14em;
+    color: rgba(255,255,255,.92); text-shadow: 0 1px 5px #000, 0 0 12px #000;
+    pointer-events: none; opacity: .62; transition: opacity .2s;
+  }
+  .obody:hover .tstatus, .ore.run .tstatus { opacity: 1; }
+  .tstatus.go { color: var(--ember-hot); animation: fullPulse 1.3s ease-in-out infinite; }
+  .tstatus.cold { color: #8fa6c8; }
+  .tstatus.stuck { color: var(--bad); }
+
+  .cycbar {
+    height: 6px; margin-top: 5px; border-radius: 3px; overflow: hidden;
+    background: #06070a; border: 1px solid #1f2532;
+  }
+  .cyc {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--ember-dim), var(--ember-hot));
+    box-shadow: 0 0 10px var(--ember);
+    opacity: 0; transition: opacity .2s;
+  }
+  .cyc.on { opacity: 1; }
+  .cyc.burn {
+    background: linear-gradient(90deg, #d96820, #fff0c0);
+    box-shadow: 0 0 14px var(--ember-hot);
+  }
+  .cyc.cool {
+    background: linear-gradient(90deg, #2b3546, #55627d);
+    box-shadow: none;
+  }
+  .cyc.auto {
+    background: linear-gradient(90deg, #2f6e4c, var(--good));
+    box-shadow: 0 0 10px rgba(110,231,168,.5);
+  }
+
+  /* ---- the casting bench ---- */
+  .mrow { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
+  .moulds { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 5px; }
+  .mould {
+    flex: 1 1 26px; min-width: 26px; height: 30px; padding: 0;
+    position: relative; overflow: hidden;
+    border: 1px solid #2b3242; border-radius: 6px;
+    background: linear-gradient(180deg, #0f1219, #080a0f);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.8);
+    cursor: pointer; font-family: var(--mono);
+    transition: border-color .14s, box-shadow .14s, opacity .14s, transform .1s;
+  }
+  .mcool { position: absolute; inset: 0 auto 0 0; width: 0%;
+           background: linear-gradient(180deg, #46536b, #2b3546);
+           transition: width .12s linear; }
+  .mhot { position: absolute; inset: 0;
+          background: linear-gradient(180deg, #ffb457, #d1610f);
+          box-shadow: 0 0 12px var(--ember); transition: opacity .12s linear; }
+  .msym {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8.5px; font-weight: 700; letter-spacing: .06em;
+    color: var(--dimmer); text-shadow: 0 1px 3px #000;
+  }
+  .mould.empty:hover { border-color: var(--ore); box-shadow: 0 0 14px -5px var(--ore); }
+  .mould.empty:hover .msym { color: var(--ore); }
+  .mould.empty.no { opacity: .38; cursor: default; }
+  .mould.cool { cursor: default; border-color: #3d4557; }
+  .mould.cool .msym { color: #f0e0c8; }
+  .mould.ready {
+    border-color: var(--ore);
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--ore) 62%, #000),
+      color-mix(in srgb, var(--ore) 26%, #000));
+    animation: mready 1.2s ease-in-out infinite;
+  }
+  .mould.ready .msym { color: #10131a; text-shadow: none; }
+  .mould.ready.no { animation: none; opacity: .55; cursor: default; }
+  @keyframes mready {
+    0%,100% { box-shadow: 0 0 12px -5px var(--ore), inset 0 1px 0 rgba(255,255,255,.22); }
+    50%     { box-shadow: 0 0 24px -2px var(--ore), inset 0 1px 0 rgba(255,255,255,.34); }
+  }
+  .mould:active:not(.cool):not(.no) { transform: scale(.94); }
+
+  .lockmsg {
+    font-family: var(--mono); font-size: 11px; color: var(--dimmer);
+    text-align: center; letter-spacing: .05em; line-height: 1.65; padding: 3px 0 1px;
+  }
+  .lockmsg b { color: var(--dim); font-weight: 600; }
+
+  .float {
+    position: absolute; z-index: 30; pointer-events: none;
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    text-shadow: 0 0 20px currentColor, 0 2px 6px #000;
+    animation: rise 1.05s cubic-bezier(.2,.7,.3,1) forwards;
+  }
+  @keyframes rise {
+    0%   { opacity: 0; transform: translate(-50%, 6px)   scale(.7); }
+    18%  { opacity: 1; transform: translate(-50%, -6px)  scale(1.14); }
+    100% { opacity: 0; transform: translate(-50%, -74px) scale(1); }
+  }
+
+  /* ================= items, slots, the bag ================= */
+
+  /* One slot, one item. The same box is used in the bag (screen space) and on
+     the crafting table (world space) — only the size differs. */
+  .slot, .ccell, .cout, .eslot {
+    position: relative; width: var(--slot); height: var(--slot);
+    border-radius: 7px; background: #06070a; border: 1px solid #262d3c;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.8);
+    touch-action: none;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .slot.over, .ccell.over, .eslot.over {
+    border-color: var(--ember);
+    box-shadow: 0 0 14px -3px var(--ember), inset 0 2px 6px rgba(0,0,0,.8);
+  }
+  .slot.got { animation: got .5s ease-out; }
+  @keyframes got {
+    0%   { border-color: #fff; box-shadow: 0 0 18px -2px #fff, inset 0 2px 6px rgba(0,0,0,.8); }
+    100% { border-color: #262d3c; box-shadow: inset 0 2px 6px rgba(0,0,0,.8); }
+  }
+  .item {
+    position: absolute; inset: 4px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 800; font-size: 12px; letter-spacing: .02em;
+    color: #0b0d12; cursor: grab;
+    background: linear-gradient(160deg,
+      color-mix(in srgb, var(--ic) 30%, #1a1f2a) 0%,
+      color-mix(in srgb, var(--ic) 14%, #10131a) 100%);
+    border: 1px solid color-mix(in srgb, var(--ic) 55%, transparent);
+    box-shadow: 0 2px 6px -2px #000, inset 0 1px 0 rgba(255,255,255,.12), 0 0 12px -6px var(--ic);
+  }
+  .item svg { width: 80%; height: 80%; display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+  .item.tool { border: 1.5px solid rgba(255,255,255,.55); font-size: 11px; }
+  .item.no { opacity: .35; cursor: default; }
+  .oicon { display: inline-flex; flex: none; }
+  .oicon svg { width: 19px; height: 19px; display: block; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ore) 50%, transparent)); }
+  /* the equipment rack: one slot per kind of tool, labelled underneath */
+  .erow { display: flex; justify-content: center; gap: 14px; margin-top: 4px; }
+  .eslot { width: var(--cell); height: var(--cell); }
+  .eslot .item { inset: 3px; }
+  .eslot.over { border-color: var(--ember); box-shadow: 0 0 14px -3px var(--ember), inset 0 2px 6px rgba(0,0,0,.8); }
+  .eslot.bad.over { border-color: var(--bad); box-shadow: 0 0 14px -3px var(--bad), inset 0 2px 6px rgba(0,0,0,.8); }
+  .eslot.src .item { opacity: .28; }
+  .eghost { position: absolute; inset: 6px; opacity: .22; pointer-events: none; }
+  .eghost svg { width: 100%; height: 100%; display: block; }
+  .ewrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .elabel { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; color: var(--dimmer); }
+  .ewrap.on .elabel { color: var(--good); }
+  .pcell svg { width: 78%; height: 78%; }
+  .ucost svg, #upop .pc svg { width: 13px; height: 13px; vertical-align: -2px; display: inline-block; }
+  #trash svg { width: 22px; height: 22px; display: block; opacity: .6; }
+  #trash.over svg { opacity: 1; }
+
+  /* the item card: hover an item for a moment and it says what it is */
+  #itip {
+    position: fixed; z-index: 210; width: 240px; pointer-events: none;
+    padding: 12px 14px; border-radius: 10px;
+    background: rgba(9,12,18,.975);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--line2); box-shadow: 0 18px 40px -16px #000;
+    display: none;
+  }
+  #itip.show { display: block; }
+  #itip .ih { display: flex; align-items: center; gap: 9px; }
+  #itip .ih svg { width: 26px; height: 26px; flex: none; }
+  #itip .in { font-size: 15px; font-weight: 700; color: var(--ic); }
+  #itip .ik { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--dimmer); margin-top: 1px; }
+  #itip .id { font-size: 12.5px; color: var(--dim); margin-top: 8px; line-height: 1.45; }
+  #itip .is { margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.07); }
+  #itip .is .sh { font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; color: var(--dimmer); margin-bottom: 4px; }
+  #itip .is .sl { font-family: var(--mono); font-size: 12px; color: var(--text); display: flex; justify-content: space-between; gap: 8px; }
+  #itip .is .sl b { color: var(--good); font-weight: 700; }
+  #itip .is .sl.off b { color: var(--dimmer); }
+  #itip .is .sn { font-family: var(--mono); font-size: 11px; color: var(--dimmer); font-style: italic; }
+  .slot.src .item, .ccell.src .item { opacity: .28; }
+  .item:active { cursor: grabbing; }
+
+  #ghost {
+    position: fixed; z-index: 200; pointer-events: none;
+    width: var(--slot); height: var(--slot);
+    transform: translate(-50%, -50%) scale(1.1) rotate(-3deg);
+    display: none;
+  }
+  #ghost.show { display: block; }
+  #ghost .item { inset: 2px; box-shadow: 0 14px 24px -8px #000, inset 0 1px 0 rgba(255,255,255,.4); }
+
+  #invbar {
+    flex: none; position: relative; z-index: 30;
+    display: flex; align-items: center; justify-content: center; gap: 22px;
+    padding: 9px 18px 11px;
+    background: linear-gradient(180deg, #0d1017, #090b10);
+    border-top: 1px solid var(--line2);
+    box-shadow: 0 -14px 34px -16px #000;
+  }
+  #invinfo { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
+  #invinfo .l1 { font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: var(--dimmer); }
+  #invinfo .l1 b { color: var(--ember-dim); letter-spacing: .32em; }
+  #invinfo .l2 { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+  #invinfo .l2.full { color: var(--bad); }
+  #invinfo .l3 { font-size: 10px; color: #4b5164; letter-spacing: .05em; line-height: 1.4; max-width: 140px; }
+  #invgrid { display: grid; grid-template-columns: repeat(9, var(--slot)); gap: 5px; }
+
+  #trash {
+    width: 74px; height: calc(var(--slot) * 1.5); border-radius: 9px;
+    border: 1px dashed #3a3f52; color: #4b5164; background: rgba(0,0,0,.25);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    font-size: 9px; letter-spacing: .2em; text-transform: uppercase; font-weight: 600;
+    transition: all .12s;
+  }
+  #trash .tico { line-height: 1; }
+  #trash.armed { border-color: #5a4040; color: #8a5a5a; }
+  #trash.over {
+    border-style: solid; border-color: var(--bad); color: var(--bad);
+    background: rgba(239,107,107,.14); box-shadow: 0 0 20px -4px var(--bad);
+  }
+
+  /* ---- the crafting table ---- */
+  .crow { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 4px; }
+  .cgrid { display: grid; grid-template-columns: repeat(3, var(--cell)); gap: 4px; }
+  .ccell, .cout { width: var(--cell); height: var(--cell); }
+  .ccell .item, .cout .item { inset: 3px; font-size: 11px; }
+  .carrow { font-size: 22px; color: var(--dimmer); font-family: var(--mono); }
+  .carrow.go { color: var(--ember-hot); text-shadow: 0 0 14px var(--ember); animation: fullPulse 1.3s ease-in-out infinite; }
+  .cout { width: calc(var(--cell) * 1.25); height: calc(var(--cell) * 1.25); border-color: #3a3325; }
+  .cout .item { inset: 4px; font-size: 13px; }
+  .cout.has { border-color: var(--ore); box-shadow: 0 0 18px -5px var(--ore), inset 0 2px 6px rgba(0,0,0,.8); }
+  .cstat {
+    margin-top: 8px; text-align: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .14em;
+    color: var(--dim); min-height: 13px;
+  }
+  .cstat.go { color: var(--ember-hot); }
+  .rbook { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 8px; padding-top: 8px;
+           border-top: 1px solid rgba(255,255,255,.06); }
+  .rbtn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .06em; padding: 4px 8px;
+    border-radius: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.03);
+    color: var(--dim); cursor: pointer; transition: all .12s;
+  }
+  .rbtn:hover { border-color: var(--line2); color: var(--text); }
+  .rbtn.can { border-color: rgba(110,231,168,.45); color: var(--good); }
+  .rbtn.made { opacity: .55; }
+
+  /* a recipe pattern drawn inside the hover card */
+  .pgrid { display: grid; grid-template-columns: repeat(3, 30px); gap: 3px; margin: 10px 0 4px; }
+  .pcell {
+    width: 30px; height: 30px; border-radius: 5px; background: #06070a; border: 1px solid #262d3c;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 800; color: #0b0d12;
+  }
+  .pcell.has { background: color-mix(in srgb, var(--ic) 22%, #141821); border-color: color-mix(in srgb, var(--ic) 55%, transparent); }
+
+  /* ========== upgrades ========== */
+
+  .ustrip {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    margin-top: 9px; padding-top: 9px;
+    border-top: 1px solid rgba(255,255,255,.06);
+  }
+  .uslot { display: inline-flex; align-items: center; flex: none; }
+
+  .utext {
+    --uc: var(--line2);
+    position: relative; display: block; width: 100%;
+    padding: 8px 12px; margin: 0;
+    border: 1px solid color-mix(in srgb, var(--uc) 42%, var(--line));
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--uc) 15%, var(--panel3)),
+        color-mix(in srgb, var(--uc) 7%,  var(--panel2)));
+    text-align: left; font-family: var(--mono);
+    font-size: 11px; letter-spacing: .04em; line-height: 1.2;
+    color: var(--dim); cursor: pointer;
+    transition: border-color .13s, box-shadow .13s, color .13s, opacity .13s, transform .1s;
+  }
+  .ulabel { position: relative; z-index: 2; }
+  .utext.can {
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 78%, #fff);
+    box-shadow: 0 0 15px -3px var(--uc), inset 0 0 14px -9px var(--uc);
+  }
+  .utext:hover:not(.max) {
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 78%, #fff);
+    box-shadow: 0 0 20px -4px var(--uc);
+  }
+  .utext:active:not(.max) { transform: scale(.985); }
+  .utext.gated { opacity: .45; }
+  .utext.max { opacity: .35; cursor: default; border-style: dashed; }
+
+  .ubtn {
+    --uc: var(--line2);
+    position: relative; flex: none;
+    width: 28px; height: 28px; padding: 0;
+    border: 1px solid color-mix(in srgb, var(--uc) 42%, var(--line));
+    border-radius: 7px;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--uc) 15%, var(--panel3)),
+        color-mix(in srgb, var(--uc) 7%,  var(--panel2)));
+    color: var(--dim); cursor: pointer; font-family: var(--font);
+    transition: border-color .13s, box-shadow .13s, color .13s, opacity .13s, transform .1s;
+  }
+  .uplus { position: absolute; inset: 0; z-index: 2; }
+  .uplus::before, .uplus::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    background: currentColor; border-radius: 1px;
+    transform: translate(-50%, -50%);
+  }
+  .uplus::before { width: 13px; height: 2.5px; }
+  .uplus::after  { width: 2.5px; height: 13px; }
+
+  .uring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;
+           pointer-events: none; z-index: 3; }
+  .uringbar {
+    fill: none; stroke: var(--uc); stroke-width: 2; stroke-linecap: butt;
+    transition: stroke-dasharray .18s linear;
+  }
+  .ubtn.can .uringbar { stroke-width: 2.5; }
+  .ubtn.can {
+    border-color: var(--uc);
+    color: color-mix(in srgb, var(--uc) 72%, #fff);
+    box-shadow: 0 0 15px -3px var(--uc), inset 0 0 12px -8px var(--uc);
+  }
+  .ubtn:hover:not(.max) {
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 72%, #fff);
+    box-shadow: 0 0 20px -4px var(--uc);
+  }
+  .ubtn:active:not(.max) { transform: scale(.9); }
+  .ubtn.gated { opacity: .45; }
+  .ubtn.max { opacity: .3; cursor: default; border-style: dashed; }
+  .ubtn.max .uringbar, .utext.max .uringbar { display: none; }
+
+  .utile {
+    --uc: var(--line2);
+    position: relative; flex: none;
+    width: 46px; min-height: 50px; padding: 4px 3px 3px;
+    border: 1px solid color-mix(in srgb, var(--uc) 45%, var(--line));
+    border-radius: 7px;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--uc) 15%, var(--panel3)),
+        color-mix(in srgb, var(--uc) 7%,  var(--panel2)));
+    color: var(--dim); cursor: pointer; font-family: var(--font);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    transition: border-color .13s, transform .1s, box-shadow .13s, color .13s, opacity .13s;
+  }
+  .utile.wide { width: auto; padding: 6px 14px 5px; }
+  .usym { position: relative; z-index: 2; font-size: 11.5px; font-weight: 800; letter-spacing: .03em; line-height: 1; }
+  .ucost {
+    position: relative; z-index: 2;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700; line-height: 1;
+    color: var(--pricec, var(--dimmer)); white-space: nowrap;
+  }
+  .utile.wide .ucost { font-size: 11px; display: flex; gap: 8px; }
+  .uprog { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+  .uprog::before, .uprog::after {
+    content: ''; position: absolute; left: 0; height: 2px; width: var(--p, 0%);
+    background: var(--uc); box-shadow: 0 0 7px var(--uc);
+    border-radius: 2px; transition: width .18s linear;
+  }
+  .uprog::before { top: -1px; }
+  .uprog::after  { bottom: -1px; }
+  .utile.can { border-color: var(--uc); color: color-mix(in srgb, var(--uc) 70%, #fff); box-shadow: 0 0 15px -3px var(--uc); }
+  .utile.gated { opacity: .5; }
+  .utile:hover:not(.max) {
+    transform: translateY(-2px);
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 70%, #fff);
+    box-shadow: 0 8px 16px -8px #000, 0 0 20px -5px var(--uc);
+  }
+  .utile:active:not(.max) { transform: translateY(0) scale(.94); }
+  .utile.max { opacity: .38; cursor: default; border-style: dashed; }
+
+  #upop {
+    position: absolute; z-index: 40; width: 300px; pointer-events: none;
+    padding: 15px 17px; border-radius: 12px;
+    background: rgba(9,12,18,.975);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--line2); box-shadow: 0 22px 50px -18px #000;
+    opacity: 0; transition: opacity .12s;
+  }
+  #upop.show { opacity: 1; }
+  #upop .pt { font-size: 18px; font-weight: 700; letter-spacing: .01em; line-height: 1.25; }
+  #upop .pe { font-size: 15.5px; color: var(--text); margin-top: 9px; line-height: 1.5; }
+  #upop .pe em { color: var(--ember); font-style: normal; font-weight: 700; }
+  #upop .pe b { color: var(--ember-hot); font-weight: 700; }
+  #upop .pd { font-size: 13.5px; color: var(--dim); margin-top: 9px; line-height: 1.45; }
+  #upop .pc { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; font-family: var(--mono); font-size: 14px; }
+  #upop .pc span {
+    padding: 5px 10px; border-radius: 6px; border: 1px solid transparent;
+    display: inline-flex; align-items: center; gap: 7px; font-weight: 600;
+  }
+  #upop .pc span::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--c); box-shadow: 0 0 7px var(--c);
+  }
+  #upop .pc span.ok    { color: var(--text); background: #10141c; border-color: var(--line); }
+  #upop .pc span.short { color: var(--bad); background: rgba(239,107,107,.10); border-color: rgba(239,107,107,.32); }
+
+  /* the bag shrinks its slots before it ever overflows the window */
+  @media (max-width: 900px) { #invbar { --slot: 40px; gap: 14px; } #invinfo .l3 { display: none; } }
+  @media (max-width: 700px) { #invbar { --slot: 34px; gap: 10px; padding: 8px 10px 9px; } #invinfo { display: none; } #trash { width: 46px; } }
+  @media (max-width: 520px) { #invbar { --slot: 28px; } #invgrid { gap: 3px; } }
+</style>
+</head>
+<body>
+<div id="forge">
+  <div id="embers"></div>
+  <div id="world">
+    <svg id="arc"></svg>
+    <div id="linklabels"></div>
+  </div>
+  <div id="title"><b>SMELTWORKS</b> &middot; v3</div>
+  <div id="hint">
+    click a tile for one swing &middot; the item lands in the bag below &middot; a swing you walk away from keeps its progress<br>
+    drag items between the bag, the bin, the crafting grid and the equipment rack &middot; a tool only counts once it is worn<br>
+    click the furnace to burn a log &middot; iron stays molten until you pour a mould &middot; [space] next tile &middot; [0] refits the view
+  </div>
+  <div id="camui">
+    <button class="zbtn" id="cam-out" title="zoom out">&minus;</button>
+    <span id="zlevel">100%</span>
+    <button class="zbtn" id="cam-in" title="zoom in">+</button>
+    <button id="cam-fit">fit</button>
+    <button id="btn-reset">reset</button>
+  </div>
+  <div id="upop"></div>
+</div>
+<div id="invbar">
+  <div id="invinfo">
+    <div class="l1"><b>THE BAG</b></div>
+    <div class="l2" id="invcount">0 / 18</div>
+    <div class="l3" id="invnote">one item per slot &middot; craft a chest for another row</div>
+  </div>
+  <div id="invgrid"></div>
+  <div id="trash"><span class="tico"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 10.5v6M14 10.5v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>BIN</div>
+</div>
+<div id="ghost"></div>
+<div id="itip"></div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   ITEMS — everything that can sit in a slot
+   ========================================================================= */
+
+const ITEMS = {
+  wood:       { name:'Wood',       sym:'Wd', color:'#d68a4c', desc:'A log. Fuel for the furnace, handles for tools.' },
+  stone:      { name:'Stone',      sym:'St', color:'#a9a49b', desc:'A block. Builds the furnace, heads for stone tools.' },
+  iron:       { name:'Molten Iron', sym:'Fe', color:'#c3d2e6', pooled:true,
+                desc:'Poured by the furnace and kept molten in the crucible. Never carried — two of it fill a mould.' },
+  bars:       { name:'Iron Bar',   sym:'Br', color:'#e6cdb8', desc:'A set bar from the moulds. Heads for iron tools.' },
+  adamantite: { name:'Adamantite', sym:'Ad', color:'#f0637f', desc:'The top of the ladder.' },
+  chest:      { name:'Chest',      sym:'Ch', color:'#c9a24d', place:true,
+                desc:'Placed the moment it is crafted: another row of nine slots in the bag.' },
+  stone_axe:  { name:'Stone Axe',  sym:'Ax', color:'#b8b3aa', slot:'axe',  tool:{ wood:1.6 },
+                desc:'Chops wood faster. Does nothing in the bag — put it on the rack.' },
+  stone_pick: { name:'Stone Pick', sym:'Pk', color:'#b8b3aa', slot:'pick', tool:{ stone:1.6, adamantite:1.3 },
+                desc:'Quarries faster. Does nothing in the bag — put it on the rack.' },
+  iron_axe:   { name:'Iron Axe',   sym:'Ax', color:'#dbe6f3', slot:'axe',  tool:{ wood:2.5 },
+                desc:'Chops wood much faster. Does nothing in the bag — put it on the rack.' },
+  iron_pick:  { name:'Iron Pick',  sym:'Pk', color:'#dbe6f3', slot:'pick', tool:{ stone:2.5, adamantite:2 },
+                desc:'Quarries much faster. Does nothing in the bag — put it on the rack.' },
+  tongs:      { name:'Tongs',      sym:'Tg', color:'#c9b39d', slot:'tongs', tool:{ bars:1.6 },
+                desc:'Moulds set faster. Does nothing in the bag — put them on the rack.' },
+};
+const KIND = { wood:'RESOURCE', stone:'RESOURCE', iron:'RESOURCE', bars:'RESOURCE', adamantite:'RESOURCE',
+               chest:'FURNITURE', stone_axe:'TOOL · AXE', stone_pick:'TOOL · PICK', iron_axe:'TOOL · AXE',
+               iron_pick:'TOOL · PICK', tongs:'TOOL · TONGS' };
+
+/* the rack has one slot per kind of tool; an item only counts while it is in its slot */
+const EQUIP_SLOTS = [
+  { id:'axe',   name:'AXE',   hint:'an axe, for wood' },
+  { id:'pick',  name:'PICK',  hint:'a pick, for stone and adamantite' },
+  { id:'tongs', name:'TONGS', hint:'tongs, for the moulds' },
+];
+
+/* ---- icons: every item and tile, drawn inline so nothing is fetched ---- */
+function axeIcon(head, edge) {
+  return '<svg viewBox="0 0 24 24"><path d="M5 20 L14.5 10.5" stroke="#8a5a2b" stroke-width="2.6" stroke-linecap="round"/>' +
+         '<path d="M11 4 L19 4 C21.5 7 21.5 10.5 19 13.5 L12.5 10 Z" fill="' + head + '"/>' +
+         '<path d="M19 4 C21.5 7 21.5 10.5 19 13.5 L18 12 C19.5 9.5 19.5 7.5 18 5.5 Z" fill="' + edge + '"/></svg>';
+}
+function pickIcon(head, edge) {
+  return '<svg viewBox="0 0 24 24"><path d="M6 20.5 L12 7" stroke="#8a5a2b" stroke-width="2.6" stroke-linecap="round"/>' +
+         '<path d="M3 10.5 Q12 0.5 21 10.5 Q12 6.5 3 10.5 Z" fill="' + head + '"/>' +
+         '<path d="M3 10.5 Q12 0.5 21 10.5 Q20 8 12 4 Q4 8 3 10.5 Z" fill="' + edge + '" opacity=".7"/></svg>';
+}
+function tongsIcon(c, pin) {
+  return '<svg viewBox="0 0 24 24"><path d="M5 3.5 L14 18 M19 3.5 L10 18" stroke="' + c + '" stroke-width="2.3" stroke-linecap="round"/>' +
+         '<path d="M14 18 Q12 21.5 10 18" stroke="' + c + '" stroke-width="2.3" fill="none" stroke-linecap="round"/>' +
+         (pin ? '<circle cx="12" cy="10.8" r="1.7" fill="' + pin + '"/>' : '') + '</svg>';
+}
+const ICONS = {
+  wood: '<svg viewBox="0 0 24 24"><rect x="2.5" y="8" width="17" height="9" rx="3" fill="#8a5a2b"/><path d="M5 10.5h9M5 14.5h8" stroke="#6b421d" stroke-width="1" stroke-linecap="round"/><ellipse cx="18.5" cy="12.5" rx="3" ry="4.5" fill="#d9a56a"/><ellipse cx="18.5" cy="12.5" rx="1.5" ry="2.3" fill="#a9733f"/><ellipse cx="18.5" cy="12.5" rx=".6" ry="1" fill="#6b421d"/></svg>',
+  stone: '<svg viewBox="0 0 24 24"><path d="M4 16 L7 8 L13 5 L19 9 L20 16 L15 20 L7 20 Z" fill="#8f8a80"/><path d="M7 8 L13 5 L19 9 L13 11 Z" fill="#bab5ab"/><path d="M13 11 L20 16 L15 20 Z" fill="#6e6a62"/></svg>',
+  iron: '<svg viewBox="0 0 24 24"><path d="M5 15 L8 8 L14 6 L19 10 L18 17 L12 20 L6 19 Z" fill="#6b7686"/><path d="M8 8 L14 6 L19 10 L13 12 Z" fill="#9aa8bb"/><circle cx="10" cy="14.5" r="1.7" fill="#dbe6f3"/><circle cx="15" cy="15.5" r="1.2" fill="#dbe6f3"/></svg>',
+  bars: '<svg viewBox="0 0 24 24"><path d="M3 17 L6 9 L18 9 L21 17 Z" fill="#c9b39d"/><path d="M6 9 L18 9 L19.5 13 L4.5 13 Z" fill="#efe0cf"/><rect x="3" y="17" width="18" height="1.8" fill="#8f7b68"/></svg>',
+  adamantite: '<svg viewBox="0 0 24 24"><path d="M7 4 L17 4 L22 10 L12 21 L2 10 Z" fill="#e0476a"/><path d="M7 4 L12 10 L17 4 Z" fill="#ff9ab0"/><path d="M2 10 L12 10 L12 21 Z" fill="#b8324f"/><path d="M12 10 L22 10 L12 21 Z" fill="#f06a88"/></svg>',
+  chest: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2" fill="#8a5a2b"/><rect x="3" y="6" width="18" height="5.5" rx="2" fill="#b07a3c"/><rect x="3" y="11" width="18" height="1.5" fill="#5a3a18"/><rect x="10.5" y="9.5" width="3" height="4" rx=".6" fill="#e8c35a"/></svg>',
+  stone_axe: axeIcon('#9b968c', '#c9c4ba'),
+  iron_axe:  axeIcon('#b6c3d4', '#e6eef8'),
+  stone_pick: pickIcon('#9b968c', '#c9c4ba'),
+  iron_pick:  pickIcon('#b6c3d4', '#e6eef8'),
+  tongs: tongsIcon('#c9b39d', '#5a4a3a'),
+  furnace: '<svg viewBox="0 0 24 24"><path d="M12 2 C13 7 17 8.5 17 13.5 A5 5 0 0 1 7 13.5 C7 10.5 9 9.5 9.5 6.5 C10.5 8.5 11.6 8 12 2 Z" fill="#f3ad55"/><path d="M12 10 C12.5 12.8 14.5 13.3 14.5 15.5 A2.5 2.5 0 0 1 9.5 15.5 C9.5 13.3 11.5 12.8 12 10 Z" fill="#ffe08a"/><rect x="5" y="19" width="14" height="2.5" rx="1" fill="#6b4a2b"/></svg>',
+  craft: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="#8a5a2b"/><g fill="#d9a86c"><rect x="5" y="5" width="4" height="4" rx=".8"/><rect x="10" y="5" width="4" height="4" rx=".8"/><rect x="15" y="5" width="4" height="4" rx=".8"/><rect x="5" y="10" width="4" height="4" rx=".8"/><rect x="10" y="10" width="4" height="4" rx=".8"/><rect x="15" y="10" width="4" height="4" rx=".8"/><rect x="5" y="15" width="4" height="4" rx=".8"/><rect x="10" y="15" width="4" height="4" rx=".8"/><rect x="15" y="15" width="4" height="4" rx=".8"/></g></svg>',
+  equip: '<svg viewBox="0 0 24 24"><path d="M8 3 L11 5 L13 5 L16 3 L21 6.5 L19 10.5 L17 9.5 L17 21 L7 21 L7 9.5 L5 10.5 L3 6.5 Z" fill="#9fb3a0"/><path d="M11 5 L13 5 L12 8 Z" fill="#5f7360"/></svg>',
+  moulds: '<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="2" fill="#4a4237"/><g fill="#e6cdb8"><rect x="4" y="9" width="4.5" height="6" rx="1"/><rect x="9.75" y="9" width="4.5" height="6" rx="1"/><rect x="15.5" y="9" width="4.5" height="6" rx="1"/></g></svg>',
+  axeslot:  axeIcon('#7a8090', '#9aa2b2'),
+  pickslot: pickIcon('#7a8090', '#9aa2b2'),
+  tongsslot: tongsIcon('#8a90a0', null),
+};
+function icon(id) { return ICONS[id] || ''; }
+/* the icon a tile wears in its header */
+function tileIcon(d) { return icon(d.casting ? 'moulds' : d.id); }
+
+/* Shaped recipes, Minecraft-style: the pattern can sit anywhere on the 3×3
+   and may be mirrored left-to-right, but nothing else may be on the grid. */
+const RECIPES = [
+  { out:'chest',      shape:[['wood','wood','wood'], ['wood',null,'wood'], ['wood','wood','wood']] },
+  { out:'stone_axe',  shape:[['stone','stone'], ['stone','wood'], [null,'wood']] },
+  { out:'stone_pick', shape:[['stone','stone','stone'], [null,'wood',null], [null,'wood',null]] },
+  { out:'iron_axe',   shape:[['bars','bars'], ['bars','wood'], [null,'wood']] },
+  { out:'iron_pick',  shape:[['bars','bars','bars'], [null,'wood',null], [null,'wood',null]] },
+  { out:'tongs',      shape:[['bars',null,'bars'], [null,'wood',null]] },
+];
+
+const INV_COLS = 9, INV_ROWS_START = 2, INV_ROWS_MAX = 5;
+
+/* =========================================================================
+   TILE DEFINITIONS
+   Wood -> Stone -> [Furnace] -> Iron -> [Moulds] -> Adamantite, plus the
+   crafting table off to the side, paid in wood.
+   ========================================================================= */
+
+const FURNACE_ID           = 'furnace';
+const CRAFT_ID             = 'craft';
+const EQUIP_ID             = 'equip';
+const FURNACE_HEAT_MAX     = 100;
+const FURNACE_STOKE_COST   = 1;     // logs per stoke
+const FURNACE_HEAT_GAIN    = 25;
+const FURNACE_BURN_TIME    = 4.0;
+const FURNACE_COOLDOWN     = 14.0;
+const FURNACE_IDLE_COOL    = 0.20;
+const SMELT_HEAT_DRAIN     = 0.30;
+const HEAT_LOSS_K          = 0.0405;
+const IRON_POUR_TIME       = 2;     // seconds per unit of molten iron at full heat — one stoke pours about one
+const MOLTEN_CAP           = 12;    // what the crucible holds before any upgrade
+const MOLTEN_PER_LEVEL     = 6;     // each Bigger Crucible level adds this
+const BELLOWS_STEP         = 0.80;
+const STOKER_STEP          = 0.85;
+const BELLOWS_FLOOR        = 1.5;
+
+const MOULD_FILL_COST      = 2;     // iron per mould
+const MOULD_COOL_TIME      = 8;
+const MOULD_BASE           = 3;
+const MOULD_PER_LEVEL      = 1;
+
+const ORES = [
+  { id:'wood',       name:'Wood',       sym:'Wd', color:'#d68a4c', tier:1,
+    unit:'logs',   verb:'CHOP',   time:7.5, unlock:null },
+  { id:'stone',      name:'Stone',      sym:'St', color:'#a9a49b', tier:2,
+    unit:'blocks', verb:'QUARRY', time:9, unlock:{ wood:10 } },
+  { id:'furnace',    name:'Furnace',    sym:'Fu', color:'#f3ad55', facility:true,
+    unlock:{ stone:8 } },
+  { id:'craft',      name:'Crafting Table', sym:'Ct', color:'#d9a86c', facility:true, crafting:true,
+    unlock:{ wood:5 } },
+  { id:'equip',      name:'Equipment',  sym:'Eq', color:'#9fb3a0', facility:true, equipment:true,
+    unlock:{ stone:4 } },
+  { id:'iron',       name:'Iron',       sym:'Fe', color:'#c3d2e6', tier:3,
+    unit:'iron', verb:'SMELT', heatDriven:true, unlock:null, opensWith: FURNACE_ID },
+  { id:'bars',       name:'Moulds',     sym:'Br', color:'#e6cdb8', tier:4,
+    res:'Iron Bars', unit:'bars', verb:'CAST', casting:true, unlock:{ iron:6 } },
+  { id:'adamantite', name:'Adamantite', sym:'Ad', color:'#f0637f', tier:5,
+    unit:'ingots', verb:'SMELT', time:15, unlock:{ bars:5, iron:5, stone:5 } },
+];
+
+const BY_ID = {};
+ORES.forEach(o => BY_ID[o.id] = o);
+
+function resName(id) { const it = ITEMS[id]; if (it) return it.name; const d = BY_ID[id]; return d ? (d.res || d.name) : id; }
+function itemColor(id) { return (ITEMS[id] || BY_ID[id] || {}).color || '#888'; }
+
+function aboveOf(id) {
+  return ({ wood:'stone', stone:'iron', iron:'bars', bars:'adamantite', adamantite:'adamantite' })[id] || id;
+}
+
+const WORLD = { w: 1500, h: 1450 };
+const POS_OF_ORE = {
+  bars:       { x: 50, y: 8.7 },
+  adamantite: { x: 83, y: 9.5 },
+  iron:       { x: 50, y: 26 },
+  furnace:    { x: 50, y: 49 },
+  equip:      { x: 81, y: 49 },
+  stone:      { x: 19, y: 47.6 },
+  wood:       { x: 50, y: 69 },
+  craft:      { x: 50, y: 87 },     // under wood, nearest the bag
+};
+
+const LINKS = [];
+ORES.forEach(d => {
+  if (!d.unlock) return;
+  Object.keys(d.unlock).forEach(src => {
+    LINKS.push({ key: d.id + '<' + src, ore: d.id, src, need: d.unlock[src] });
+  });
+});
+const FEEDS = [
+  { ore: FURNACE_ID, src: 'wood',      need: FURNACE_STOKE_COST },
+  { ore: 'iron',     src: FURNACE_ID,  heat: true },
+];
+FEEDS.forEach(f => LINKS.push({ key: f.ore + '~' + f.src, ore: f.ore, src: f.src,
+                                need: f.need, heat: f.heat, feed: true }));
+
+function slotPos(id) { return POS_OF_ORE[id]; }
+
+/* =========================================================================
+   UPGRADES — every one costs items out of the bag
+   ========================================================================= */
+
+const SPD_STEP   = 0.85;   // each Faster Work level multiplies the cycle time
+
+const SPD = { key:'spd', slot:'out', name:'Faster Work', base:2, mult:1.6, max:6,
+  eff: (o,l) => `Each haul takes <em>${fmt(timeOf(o, l))}s</em> &rarr; <b>${fmt(timeOf(o, l+1))}s</b>` +
+                (toolMult(o) > 1 ? ` before the tool in your bag.` : `.`),
+  tip: 'Paid in this tile’s own item. A tool in the bag multiplies on top.' };
+
+const MOULDS = { key:'mould', slot:'mld', name:'More Moulds', base:2, mult:1.7, max:5,
+  eff: (o,l) => `Another mould on the bench &rarr; <b>${mouldCountAt(o, l+1)}</b> in the row.` +
+                `<br>Each one sets on its own <em>${MOULD_COOL_TIME}s</em> timer, so they overlap.`,
+  tip: 'Paid in bars. Five levels take the bench from 3 moulds to 8.' };
+
+const TILE_UPGRADES = [SPD];
+
+/* the crucible is the one stock on the board that is not the bag */
+const CRUCIBLE = { key:'cap', slot:'out', name:'Bigger Crucible', base:3, mult:1.6, max:6,
+  eff: (o,l) => `Holds <em>${ironCapAt(l)}</em> &rarr; <b>${ironCapAt(l+1)}</b> molten iron before the furnace has to wait.`,
+  tip: 'Paid in molten iron out of the crucible itself.' };
+
+const BELLOWS = { key:'bellows', name:'Bellows', base:2, mult:1.7, max:6, pay:'iron',
+  eff: (o,l) => {
+    const c0 = heatCeiling(l, null), c1 = heatCeiling(l + 1, null);
+    return `Cooldown after a burn <em>${stokeCooldown(l, null).toFixed(1)}s</em> &rarr; ` +
+           `<b>${stokeCooldown(l + 1, null).toFixed(1)}s</b>.<br>` +
+           `Stoking steadily then holds <em>${Math.round(c0)}&deg;</em> &rarr; <b>${Math.round(c1)}&deg;</b>, ` +
+           `pouring <b>${fmt(pourRate(c1))}</b> molten iron a second.`;
+  },
+  tip: 'Paid in molten iron from the crucible. Heat leaks faster the hotter it is, so a hotter furnace is only reachable by stoking it more often.' };
+
+const STOKER = { key:'stoker', slot:'aut', name:'Stoker', base:2, mult:1.8, max:5, pay:'iron',
+  eff: (o,l) => {
+    const c1 = heatCeiling(null, l + 1);
+    return `Burns <b>${FURNACE_STOKE_COST} log</b> from the bag on its own whenever the fire is ready.<br>` +
+           `Cooldown <em>${stokeCooldown(null, l).toFixed(1)}s</em> &rarr; ` +
+           `<b>${stokeCooldown(null, l + 1).toFixed(1)}s</b>, holding <b>${Math.round(c1)}&deg;</b>.`;
+  },
+  tip: 'Paid in molten iron from the crucible. Keeps the fire fed while you are stood at another tile — and eats wood the whole time.' };
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+
+const SAVE_KEY = 'smeltworks.v3.save.v1';
+
+let S;
+
+function freshOre(def) {
+  return {
+    unlocked: def.id === 'wood',
+    heat: 0, burnLeft: 0, burnCooldown: 0, burnCooldownMax: 0,
+    lvl: { spd:0, mould:0, bellows:0, stoker:0, cap:0 },
+    molten: 0,        // iron: what the crucible holds
+    progress: 0,      // the swing, 0..1
+    swinging: false,  // a click started a swing that has not landed yet
+    pour: 0,
+    running: false,
+    lifetime: 0,
+    moulds: def.casting ? freshMoulds(MOULD_BASE) : [],
+  };
+}
+function freshMoulds(n) { const a = []; for (let i = 0; i < n; i++) a.push({ s:'empty', t:0 }); return a; }
+
+function freshState() {
+  const ores = {};
+  ORES.forEach(d => ores[d.id] = freshOre(d));
+  return {
+    ores, worked: 'wood', cam: null,
+    inv: { rows: INV_ROWS_START, slots: new Array(INV_COLS * INV_ROWS_START).fill(null) },
+    craft: new Array(9).fill(null),
+    equip: freshEquip(),
+  };
+}
+
+function validItem(x) { return typeof x === 'string' && ITEMS[x] && !ITEMS[x].pooled ? x : null; }
+function freshEquip() { const e = {}; EQUIP_SLOTS.forEach(q => e[q.id] = null); return e; }
+
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return freshState();
+    const s = JSON.parse(raw);
+    const base = freshState();
+    ORES.forEach(d => {
+      const o = s.ores && s.ores[d.id];
+      if (!o) return;
+      const t = base.ores[d.id];
+      t.unlocked = !!o.unlocked || d.id === 'wood';
+      t.lifetime = Number(o.lifetime) || 0;
+      Object.keys(t.lvl).forEach(k => t.lvl[k] = Number(o.lvl && o.lvl[k]) || 0);
+      if (d.facility) {
+        t.heat = Math.max(0, Math.min(FURNACE_HEAT_MAX, Number(o.heat) || 0));
+        t.burnLeft = Math.max(0, Math.min(FURNACE_BURN_TIME, Number(o.burnLeft) || 0));
+        t.burnCooldown = Math.max(0, Math.min(FURNACE_COOLDOWN, Number(o.burnCooldown) || 0));
+        t.burnCooldownMax = Math.max(t.burnCooldown, Number(o.burnCooldownMax) || 0);
+      } else {
+        t.progress = Math.max(0, Math.min(1, Number(o.progress) || 0));
+        t.swinging = !!o.swinging;
+        t.pour     = Math.max(0, Math.min(1, Number(o.pour) || 0));
+        t.molten   = Math.max(0, Math.min(MOLTEN_CAP + MOLTEN_PER_LEVEL * t.lvl.cap, Number(o.molten) || 0));
+      }
+      if (d.casting) {
+        const src = Array.isArray(o.moulds) ? o.moulds : [];
+        t.moulds = freshMoulds(MOULD_BASE + t.lvl.mould * MOULD_PER_LEVEL);
+        t.moulds.forEach((m, i) => {
+          const q = src[i] || {};
+          m.s = (q.s === 'cool' || q.s === 'ready') ? q.s : 'empty';
+          m.t = m.s === 'cool' ? Math.max(0, Math.min(MOULD_COOL_TIME, Number(q.t) || 0)) : 0;
+          if (m.s === 'cool' && m.t <= 0) m.s = 'ready';
+        });
+      }
+    });
+    // the bag: only as many rows as it says, only items that exist
+    const rows = Math.max(INV_ROWS_START, Math.min(INV_ROWS_MAX, Number(s.inv && s.inv.rows) || INV_ROWS_START));
+    base.inv.rows = rows;
+    base.inv.slots = new Array(INV_COLS * rows).fill(null);
+    const ss = Array.isArray(s.inv && s.inv.slots) ? s.inv.slots : [];
+    for (let i = 0; i < base.inv.slots.length; i++) base.inv.slots[i] = validItem(ss[i]);
+    const cs = Array.isArray(s.craft) ? s.craft : [];
+    for (let i = 0; i < 9; i++) base.craft[i] = validItem(cs[i]);
+    // the rack: only an item that belongs in that slot is trusted there
+    EQUIP_SLOTS.forEach(q => {
+      const x = validItem(s.equip && s.equip[q.id]);
+      base.equip[q.id] = x && ITEMS[x].slot === q.id ? x : null;
+    });
+
+    const w = s.worked;
+    base.worked = (typeof w === 'string' && BY_ID[w] &&
+                   !BY_ID[w].facility && !BY_ID[w].heatDriven && !BY_ID[w].casting &&
+                   base.ores[w] && base.ores[w].unlocked) ? w : 'wood';
+    if (s.cam && Number.isFinite(s.cam.z)) {
+      base.cam = { x: Number(s.cam.x) || 0, y: Number(s.cam.y) || 0, z: clampZoom(s.cam.z) };
+    }
+    return base;
+  } catch (e) {
+    return freshState();
+  }
+}
+
+function save() {
+  const slim = { ores: {}, worked: S.worked, cam: { x: cam.x, y: cam.y, z: cam.z },
+                 inv: { rows: S.inv.rows, slots: S.inv.slots.slice() }, craft: S.craft.slice(),
+                 equip: Object.assign({}, S.equip) };
+  ORES.forEach(d => {
+    const o = S.ores[d.id];
+    slim.ores[d.id] = { unlocked:o.unlocked, heat:o.heat, burnLeft:o.burnLeft, burnCooldown:o.burnCooldown,
+                        burnCooldownMax:o.burnCooldownMax, lvl:o.lvl, lifetime:o.lifetime,
+                        progress:o.progress, swinging:o.swinging, pour:o.pour, molten:o.molten };
+    if (d.casting) slim.ores[d.id].moulds = o.moulds.map(m => ({ s:m.s, t:+m.t.toFixed(3) }));
+  });
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(slim)); } catch (e) { /* no save */ }
+}
+
+/* =========================================================================
+   THE BAG
+   ========================================================================= */
+
+function invSize()     { return S.inv.slots.length; }
+function countItem(id) { let n = 0; for (const x of S.inv.slots) if (x === id) n++; return n; }
+function freeSlot()    { return S.inv.slots.indexOf(null); }
+function freeSlots()   { let n = 0; for (const x of S.inv.slots) if (!x) n++; return n; }
+function usedSlots()   { return invSize() - freeSlots(); }
+
+/* an item goes into the first empty slot; false means the bag is full */
+function giveItem(id) {
+  if (ITEMS[id].pooled) return false;        // molten iron never leaves its crucible
+  const i = freeSlot();
+  if (i < 0) return false;
+  S.inv.slots[i] = id;
+  invFlash(i);
+  return true;
+}
+/* take n of an item out, from the right-hand end so the bag reads left to right.
+   Molten iron is drawn off the crucible instead. */
+function takeItems(id, n) {
+  if (ITEMS[id] && ITEMS[id].pooled) {
+    const o = S.ores[id];
+    if (Math.floor(o.molten) < n) return false;
+    o.molten -= n;
+    return true;
+  }
+  for (let i = S.inv.slots.length - 1; i >= 0 && n > 0; i--)
+    if (S.inv.slots[i] === id) { S.inv.slots[i] = null; n--; }
+  return n === 0;
+}
+function addRow() {
+  if (S.inv.rows >= INV_ROWS_MAX) return false;
+  S.inv.rows++;
+  for (let i = 0; i < INV_COLS; i++) S.inv.slots.push(null);
+  buildInv();
+  return true;
+}
+
+/* the equipped tool that helps a tile, or nothing — a tool in the bag does nothing */
+function toolFor(id) {
+  let best = null;
+  if (!S.ores[EQUIP_ID].unlocked) return null;
+  EQUIP_SLOTS.forEach(q => {
+    const x = S.equip[q.id], it = x && ITEMS[x];
+    if (!it || !it.tool || !it.tool[id]) return;
+    if (!best || it.tool[id] > best.mult) best = { item: x, name: it.name, mult: it.tool[id] };
+  });
+  return best;
+}
+/* in the bag or on the rack */
+function ownsItem(id) { return countItem(id) > 0 || EQUIP_SLOTS.some(q => S.equip[q.id] === id); }
+function isEquipped(id) { return EQUIP_SLOTS.some(q => S.equip[q.id] === id); }
+function fitsSlot(item, slotId) { return !item || (ITEMS[item] && ITEMS[item].slot === slotId); }
+function toolMult(id) { const t = toolFor(id); return t ? t.mult : 1; }
+
+function heldOf(id) {
+  if (!ITEMS[id]) return 0;
+  if (ITEMS[id].pooled) return S.ores[id].unlocked ? Math.floor(S.ores[id].molten) : 0;
+  return countItem(id);
+}
+function ironCapAt(lvl) { lvl = lvl ?? S.ores.iron.lvl.cap; return MOLTEN_CAP + MOLTEN_PER_LEVEL * lvl; }
+function ironCap() { return ironCapAt(); }
+/* molten iron per second at the furnace's current heat */
+function pourRate(heat) { heat = heat ?? heatOf(); return (heat / FURNACE_HEAT_MAX) / IRON_POUR_TIME; }
+
+function costProgress(cost) {
+  let p = 1;
+  for (const k in cost) p = Math.min(p, heldOf(k) / cost[k]);
+  return Math.max(0, Math.min(1, p));
+}
+function unlockProgress(oreId) { const d = BY_ID[oreId]; return d.unlock ? costProgress(d.unlock) : 1; }
+
+function payOre(id, def) { if (def.pay) return def.pay; return def.above ? aboveOf(id) : id; }
+function costOf(id, def, lvl) {
+  const n = Math.max(1, Math.floor(def.base * Math.pow(def.mult, lvl)));
+  return { [payOre(id, def)]: n };
+}
+function canPay(cost) { return Object.keys(cost).every(k => heldOf(k) >= cost[k]); }
+function pay(cost)    { Object.keys(cost).forEach(k => takeItems(k, cost[k])); }
+
+/* =========================================================================
+   DERIVED STATS
+   ========================================================================= */
+
+function timeOf(id, lvl) {
+  const d = BY_ID[id]; lvl = lvl ?? S.ores[id].lvl.spd;
+  return d.time * Math.pow(SPD_STEP, lvl);
+}
+/* seconds one hand cycle takes right now, tool included */
+function handTime(id) { return timeOf(id) / toolMult(id); }
+
+function mouldCountAt(id, lvl) {
+  const d = BY_ID[id];
+  if (!d || !d.casting) return 0;
+  lvl = lvl ?? S.ores[id].lvl.mould;
+  return MOULD_BASE + lvl * MOULD_PER_LEVEL;
+}
+function mouldCount(id) { return mouldCountAt(id); }
+function syncMoulds(id) {
+  const o = S.ores[id], n = mouldCountAt(id);
+  while (o.moulds.length < n) o.moulds.push({ s:'empty', t:0 });
+  if (o.moulds.length > n) o.moulds.length = n;
+  return o.moulds;
+}
+
+function furnaceBuilt() { return S.ores[FURNACE_ID].unlocked; }
+function hasHeat() { return furnaceBuilt() && S.ores[FURNACE_ID].heat > 0; }
+function heatOf() { return furnaceBuilt() ? S.ores[FURNACE_ID].heat : 0; }
+
+function stokeCooldown(bLvl, sLvl) {
+  const f = S.ores[FURNACE_ID];
+  const b = bLvl ?? f.lvl.bellows, s = sLvl ?? f.lvl.stoker;
+  return Math.max(BELLOWS_FLOOR, FURNACE_COOLDOWN * Math.pow(BELLOWS_STEP, b) * Math.pow(STOKER_STEP, s));
+}
+function heatLoss(heat, smelting) {
+  return FURNACE_IDLE_COOL + HEAT_LOSS_K * heat + (smelting ? SMELT_HEAT_DRAIN : 0);
+}
+function heatCeiling(bLvl, sLvl, smelting = true) {
+  const cycle = FURNACE_BURN_TIME + stokeCooldown(bLvl, sLvl);
+  const spare = FURNACE_HEAT_GAIN / cycle - FURNACE_IDLE_COOL - (smelting ? SMELT_HEAT_DRAIN : 0);
+  return Math.max(0, Math.min(FURNACE_HEAT_MAX, spare / HEAT_LOSS_K));
+}
+function furnaceReady() {
+  const o = S.ores[FURNACE_ID];
+  return o.unlocked && o.burnLeft <= 0 && o.burnCooldown <= 0;
+}
+function heatBlocked(id) { return !!BY_ID[id].heatDriven && !hasHeat(); }
+
+function isRevealed(id) {
+  const o = S.ores[id], d = BY_ID[id];
+  if (o.unlocked) return true;
+  if (d.opensWith) return false;
+  if (!d.unlock) return true;
+  return Object.keys(d.unlock).every(k => BY_ID[k] ? S.ores[k].unlocked : true);
+}
+
+function isWorkable(id) {
+  const d = BY_ID[id];
+  return !!d && !d.facility && !d.heatDriven && !d.casting && S.ores[id].unlocked;
+}
+function workableIds() { return ORES.filter(d => isWorkable(d.id)).map(d => d.id); }
+function isWorked(id)  { return S.worked === id; }
+
+
+/* =========================================================================
+   GAME LOOP
+   ========================================================================= */
+
+/* one item lands in the bag, with the feedback to go with it */
+function deliver(tileId, itemId) {
+  if (!giveItem(itemId)) return false;
+  S.ores[tileId].lifetime += 1;
+  floatText(tileId, '+1', itemColor(itemId));
+  punch(tileId);
+  return true;
+}
+
+let lastT = performance.now();
+let heatDrainNow = FURNACE_IDLE_COOL;
+let heatNetNow   = -FURNACE_IDLE_COOL;
+
+function tick(now) {
+  const dt = Math.min(0.25, (now - lastT) / 1000);
+  lastT = now;
+  step(dt);
+  paint();
+  requestAnimationFrame(tick);
+}
+
+function step(dt) {
+  const furnace = S.ores[FURNACE_ID];
+  let burn = 0;
+
+  ORES.forEach(d => {
+    const o = S.ores[d.id];
+    if (!o.unlocked) return;
+
+    if (d.facility) {
+      if (d.crafting) return;          // the table has no clock of its own
+      if (o.burnLeft > 0) {
+        const slice = Math.min(dt, o.burnLeft);
+        o.heat = Math.min(FURNACE_HEAT_MAX, o.heat + (FURNACE_HEAT_GAIN / FURNACE_BURN_TIME) * slice);
+        o.burnLeft -= slice;
+        if (o.burnLeft <= 1e-6) {
+          o.burnLeft = 0;
+          o.burnCooldown = o.burnCooldownMax = stokeCooldown();
+        }
+      } else {
+        o.burnCooldown = Math.max(0, o.burnCooldown - dt);
+      }
+      if (o.lvl.stoker > 0) stokeFurnace();
+      o.heat = Math.max(0, o.heat - (FURNACE_IDLE_COOL + HEAT_LOSS_K * o.heat) * dt);
+      return;
+    }
+
+    /* Iron is poured by the furnace straight into the crucible, where it stays
+       molten until a mould takes it. A full crucible makes the furnace wait,
+       and it stops spending heat on smelting. */
+    if (d.heatDriven) {
+      o.running = false;
+      if (!hasHeat()) return;
+      const cap = ironCap();
+      if (o.molten >= cap) return;
+      const add = Math.min(cap - o.molten, pourRate() * dt);
+      o.molten += add;
+      o.lifetime += add;
+      burn += SMELT_HEAT_DRAIN * dt;
+      o.running = true;
+      return;
+    }
+
+    if (d.casting) {
+      o.running = false; o.progress = 0;
+      syncMoulds(d.id);
+      const setSpeed = toolMult(d.id);      // tongs on the rack
+      o.moulds.forEach(m => {
+        if (m.s !== 'cool') return;
+        m.t -= dt * setSpeed;
+        if (m.t <= 0) { m.t = 0; m.s = 'ready'; }
+      });
+      return;
+    }
+
+    /* One swing per click. Only the worked tile swings, a swing you walk away
+       from keeps its progress for when you come back, and a finished haul with
+       no slot to land in holds at the end of the swing until there is room. */
+    if (!isWorked(d.id) || !o.swinging) { o.running = false; return; }
+    o.running = true;
+    if (o.progress < 1) o.progress += dt / handTime(d.id);
+    if (o.progress >= 1) {
+      if (deliver(d.id, d.id)) { o.progress = 0; o.swinging = false; o.running = false; }
+      else o.progress = 1;
+    }
+  });
+
+  if (burn > 0) furnace.heat = Math.max(0, furnace.heat - burn);
+  heatDrainNow = FURNACE_IDLE_COOL + HEAT_LOSS_K * furnace.heat + (burn > 0 && dt > 0 ? burn / dt : 0);
+  heatNetNow = (furnace.burnLeft > 0 ? FURNACE_HEAT_GAIN / FURNACE_BURN_TIME : 0) - heatDrainNow;
+}
+
+/* =========================================================================
+   DOM
+   ========================================================================= */
+
+const el = {
+  forge:  document.getElementById('forge'),
+  world:  document.getElementById('world'),
+  arc:    document.getElementById('arc'),
+  labels: document.getElementById('linklabels'),
+  embers: document.getElementById('embers'),
+  upop:   document.getElementById('upop'),
+  zlevel: document.getElementById('zlevel'),
+  invgrid: document.getElementById('invgrid'),
+  invcount: document.getElementById('invcount'),
+  invnote: document.getElementById('invnote'),
+  trash:  document.getElementById('trash'),
+  ghost:  document.getElementById('ghost'),
+};
+
+el.world.style.width  = WORLD.w + 'px';
+el.world.style.height = WORLD.h + 'px';
+
+const bars = {};
+const linkEls = {};
+let upTiles = [];
+let hovered = null;
+
+function fmt(n) {
+  if (!Number.isFinite(n)) return '∞';
+  if (n < 1000) {
+    if (n % 1 === 0 || n >= 10) return String(Math.floor(n));
+    return n < 1 ? n.toFixed(2) : n.toFixed(1);
+  }
+  const units = ['K','M','B','T','Qa','Qi','Sx','Sp'];
+  let u = -1;
+  while (n >= 1000 && u < units.length - 1) { n /= 1000; u++; }
+  return n.toFixed(n < 10 ? 2 : n < 100 ? 1 : 0) + units[u];
+}
+
+/* =========================================================================
+   CAMERA
+   ========================================================================= */
+
+const ZOOM_MIN = 0.30, ZOOM_MAX = 2.40;
+let cam = { x: 0, y: 0, z: 1 };
+
+function clampZoom(z) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); }
+function clampPan() {
+  const W = el.forge.clientWidth, H = el.forge.clientHeight;
+  const m = 160;
+  cam.x = Math.min(W - m, Math.max(m - WORLD.w * cam.z, cam.x));
+  cam.y = Math.min(H - m, Math.max(m - WORLD.h * cam.z, cam.y));
+}
+function applyCam() {
+  clampPan();
+  const dpr = window.devicePixelRatio || 1;
+  const px = Math.round(cam.x * dpr) / dpr;
+  const py = Math.round(cam.y * dpr) / dpr;
+  el.world.style.transform = `translate(${px}px, ${py}px) scale(${cam.z})`;
+  const pct = Math.round(cam.z * 100) + '%';
+  if (el.zlevel.textContent !== pct) el.zlevel.textContent = pct;
+}
+function zoomAt(sx, sy, z) {
+  const nz = clampZoom(z);
+  if (nz === cam.z) return;
+  cam.x = sx - (sx - cam.x) * (nz / cam.z);
+  cam.y = sy - (sy - cam.y) * (nz / cam.z);
+  cam.z = nz;
+  applyCam();
+}
+let camSaveT;
+function saveCam() { clearTimeout(camSaveT); camSaveT = setTimeout(save, 400); }
+function zoomCenter(mult) {
+  zoomAt(el.forge.clientWidth / 2, el.forge.clientHeight / 2, cam.z * mult);
+  saveCam();
+}
+
+function tileBox(id) {
+  const bar = bars[id], n = bar.root;
+  if (n.offsetWidth) { bar._bw = n.offsetWidth; bar._bh = n.offsetHeight; }
+  const w = bar._bw || 320, h = bar._bh || 130;
+  return { cx: n.offsetLeft, cy: n.offsetTop,
+           l: n.offsetLeft - w / 2, r: n.offsetLeft + w / 2,
+           t: n.offsetTop  - h / 2, b: n.offsetTop  + h / 2 };
+}
+function revealedBounds() {
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  ORES.forEach(d => {
+    if (!revealed.has(d.id)) return;
+    const q = tileBox(d.id);
+    l = Math.min(l, q.l); r = Math.max(r, q.r);
+    t = Math.min(t, q.t); b = Math.max(b, q.b);
+  });
+  if (!Number.isFinite(l)) return { l: 0, t: 0, r: WORLD.w, b: WORLD.h };
+  const pad = 70;
+  return { l: l - pad, t: t - pad, r: r + pad, b: b + pad };
+}
+function fitCam() {
+  const W = el.forge.clientWidth, H = el.forge.clientHeight;
+  const g = revealedBounds(), gw = g.r - g.l, gh = g.b - g.t;
+  cam.z = clampZoom(Math.min(1, W / gw, H / gh));
+  cam.x = (W - gw * cam.z) / 2 - g.l * cam.z;
+  cam.y = (H - gh * cam.z) / 2 - g.t * cam.z;
+  applyCam();
+}
+/* the opening shot: wood centred, pulled back far enough that stone and the
+   crafting table sit in the top corners */
+function openingCam() {
+  if (!revealed.has('stone')) return fitCam();
+  const W = el.forge.clientWidth, H = el.forge.clientHeight;
+  const w = tileBox('wood'), s = tileBox('stone'), c = tileBox(CRAFT_ID);
+  const margin = 34;
+  const dx = (w.cx - s.l) + margin, dy = Math.max(w.cy - s.t, c.b - w.cy) + margin;
+  cam.z = clampZoom(Math.min(1, (W / 2) / dx, (H / 2) / dy));
+  cam.x = W / 2 - w.cx * cam.z;
+  cam.y = H / 2 - w.cy * cam.z;
+  applyCam();
+}
+
+el.forge.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = el.forge.getBoundingClientRect();
+  const k = e.ctrlKey ? 0.010 : 0.0016;
+  const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  zoomAt(e.clientX - f.left, e.clientY - f.top, cam.z * Math.exp(-step * k));
+  hidePop();
+  saveCam();
+}, { passive: false });
+
+let drag = null, panned = false, swallowClick = false;
+
+el.forge.addEventListener('pointerdown', e => {
+  if (e.button !== 0 && e.button !== 1) return;
+  if (dragI) return;                       // an item is on the move, not the map
+  drag = { sx: e.clientX, sy: e.clientY, cx: cam.x, cy: cam.y, id: e.pointerId };
+  panned = false;
+});
+window.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (!panned) {
+    if (Math.hypot(dx, dy) < 5) return;
+    panned = true;
+    el.forge.classList.add('grabbing');
+    hovered = null;
+    hidePop();
+  }
+  cam.x = drag.cx + dx;
+  cam.y = drag.cy + dy;
+  applyCam();
+});
+window.addEventListener('pointerup', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  drag = null;
+  el.forge.classList.remove('grabbing');
+  if (panned) { swallowClick = true; saveCam(); }
+  panned = false;
+});
+el.forge.addEventListener('click', e => {
+  if (!swallowClick) return;
+  swallowClick = false;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
+
+/* ---- links ---- */
+
+function linkBox(id) {
+  const q = tileBox(id), pad = 8;
+  return { l: q.l - pad, r: q.r + pad, t: q.t - pad, b: q.b + pad };
+}
+function inBox(bx, p) { return p[0] > bx.l && p[0] < bx.r && p[1] > bx.t && p[1] < bx.b; }
+function edgeT(bez, box, tIn, tOut) {
+  for (let k = 0; k < 18; k++) {
+    const m = (tIn + tOut) / 2;
+    if (inBox(box, bez(m))) tIn = m; else tOut = m;
+  }
+  return tOut;
+}
+
+function buildLinks() {
+  const W = WORLD.w, H = WORLD.h;
+  const at = id => ({ x: POS_OF_ORE[id].x / 100 * W, y: POS_OF_ORE[id].y / 100 * H });
+  const byTarget = {};
+  LINKS.forEach(L => (byTarget[L.ore] = byTarget[L.ore] || []).push(L));
+
+  let svg = '', labels = '';
+  Object.keys(byTarget).forEach(target => {
+    const group = byTarget[target];
+    group.forEach((L, i) => {
+      const a = at(L.src), b = at(target);
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      const off = (i - (group.length - 1) / 2) * Math.min(70, len * 0.22);
+      const c = { x: (a.x + b.x) / 2 - dy / len * off, y: (a.y + b.y) / 2 + dx / len * off };
+      const bez = t => { const u = 1 - t;
+        return [u*u*a.x + 2*u*t*c.x + t*t*b.x, u*u*a.y + 2*u*t*c.y + t*t*b.y]; };
+      const sb = linkBox(L.src), tb = linkBox(target);
+      const N = 48;
+      let t0 = 0, t1 = 1;
+      for (let k = 1; k <= N; k++) {
+        const t = k / N;
+        if (!inBox(sb, bez(t))) { t0 = edgeT(bez, sb, (k - 1) / N, t); break; }
+      }
+      for (let k = N - 1; k >= 0; k--) {
+        const t = k / N;
+        if (!inBox(tb, bez(t))) { t1 = edgeT(bez, tb, (k + 1) / N, t); break; }
+      }
+      if (!(t1 > t0)) { t0 = 0.46; t1 = 0.54; }
+      const pts = [];
+      for (let s = 0; s <= 24; s++) {
+        const p = bez(t0 + (t1 - t0) * (s / 24));
+        pts.push(p[0].toFixed(1) + ',' + p[1].toFixed(1));
+      }
+      const d = pts.join(' ');
+      const col = BY_ID[L.src].color;
+      svg += `<g class="link" data-k="${L.key}" style="--lc:${col}">
+          <polyline class="lbase" points="${d}"/>
+          <polyline class="lglow" points="${d}" pathLength="100" stroke-dasharray="0 200"/>
+          <polyline class="lfill" points="${d}" pathLength="100" stroke-dasharray="0 200"/>
+        </g>`;
+      L._pts = pts.map(s => s.split(',').map(Number));
+      labels += `<div class="llabel" data-k="${L.key}" style="--lc:${col}"></div>`;
+    });
+  });
+  el.arc.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  el.arc.innerHTML = svg;
+  el.labels.innerHTML = labels;
+  LINKS.forEach(L => {
+    const g = el.arc.querySelector(`.link[data-k="${L.key}"]`);
+    linkEls[L.key] = { g, fill: g && g.querySelector('.lfill'),
+                       glow: g && g.querySelector('.lglow'),
+                       label: el.labels.querySelector(`.llabel[data-k="${L.key}"]`) };
+  });
+  placeLabels();
+}
+
+function placeLabels() {
+  const boxes = ORES.filter(d => revealed.has(d.id)).map(d => {
+    const n = bars[d.id].root;
+    const w = n.offsetWidth, h = n.offsetHeight;
+    return { l: n.offsetLeft - w / 2 - 6, r: n.offsetLeft + w / 2 + 6,
+             t: n.offsetTop  - h / 2 - 6, b: n.offsetTop  + h / 2 + 6 };
+  });
+  const clear = (p) => !boxes.some(x => p[0] > x.l && p[0] < x.r && p[1] > x.t && p[1] < x.b);
+  const order = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.2, 0.8];
+  LINKS.forEach(L => {
+    const e = linkEls[L.key];
+    if (!e || !e.label || !L._pts || !revealed.has(L.ore)) return;
+    const at = t => L._pts[Math.min(L._pts.length - 1, Math.round(t * (L._pts.length - 1)))];
+    const p = (order.map(at).find(clear)) || at(0.5);
+    e.label.style.left = p[0].toFixed(1) + 'px';
+    e.label.style.top  = p[1].toFixed(1) + 'px';
+  });
+}
+
+function paintLinks() {
+  LINKS.forEach(L => {
+    const e = linkEls[L.key];
+    if (!e || !e.fill || !revealed.has(L.ore)) return;
+    const srcOpen = S.ores[L.src].unlocked;
+    const done = !L.feed && S.ores[L.ore].unlocked;
+    const p = L.heat ? heatOf() / FURNACE_HEAT_MAX
+            : done   ? 1
+            :          Math.min(1, heldOf(L.src) / L.need);
+    const lit = L.heat ? p > 0 : p >= 1;
+    const dash = (p * 100).toFixed(2) + ' 200';
+    if (e.fill.getAttribute('stroke-dasharray') !== dash) {
+      e.fill.setAttribute('stroke-dasharray', dash);
+      if (e.glow) e.glow.setAttribute('stroke-dasharray', dash);
+    }
+    let cls = 'link' + (L.feed ? ' feed' : '');
+    cls += done ? ' done' : (!srcOpen ? ' dormant' : (lit ? ' lit' : ''));
+    if (e.g.getAttribute('class') !== cls) e.g.setAttribute('class', cls);
+    if (!e.label) return;
+    let txt = '', lc = 'llabel';
+    if (done || !srcOpen) lc += ' gone';
+    else if (L.heat) txt = lit ? `${Math.round(heatOf())}°` : 'NO HEAT';
+    else if (L.feed) txt = (p >= 1 ? 'FUEL ' : `${fmt(heldOf(L.src))}/`) + `${fmt(L.need)} ${BY_ID[L.src].sym}`;
+    else txt = `${fmt(heldOf(L.src))}/${fmt(L.need)} ${BY_ID[L.src].sym}`;
+    if (e.label.textContent !== txt) e.label.textContent = txt;
+    if (e.label.className !== lc) e.label.className = lc;
+  });
+}
+
+function buildEmbers() {
+  let html = '';
+  for (let i = 0; i < 26; i++) {
+    const size = 2 + Math.random() * 4, dur = 9 + Math.random() * 12;
+    html += `<div class="ember" style="
+      left:${(Math.random()*100).toFixed(1)}%;
+      width:${size.toFixed(1)}px; height:${size.toFixed(1)}px;
+      opacity:${(.25+Math.random()*.5).toFixed(2)};
+      --drift:${(Math.random()*120-60).toFixed(0)}px;
+      animation-duration:${dur.toFixed(1)}s;
+      animation-delay:-${(Math.random()*dur).toFixed(1)}s;"></div>`;
+  }
+  el.embers.innerHTML = html;
+}
+
+/* ---- tiles ---- */
+
+function buildBars() {
+  ORES.forEach(d => {
+    const p = slotPos(d.id);
+    const node = document.createElement('div');
+    node.className = 'ore';
+    node.style.setProperty('--ore', d.color);
+    node.style.left = p.x + '%';
+    node.style.top  = p.y + '%';
+    node.innerHTML = `
+      <div class="obody">
+        <div class="ore-head">
+          <span class="oicon">${tileIcon(d)}</span>
+          <span class="ore-name">${d.name}</span>
+          <span class="ore-tags"></span>
+          <span class="uslot slot-aut"></span>
+        </div>
+        <div class="amt">
+          <span class="cur">0</span>
+          <span class="capv"></span>
+          <span class="rate"></span>
+        </div>
+        <div class="trackrow">
+          <div class="track">
+            <div class="fill"></div><div class="gloss"></div><div class="tstatus"></div>
+          </div>
+          <span class="uslot slot-out"></span>
+        </div>
+        <div class="mrow" style="display:none"><div class="moulds"></div><span class="uslot slot-mld"></span></div>
+        <div class="cycbar"><div class="cyc"></div></div>
+        <div class="crow" style="display:none">
+          <div class="cgrid"></div>
+          <div class="carrow">&rarr;</div>
+          <div class="cout"></div>
+        </div>
+        <div class="erow" style="display:none"></div>
+        <div class="cstat" style="display:none"></div>
+        <div class="rbook" style="display:none"></div>
+        <div class="lockmsg"></div>
+      </div>
+      <div class="ustrip"></div>`;
+    node.querySelector('.obody').addEventListener('click', () => tileClick(d.id));
+    el.world.appendChild(node);
+    bars[d.id] = {
+      root: node,
+      tags: node.querySelector('.ore-tags'),
+      fill: node.querySelector('.fill'),
+      cyc:  node.querySelector('.cyc'),
+      cycbar: node.querySelector('.cycbar'),
+      status: node.querySelector('.tstatus'),
+      amtRow: node.querySelector('.amt'),
+      trackEl: node.querySelector('.trackrow'),
+      mrow: node.querySelector('.mrow'),
+      mouldsEl: node.querySelector('.moulds'),
+      mouldEls: [],
+      crow: node.querySelector('.crow'),
+      cgrid: node.querySelector('.cgrid'),
+      carrow: node.querySelector('.carrow'),
+      cout: node.querySelector('.cout'),
+      cstat: node.querySelector('.cstat'),
+      rbook: node.querySelector('.rbook'),
+      cells: [],
+      erow: node.querySelector('.erow'),
+      eslots: {},
+      slots: { out: node.querySelector('.slot-out'),
+               mld: node.querySelector('.slot-mld'),
+               aut: node.querySelector('.slot-aut') },
+      cur:  node.querySelector('.cur'),
+      capv: node.querySelector('.capv'),
+      rate: node.querySelector('.rate'),
+      lock: node.querySelector('.lockmsg'),
+      strip: node.querySelector('.ustrip'),
+      pos: p,
+    };
+    if (d.crafting) buildCraft(d.id);
+    if (d.equipment) buildEquip(d.id);
+  });
+}
+
+/* ---- the rack's DOM ---- */
+function buildEquip(id) {
+  const b = bars[id];
+  b.erow.innerHTML = '';
+  b.eslots = {};
+  EQUIP_SLOTS.forEach(q => {
+    const wrap = document.createElement('div');
+    wrap.className = 'ewrap';
+    const s = document.createElement('div');
+    s.className = 'eslot';
+    s.dataset.e = q.id;
+    s.innerHTML = `<div class="eghost">${icon(q.id + 'slot')}</div>`;
+    s.addEventListener('pointerdown', e => beginDrag(e, { kind:'equip', i:q.id }));
+    s.addEventListener('click', e => e.stopPropagation());
+    const l = document.createElement('div');
+    l.className = 'elabel';
+    l.textContent = q.name;
+    wrap.appendChild(s); wrap.appendChild(l);
+    b.erow.appendChild(wrap);
+    b.eslots[q.id] = { node: s, wrap, ghost: s.querySelector('.eghost') };
+  });
+}
+
+function paintEquip(d, o, b) {
+  let cls = 'ore facility bench';
+  if (!o.unlocked) {
+    cls += ' locked';
+    if (unlockProgress(d.id) >= 1) cls += ' ready';
+  } else cls += ' passive';
+  if (b.root.classList.contains('hit')) cls += ' hit';
+  if (b.root.classList.contains('pop')) cls += ' pop';
+  if (b.root.classList.contains('appear')) cls += ' appear';
+  if (b.root.className !== cls) b.root.className = cls;
+
+  if (!o.unlocked) { paintLocked(d, b); return; }
+
+  b.amtRow.style.display = 'none';
+  b.trackEl.style.display = 'none';
+  b.mrow.style.display = 'none';
+  b.cycbar.style.display = 'none';
+  b.lock.style.display = 'none';
+  b.erow.style.display = '';
+  b.cstat.style.display = '';
+  if (b.tags.innerHTML !== '') b.tags.innerHTML = '';
+
+  const srcE = dragI && dragI.moved && dragI.src.kind === 'equip' ? dragI.src.i : null;
+  const overE = dragI && dragI.over && dragI.over.kind === 'equip' ? dragI.over.i : null;
+  let worn = 0;
+  EQUIP_SLOTS.forEach(q => {
+    const e = b.eslots[q.id], x = S.equip[q.id];
+    if (x) worn++;
+    // the ghost outline stays in the DOM; the item is laid over it
+    const key = (x || '') + '|';
+    if (e.node._key !== key) {
+      e.node._key = key;
+      e.node.querySelectorAll('.item').forEach(n => n.remove());
+      if (x) e.node.insertAdjacentHTML('beforeend', itemHtml(x));
+    }
+    let cc = 'eslot' + (q.id === srcE ? ' src' : '') + (q.id === overE ? ' over' : '');
+    if (q.id === overE && dragI && !fitsSlot(dragI.item, q.id)) cc += ' bad';
+    if (e.node.className !== cc) e.node.className = cc;
+    const wc = 'ewrap' + (x ? ' on' : '');
+    if (e.wrap.className !== wc) e.wrap.className = wc;
+    const tip = x ? '' : 'Empty — ' + q.hint;
+    if (e.node.title !== tip) e.node.title = tip;
+  });
+  let st, sc = 'cstat';
+  if (dragI && dragI.moved && ITEMS[dragI.item].slot) { st = 'DROP IT IN THE ' + ITEMS[dragI.item].slot.toUpperCase() + ' SLOT'; sc += ' go'; }
+  else if (dragI && dragI.moved) st = 'THAT IS NOT A TOOL';
+  else if (worn === 0) st = 'DRAG A TOOL FROM THE BAG TO WEAR IT';
+  else st = worn + ' / ' + EQUIP_SLOTS.length + ' EQUIPPED · CLICK ONE TO TAKE IT OFF';
+  if (b.cstat.textContent !== st) b.cstat.textContent = st;
+  if (b.cstat.className !== sc) b.cstat.className = sc;
+}
+
+const revealed = new Set();
+
+function syncTiles(animate) {
+  ORES.forEach(d => {
+    const on = isRevealed(d.id), was = revealed.has(d.id);
+    bars[d.id].root.style.display = on ? '' : 'none';
+    if (on) { revealed.add(d.id); if (!was && animate) replay(bars[d.id].root, 'appear'); }
+    else revealed.delete(d.id);
+  });
+  fitRings();
+}
+function syncLinks() {
+  LINKS.forEach(L => {
+    const e = linkEls[L.key];
+    if (!e) return;
+    const on = revealed.has(L.ore);
+    if (e.g) e.g.style.display = on ? '' : 'none';
+    if (e.label) e.label.style.display = on ? '' : 'none';
+  });
+}
+function syncReveal(animate) { syncTiles(animate); syncLinks(); }
+function rebuildBoard(animate) {
+  renderStrips();
+  syncTiles(animate);
+  buildLinks();
+  syncLinks();
+  placeLabels();
+}
+
+let fxOff = false;
+function replay(node, cls) {
+  if (fxOff) return;
+  node.classList.remove(cls);
+  void node.offsetWidth;
+  node.classList.add(cls);
+}
+function punch(id) {
+  const b = bars[id];
+  if (!b) return;
+  replay(b.root, 'pop');
+  replay(b.cur, 'tick');
+}
+function floatText(id, txt, color) {
+  const b = bars[id];
+  if (!b || fxOff) return;
+  const n = document.createElement('div');
+  n.className = 'float';
+  n.textContent = txt;
+  n.style.color = color;
+  n.style.left = b.pos.x + '%';
+  n.style.top = (b.pos.y - 6) + '%';
+  el.world.appendChild(n);
+  setTimeout(() => n.remove(), 1100);
+}
+
+/* ---- a slot's face: one item, or nothing ---- */
+
+function itemHtml(id, extra) {
+  if (!id) return '';
+  const it = ITEMS[id];
+  const cls = 'item' + (it.tool ? ' tool' : '') + (extra ? ' ' + extra : '');
+  return `<div class="${cls}" data-id="${id}" style="--ic:${it.color}">${icon(id)}</div>`;
+}
+/* repaint a slot only when what it shows has changed */
+function setSlotItem(node, id, extra) {
+  const key = (id || '') + '|' + (extra || '');
+  if (node._key === key) return;
+  node._key = key;
+  node.innerHTML = itemHtml(id, extra);
+}
+/* a price, as "n" beside the item's icon */
+function costHtml(cost) {
+  return Object.keys(cost).map(k =>
+    `<span style="color:${itemColor(k)}">${fmt(cost[k])} ${icon(k)}</span>`).join('');
+}
+
+/* ---- the bag's DOM ---- */
+
+const invSlotEls = [];
+function buildInv() {
+  el.invgrid.innerHTML = '';
+  invSlotEls.length = 0;
+  for (let i = 0; i < invSize(); i++) {
+    const s = document.createElement('div');
+    s.className = 'slot';
+    s.dataset.i = i;
+    s.addEventListener('pointerdown', e => beginDrag(e, { kind:'inv', i }));
+    el.invgrid.appendChild(s);
+    invSlotEls.push(s);
+  }
+}
+function invFlash(i) {
+  if (fxOff) return;
+  const s = invSlotEls[i];
+  if (s) replay(s, 'got');
+}
+function paintInv() {
+  if (invSlotEls.length !== invSize()) buildInv();
+  const srcI = dragI && dragI.moved && dragI.src.kind === 'inv' ? dragI.src.i : -1;
+  const overI = dragI && dragI.over && dragI.over.kind === 'inv' ? dragI.over.i : -1;
+  for (let i = 0; i < invSlotEls.length; i++) {
+    const s = invSlotEls[i];
+    setSlotItem(s, S.inv.slots[i]);
+    let cls = 'slot' + (i === srcI ? ' src' : '') + (i === overI ? ' over' : '');
+    if (s.classList.contains('got')) cls += ' got';
+    if (s.className !== cls) s.className = cls;
+  }
+  const used = usedSlots(), n = invSize();
+  const ct = `${used} / ${n} slots`;
+  if (el.invcount.textContent !== ct) el.invcount.textContent = ct;
+  const cc = 'l2' + (used >= n ? ' full' : '');
+  if (el.invcount.className !== cc) el.invcount.className = cc;
+  const note = S.inv.rows >= INV_ROWS_MAX ? 'one item per slot · the bag is as big as it gets'
+             : S.ores[CRAFT_ID].unlocked ? 'one item per slot · craft a chest for another row'
+             : 'one item per slot · a crafting table can make it bigger';
+  if (el.invnote.textContent !== note) el.invnote.textContent = note;
+  let tc = '' + (dragI && dragI.moved ? ' armed' : '') + (dragI && dragI.over && dragI.over.kind === 'trash' ? ' over' : '');
+  tc = tc.trim();
+  if (el.trash.className !== tc) el.trash.className = tc;
+}
+
+/* ---- the crafting table's DOM ---- */
+
+function buildCraft(id) {
+  const b = bars[id];
+  b.cgrid.innerHTML = '';
+  b.cells = [];
+  for (let i = 0; i < 9; i++) {
+    const c = document.createElement('div');
+    c.className = 'ccell';
+    c.dataset.c = i;
+    c.addEventListener('pointerdown', e => beginDrag(e, { kind:'craft', i }));
+    c.addEventListener('click', e => e.stopPropagation());
+    b.cgrid.appendChild(c);
+    b.cells.push(c);
+  }
+  b.cout.addEventListener('pointerdown', e => beginDrag(e, { kind:'out', i:0 }));
+  b.cout.addEventListener('click', e => e.stopPropagation());
+  b.rbook.innerHTML = '';
+  b.rbtns = [];
+  RECIPES.forEach(R => {
+    const btn = document.createElement('button');
+    btn.className = 'rbtn';
+    btn.textContent = ITEMS[R.out].name;
+    btn._pop = { title: ITEMS[R.out].name, eff: patternHtml(R) + ITEMS[R.out].desc,
+                 tip: 'Click to lay the pattern out from your bag, if you have the pieces. Drag items onto the grid to build it by hand.',
+                 cost: null };
+    btn.addEventListener('mouseenter', () => { if (panned) return; hovered = btn; showPop(btn); });
+    btn.addEventListener('mouseleave', () => { if (hovered === btn) { hovered = null; hidePop(); } });
+    btn.addEventListener('click', e => { e.stopPropagation(); layRecipe(R); });
+    btn.addEventListener('pointerdown', e => e.stopPropagation());
+    b.rbook.appendChild(btn);
+    b.rbtns.push({ node: btn, R });
+  });
+}
+
+function patternHtml(R) {
+  let h = '<div class="pgrid">';
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    const id = (R.shape[r] || [])[c] || null;
+    h += id ? `<span class="pcell has" style="--ic:${ITEMS[id].color}">${icon(id)}</span>`
+            : '<span class="pcell"></span>';
+  }
+  return h + '</div>';
+}
+
+/* what the grid makes right now */
+function gridBounds(cells) {
+  let r0 = 3, r1 = -1, c0 = 3, c1 = -1;
+  for (let i = 0; i < 9; i++) if (cells[i]) {
+    const r = (i / 3) | 0, c = i % 3;
+    r0 = Math.min(r0, r); r1 = Math.max(r1, r); c0 = Math.min(c0, c); c1 = Math.max(c1, c);
+  }
+  return r1 < 0 ? null : { r0, r1, c0, c1 };
+}
+function shapeDims(shape) { return { h: shape.length, w: Math.max(...shape.map(r => r.length)) }; }
+function matchShape(cells, shape, mirror) {
+  const b = gridBounds(cells);
+  if (!b) return false;
+  const { h, w } = shapeDims(shape);
+  if (b.r1 - b.r0 + 1 !== h || b.c1 - b.c0 + 1 !== w) return false;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    const ir = r - b.r0, ic = c - b.c0;
+    let want = null;
+    if (ir >= 0 && ir < h && ic >= 0 && ic < w) {
+      const row = shape[ir];
+      want = (mirror ? row[w - 1 - ic] : row[ic]) || null;
+    }
+    if ((cells[r * 3 + c] || null) !== want) return false;
+  }
+  return true;
+}
+function craftOutput() {
+  for (const R of RECIPES)
+    if (matchShape(S.craft, R.shape, false) || matchShape(S.craft, R.shape, true)) return R;
+  return null;
+}
+/* what stops the output being taken right now, or '' if nothing does */
+function craftBlock(R) {
+  if (!R) return 'nothing';
+  if (ITEMS[R.out].place) return S.inv.rows >= INV_ROWS_MAX ? 'the bag is as big as it gets' : '';
+  return freeSlot() < 0 ? 'no room in the bag' : '';
+}
+function recipeNeeds(R) {
+  const need = {};
+  R.shape.forEach(row => row.forEach(x => { if (x) need[x] = (need[x] || 0) + 1; }));
+  return need;
+}
+
+/* take the output: into a chosen bag slot, the first free one, or — for a
+   tool dropped straight onto the rack — its equipment slot */
+function craftTake(to, eq) {
+  const R = craftOutput();
+  if (!R) return false;
+  const it = ITEMS[R.out];
+  if (eq) {
+    if (!S.ores[EQUIP_ID].unlocked || !fitsSlot(R.out, eq)) return false;
+    // whatever was worn there steps down into the bag first
+    const worn = S.equip[eq];
+    if (worn && !giveItem(worn)) return false;
+    S.equip[eq] = R.out;
+    replay(bars[EQUIP_ID].root, 'hit');
+  } else if (it.place) {
+    if (R.out === 'chest' && !addRow()) return false;
+  } else {
+    if (to === undefined || to < 0) to = freeSlot();
+    if (to < 0 || S.inv.slots[to]) return false;
+    S.inv.slots[to] = R.out;
+    invFlash(to);
+  }
+  for (let i = 0; i < 9; i++) S.craft[i] = null;
+  floatText(CRAFT_ID, '+ ' + it.name, it.color);
+  punch(CRAFT_ID);
+  save();
+  return true;
+}
+
+/* put every item on the grid back in the bag — false if the bag cannot take them */
+function clearGrid() {
+  const n = S.craft.filter(Boolean).length;
+  if (n > freeSlots()) return false;
+  for (let i = 0; i < 9; i++) if (S.craft[i]) { giveItem(S.craft[i]); S.craft[i] = null; }
+  return true;
+}
+
+/* lay a recipe out on the grid from the bag, centred */
+function layRecipe(R) {
+  if (!S.ores[CRAFT_ID].unlocked) return false;
+  const need = recipeNeeds(R);
+  // count what the grid already holds as available, since it goes back first
+  const have = {};
+  S.inv.slots.concat(S.craft).forEach(x => { if (x) have[x] = (have[x] || 0) + 1; });
+  if (!Object.keys(need).every(k => (have[k] || 0) >= need[k])) { replay(bars[CRAFT_ID].root, 'hit'); return false; }
+  if (!clearGrid()) return false;
+  const { h, w } = shapeDims(R.shape);
+  const r0 = Math.floor((3 - h) / 2), c0 = Math.floor((3 - w) / 2);
+  R.shape.forEach((row, r) => row.forEach((x, c) => {
+    if (!x) return;
+    takeItems(x, 1);
+    S.craft[(r0 + r) * 3 + c0 + c] = x;
+  }));
+  replay(bars[CRAFT_ID].root, 'hit');
+  save();
+  return true;
+}
+
+function paintCraft(d, o, b) {
+  let cls = 'ore facility bench';
+  if (!o.unlocked) {
+    cls += ' locked';
+    if (unlockProgress(d.id) >= 1) cls += ' ready';
+  } else cls += ' passive';
+  if (b.root.classList.contains('hit')) cls += ' hit';
+  if (b.root.classList.contains('pop')) cls += ' pop';
+  if (b.root.classList.contains('appear')) cls += ' appear';
+  if (b.root.className !== cls) b.root.className = cls;
+
+  if (!o.unlocked) { paintLocked(d, b); return; }
+
+  b.amtRow.style.display = 'none';
+  b.trackEl.style.display = 'none';
+  b.mrow.style.display = 'none';
+  b.cycbar.style.display = 'none';
+  b.lock.style.display = 'none';
+  b.crow.style.display = '';
+  b.cstat.style.display = '';
+  b.rbook.style.display = '';
+  if (b.tags.innerHTML !== '') b.tags.innerHTML = '';
+
+  const srcI = dragI && dragI.moved && dragI.src.kind === 'craft' ? dragI.src.i : -1;
+  const overI = dragI && dragI.over && dragI.over.kind === 'craft' ? dragI.over.i : -1;
+  for (let i = 0; i < 9; i++) {
+    const c = b.cells[i];
+    setSlotItem(c, S.craft[i]);
+    const cc = 'ccell' + (i === srcI ? ' src' : '') + (i === overI ? ' over' : '');
+    if (c.className !== cc) c.className = cc;
+  }
+  const R = craftOutput();
+  const block = craftBlock(R);
+  setSlotItem(b.cout, R ? R.out : null, block ? 'no' : '');
+  if (R) b.cout.title = block ? `${ITEMS[R.out].name} — ${block}`
+       : `${ITEMS[R.out].name} — drag it into the bag${ITEMS[R.out].slot ? ' or straight onto the rack' : ''}, or click to take it`;
+  const oc = 'cout' + (R ? ' has' : '');
+  if (b.cout.className !== oc) b.cout.className = oc;
+  const ac = 'carrow' + (R && !block ? ' go' : '');
+  if (b.carrow.className !== ac) b.carrow.className = ac;
+
+  let st, sc = 'cstat';
+  const onGrid = S.craft.some(Boolean);
+  if (R && block) st = ITEMS[R.out].name.toUpperCase() + ' · ' + block.toUpperCase();
+  else if (R) { st = ITEMS[R.out].name.toUpperCase() + ' · TAKE IT'; sc += ' go'; }
+  else if (onGrid) st = 'NO RECIPE · CLICK A PIECE TO RETURN IT';
+  else st = 'DRAG ITEMS FROM THE BAG ONTO THE GRID';
+  if (b.cstat.textContent !== st) b.cstat.textContent = st;
+  if (b.cstat.className !== sc) b.cstat.className = sc;
+
+  (b.rbtns || []).forEach(({ node, R: r }) => {
+    const need = recipeNeeds(r);
+    const have = {};
+    S.inv.slots.concat(S.craft).forEach(x => { if (x) have[x] = (have[x] || 0) + 1; });
+    const can = Object.keys(need).every(k => (have[k] || 0) >= need[k]);
+    const made = ITEMS[r.out].tool ? ownsItem(r.out) : (r.out === 'chest' && S.inv.rows >= INV_ROWS_MAX);
+    const rc = 'rbtn' + (can && !made ? ' can' : '') + (made ? ' made' : '');
+    if (node.className !== rc) node.className = rc;
+  });
+}
+
+/* =========================================================================
+   DRAGGING ITEMS — bag <-> bag, bag <-> grid, output -> bag, anything -> bin
+   ========================================================================= */
+
+let dragI = null;
+
+function itemAtSrc(src) {
+  if (src.kind === 'inv')   return S.inv.slots[src.i];
+  if (src.kind === 'craft') return S.craft[src.i];
+  if (src.kind === 'equip') return S.equip[src.i];
+  if (src.kind === 'out')   { const R = craftOutput(); return R ? R.out : null; }
+  return null;
+}
+
+function beginDrag(e, src) {
+  if (e.button !== 0) return;
+  if (dragI || drag) return;
+  const item = itemAtSrc(src);
+  e.stopPropagation();
+  e.preventDefault();
+  if (!item) return;
+  dragI = { src, item, sx: e.clientX, sy: e.clientY, id: e.pointerId, moved: false, over: null };
+  hovered = null;
+  hidePop();
+  hideTip();
+}
+
+function dropTarget(x, y) {
+  const n = document.elementFromPoint(x, y);
+  if (!n) return null;
+  const t = n.closest('.slot, .ccell, .eslot, #trash');
+  if (!t) return null;
+  if (t.id === 'trash') return { kind:'trash', i:0 };
+  if (t.classList.contains('slot')) return { kind:'inv', i:+t.dataset.i };
+  if (t.classList.contains('eslot')) return { kind:'equip', i:t.dataset.e };
+  return { kind:'craft', i:+t.dataset.c };
+}
+
+window.addEventListener('pointermove', e => {
+  if (!dragI || e.pointerId !== dragI.id) return;
+  if (!dragI.moved) {
+    if (Math.hypot(e.clientX - dragI.sx, e.clientY - dragI.sy) < 5) return;
+    dragI.moved = true;
+    el.ghost.innerHTML = itemHtml(dragI.item);
+    el.ghost.classList.add('show');
+  }
+  el.ghost.style.left = e.clientX + 'px';
+  el.ghost.style.top  = e.clientY + 'px';
+  dragI.over = dropTarget(e.clientX, e.clientY);
+});
+
+function endDrag(e) {
+  if (!dragI || e.pointerId !== dragI.id) return;
+  const D = dragI;
+  dragI = null;
+  el.ghost.classList.remove('show');
+  if (e.type === 'pointercancel') return;
+  if (!D.moved) { clickSlot(D.src); return; }
+  const to = dropTarget(e.clientX, e.clientY);
+  if (to) dropItem(D.src, to);
+}
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
+/* a press without a drag */
+function clickSlot(src) {
+  if (src.kind === 'out') { craftTake(); return; }
+  if (src.kind === 'craft') {
+    // a piece on the grid goes back into the bag
+    const it = S.craft[src.i];
+    if (it && giveItem(it)) { S.craft[src.i] = null; save(); }
+  }
+  if (src.kind === 'equip') {
+    // taking a tool off puts it back in the bag
+    const it = S.equip[src.i];
+    if (it && giveItem(it)) { S.equip[src.i] = null; save(); }
+  }
+}
+
+function dropItem(from, to) {
+  if (from.kind === to.kind && from.i === to.i) return;
+  if (from.kind === 'out') {
+    // the output lands in an empty bag slot, or goes straight onto the rack
+    if (to.kind === 'equip') { if (!craftTake(-1, to.i)) replay(bars[EQUIP_ID].root, 'hit'); }
+    else if (to.kind === 'inv' && !S.inv.slots[to.i]) craftTake(to.i);
+    else if (to.kind === 'inv' || to.kind === 'trash') craftTake();
+    return;
+  }
+  const get = s => s.kind === 'inv' ? S.inv.slots[s.i] : s.kind === 'equip' ? S.equip[s.i] : S.craft[s.i];
+  const set = (s, v) => {
+    if (s.kind === 'inv') S.inv.slots[s.i] = v;
+    else if (s.kind === 'equip') S.equip[s.i] = v;
+    else S.craft[s.i] = v;
+  };
+  const a = get(from);
+  if (!a) return;
+  if (to.kind === 'trash') {
+    set(from, null);
+    floatBin(a);
+    save();
+    return;
+  }
+  const bItem = get(to);
+  // a rack slot only ever takes its own kind of tool — in either direction
+  if (to.kind === 'equip' && !fitsSlot(a, to.i)) { replay(bars[EQUIP_ID].root, 'hit'); return; }
+  if (from.kind === 'equip' && !fitsSlot(bItem, from.i)) { replay(bars[EQUIP_ID].root, 'hit'); return; }
+  set(to, a);
+  set(from, bItem);
+  if (to.kind === 'equip' || from.kind === 'equip') replay(bars[EQUIP_ID].root, 'hit');
+  save();
+}
+
+/* =========================================================================
+   ITEM CARD — hover an item for a moment and it says what it is. Built so a
+   line of stats can be hung off each item later without touching the card.
+   ========================================================================= */
+
+const TIP_DELAY = 500;   // ms over an item before the card shows
+let tipT = null, tipFor = null;
+const itip = document.getElementById('itip');
+
+/* the lines the card shows under STATS: right now, a tool's bonuses and
+   whether they are live; a plain resource has none */
+function statsOf(id) {
+  const it = ITEMS[id];
+  const lines = [];
+  if (it.tool) {
+    const live = isEquipped(id);
+    Object.keys(it.tool).forEach(k => {
+      const what = k === 'bars' ? 'Mould setting' : resName(k) + ' speed';
+      lines.push({ label: what, value: '×' + it.tool[k], off: !live });
+    });
+    lines.push({ note: live ? 'equipped — bonus is live' : 'not equipped — bonus is off' });
+  }
+  if (it.place) lines.push({ label: 'Bag rows', value: '+1', off: false });
+  return lines;
+}
+
+function tipHtml(id) {
+  const it = ITEMS[id];
+  const stats = statsOf(id);
+  let h = `<div class="ih">${icon(id)}<div><div class="in" style="--ic:${it.color}">${it.name}</div>` +
+          `<div class="ik">${KIND[id] || 'ITEM'}</div></div></div>`;
+  h += `<div class="id">${it.desc}</div>`;
+  h += '<div class="is"><div class="sh">STATS</div>';
+  if (!stats.length) h += '<div class="sn">nothing special about this one</div>';
+  stats.forEach(l => {
+    if (l.note) h += `<div class="sn">${l.note}</div>`;
+    else h += `<div class="sl${l.off ? ' off' : ''}"><span>${l.label}</span><b>${l.value}</b></div>`;
+  });
+  return h + '</div>';
+}
+
+function showTip(node, x, y) {
+  const id = node.dataset.id;
+  if (!id || !ITEMS[id]) return;
+  itip.innerHTML = tipHtml(id);
+  itip.classList.add('show');
+  const r = node.getBoundingClientRect(), u = itip.getBoundingClientRect();
+  const W = window.innerWidth, H = window.innerHeight, gap = 10;
+  // above the item by default — the bag sits at the bottom of the screen
+  let left = r.left + r.width / 2 - u.width / 2;
+  let top = r.top - gap - u.height;
+  if (top < 6) top = r.bottom + gap;
+  left = Math.max(6, Math.min(left, W - u.width - 6));
+  top = Math.max(6, Math.min(top, H - u.height - 6));
+  itip.style.left = left + 'px';
+  itip.style.top = top + 'px';
+  tipFor = node;
+}
+function hideTip() {
+  clearTimeout(tipT); tipT = null; tipFor = null;
+  itip.classList.remove('show');
+}
+/* the item under the pointer: the face itself, or the slot it sits in, so the
+   rim of a slot counts too */
+function itemUnder(t) {
+  if (!t || !t.closest) return null;
+  const box = t.closest('.item[data-id], .slot, .ccell, .eslot, .cout');
+  if (!box || box.closest('#ghost')) return null;
+  return box.matches('.item') ? box : box.querySelector('.item[data-id]');
+}
+document.addEventListener('pointerover', e => {
+  const n = itemUnder(e.target);
+  if (!n) { if (tipT || tipFor) hideTip(); return; }
+  if (n === tipFor) return;
+  clearTimeout(tipT);
+  tipFor = null;
+  itip.classList.remove('show');
+  if (dragI) return;
+  tipT = setTimeout(() => { if (!dragI && n.isConnected) showTip(n); }, TIP_DELAY);
+});
+document.addEventListener('pointerout', e => {
+  const n = itemUnder(e.target);
+  if (!n) return;
+  if (itemUnder(e.relatedTarget) === n) return;
+  hideTip();
+});
+document.addEventListener('pointerdown', () => hideTip(), true);
+
+function floatBin(id) {
+  if (fxOff) return;
+  replay(el.trash, 'over');
+}
+
+/* =========================================================================
+   PAINT
+   ========================================================================= */
+
+function buildMoulds(id, n) {
+  const b = bars[id];
+  b.mouldsEl.innerHTML = '';
+  b.mouldEls = [];
+  for (let i = 0; i < n; i++) {
+    const m = document.createElement('button');
+    m.className = 'mould empty';
+    m.innerHTML = `<span class="mcool"><span class="mhot"></span></span><span class="msym"></span>`;
+    m.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const st = S.ores[id].moulds[i];
+      if (!st) return;
+      if (st.s === 'ready') harvestMould(id, i);
+      else if (st.s === 'empty') fillMould(id, i);
+    });
+    m.addEventListener('pointerdown', ev => ev.stopPropagation());
+    b.mouldsEl.appendChild(m);
+    b.mouldEls.push({ node: m, cool: m.querySelector('.mcool'),
+                      hot: m.querySelector('.mhot'), sym: m.querySelector('.msym') });
+  }
+}
+
+function paintMoulds(d, o, b) {
+  const list = syncMoulds(d.id);
+  if (b.mouldEls.length !== list.length) buildMoulds(d.id, list.length);
+  const poor = heldOf('iron') < MOULD_FILL_COST;
+  const full = freeSlot() < 0;
+  list.forEach((m, i) => {
+    const e = b.mouldEls[i];
+    if (!e) return;
+    let cls = 'mould ' + m.s, sym = '', tip = '';
+    let w = 0, hot = 0;
+    if (m.s === 'empty') {
+      if (poor) cls += ' no';
+      sym = MOULD_FILL_COST + 'Fe';
+      tip = poor ? `Empty — needs ${MOULD_FILL_COST} molten iron in the crucible`
+                 : `Empty — click to pour ${MOULD_FILL_COST} molten iron in`;
+    } else if (m.s === 'cool') {
+      const k = Math.max(0, Math.min(1, m.t / MOULD_COOL_TIME));
+      w = k * 100; hot = k;
+      sym = Math.ceil(m.t) + 's';
+      tip = `Setting — ${m.t.toFixed(1)}s left`;
+    } else {
+      if (full) cls += ' no';
+      sym = full ? 'FULL' : 'OUT';
+      tip = full ? 'Set — no room in the bag for the bar' : 'Set — click to take out the bar';
+    }
+    if (e.node.className !== cls) e.node.className = cls;
+    const wpx = w.toFixed(1) + '%';
+    if (e.cool.style.width !== wpx) e.cool.style.width = wpx;
+    const op = hot.toFixed(2);
+    if (e.hot.style.opacity !== op) e.hot.style.opacity = op;
+    if (e.sym.textContent !== sym) e.sym.textContent = sym;
+    if (e.node.title !== tip) e.node.title = tip;
+  });
+}
+
+function benchStatus(d, o) {
+  const list = o.moulds;
+  const ready = list.some(m => m.s === 'ready');
+  if (ready && freeSlot() < 0) return ['BAG FULL · MAKE ROOM', 'tstatus stuck'];
+  if (ready) return ['READY · TAKE IT OUT', 'tstatus go'];
+  const cooling = list.filter(m => m.s === 'cool');
+  const empty = list.some(m => m.s === 'empty');
+  const poor = heldOf('iron') < MOULD_FILL_COST;
+  if (empty && poor) {
+    return cooling.length
+      ? [`SETTING · ${Math.min(...cooling.map(m => m.t)).toFixed(1)}S`, 'tstatus']
+      : [`NEEDS ${MOULD_FILL_COST} MOLTEN IRON`, 'tstatus cold'];
+  }
+  if (empty) return [`CLICK A MOULD · ${MOULD_FILL_COST} FE`, 'tstatus go'];
+  return [`SETTING · ${Math.min(...cooling.map(m => m.t)).toFixed(1)}S`, 'tstatus'];
+}
+
+function lockLines(d) {
+  const need = Object.keys(d.unlock)
+    .map(k => `<b>${fmt(d.unlock[k])}</b> ${resName(k).toLowerCase()}`).join(' + ');
+  const head = unlockProgress(d.id) >= 1
+    ? (d.facility ? 'READY TO BUILD' : 'READY TO OPEN')
+    : 'LOCKED';
+  return head + '<br>' + need;
+}
+
+function paintLocked(d, b) {
+  b.amtRow.style.display = 'none';
+  b.trackEl.style.display = 'none';
+  b.mrow.style.display = 'none';
+  b.cycbar.style.display = 'none';
+  b.crow.style.display = 'none';
+  b.erow.style.display = 'none';
+  b.cstat.style.display = 'none';
+  b.rbook.style.display = 'none';
+  b.lock.style.display = '';
+  const html = lockLines(d);
+  if (b.lock.innerHTML !== html) b.lock.innerHTML = html;
+  if (b.tags.innerHTML !== '') b.tags.innerHTML = '';
+}
+
+function paintFurnace(d, o, b) {
+  let cls = 'ore facility';
+  if (!o.unlocked) {
+    cls += ' locked';
+    if (unlockProgress(d.id) >= 1) cls += ' ready';
+  } else if (o.heat > 0) cls += ' hot';
+  if (b.root.classList.contains('hit')) cls += ' hit';
+  if (b.root.classList.contains('appear')) cls += ' appear';
+  if (b.root.className !== cls) b.root.className = cls;
+
+  if (!o.unlocked) { paintLocked(d, b); return; }
+
+  b.amtRow.style.display = '';
+  b.trackEl.style.display = '';
+  b.mrow.style.display = 'none';
+  b.cycbar.style.display = '';
+  b.lock.style.display = 'none';
+
+  b.fill.style.width = (o.heat / FURNACE_HEAT_MAX * 100) + '%';
+  const heatTxt = fmt(o.heat);
+  if (b.cur.textContent !== heatTxt) b.cur.textContent = heatTxt;
+  if (b.capv.textContent !== '/ 100°') b.capv.textContent = '/ 100°';
+
+  const rateTxt = (heatNetNow >= 0 ? '+' : '') + heatNetNow.toFixed(1) + '°/s';
+  if (b.rate.textContent !== rateTxt) b.rate.textContent = rateTxt;
+  const rateCls = 'rate' + (heatNetNow < 0 ? ' neg' : '');
+  if (b.rate.className !== rateCls) b.rate.className = rateCls;
+
+  const stoker = o.lvl.stoker > 0;
+  const fed = countItem('wood') >= FURNACE_STOKE_COST;
+  let st = '', stCls = 'tstatus';
+  if (o.burnLeft > 0)             st = `BURNING · ${o.burnLeft.toFixed(1)}S`;
+  else if (o.burnCooldown > 0)    st = `COOLING · ${o.burnCooldown.toFixed(1)}S`;
+  else if (o.heat >= FURNACE_HEAT_MAX) st = 'AT FULL HEAT';
+  else if (!fed)   st = `NEEDS ${FURNACE_STOKE_COST} WOOD IN THE BAG`;
+  else if (stoker) { st = 'STOKER'; stCls += ' go'; }
+  else { st = `CLICK · BURN ${FURNACE_STOKE_COST} LOG`; stCls += ' go'; }
+  if (b.status.textContent !== st) b.status.textContent = st;
+  if (b.status.className !== stCls) b.status.className = stCls;
+
+  let cycP = 0, burning = o.burnLeft > 0, cooling = !burning && o.burnCooldown > 0;
+  if (burning) cycP = 1 - o.burnLeft / FURNACE_BURN_TIME;
+  else if (cooling) cycP = o.burnCooldown / Math.max(0.001, o.burnCooldownMax || stokeCooldown());
+  b.cyc.style.width = Math.max(0, Math.min(100, cycP * 100)) + '%';
+  const cycCls = 'cyc' + (burning || cooling ? ' on' : '') + (burning ? ' burn' : cooling ? ' cool' : '');
+  if (b.cyc.className !== cycCls) b.cyc.className = cycCls;
+
+  let tag = o.heat > 0 ? '<span class="tag on">LIT</span>' : '<span class="tag cold">COLD</span>';
+  tag += `<span class="tag${stoker ? ' on' : ''}">STOKER ${o.lvl.stoker}</span>`;
+  if (b.tags.innerHTML !== tag) b.tags.innerHTML = tag;
+}
+
+function paint() {
+  const bagFull = freeSlot() < 0;
+  ORES.forEach(d => {
+    if (!revealed.has(d.id)) return;
+    const o = S.ores[d.id], b = bars[d.id];
+    if (d.crafting) { paintCraft(d, o, b); return; }
+    if (d.equipment) { paintEquip(d, o, b); return; }
+    if (d.facility) { paintFurnace(d, o, b); return; }
+
+    const worked = o.unlocked && isWorked(d.id);
+    const held = countItem(d.id);
+    // this tile has something ready and nowhere to put it
+    const crucibleFull = d.heatDriven && o.unlocked && o.molten >= ironCap() - 1e-6;
+    const stuck = o.unlocked && ((bagFull && (
+      (d.casting && o.moulds.some(m => m.s === 'ready')) ||
+      (!d.heatDriven && !d.casting && worked && o.progress >= 1)))
+      || crucibleFull);
+
+    let cls = 'ore';
+    if (o.running) cls += ' run';
+    if (!o.unlocked) {
+      cls += ' locked';
+      if (unlockProgress(d.id) >= 1) cls += ' ready';
+    }
+    if (stuck) cls += ' full';
+    if (worked && o.swinging) cls += ' worked';
+    if (d.heatDriven || d.casting) cls += ' passive';
+    if (b.root.classList.contains('pop')) cls += ' pop';
+    if (b.root.classList.contains('hit')) cls += ' hit';
+    if (b.root.classList.contains('appear')) cls += ' appear';
+    if (b.root.className !== cls) b.root.className = cls;
+
+    if (!o.unlocked) { paintLocked(d, b); return; }
+
+    b.amtRow.style.display = '';
+    b.trackEl.style.display = '';
+    b.mrow.style.display = d.casting ? '' : 'none';
+    b.cycbar.style.display = d.heatDriven ? '' : 'none';
+    b.lock.style.display = 'none';
+
+    if (d.casting) paintMoulds(d, o, b);
+
+    // the big bar is the thing in progress: the swing, or the pour
+    // a paused swing keeps its bar where it stopped, so you can see what you left
+    const mainP = d.heatDriven ? Math.min(1, o.molten / ironCap()) : d.casting ? 0 : Math.min(1, o.progress);
+    b.fill.style.width = (mainP * 100) + '%';
+    const cold = heatBlocked(d.id);
+    // the small rail is the furnace heat gauge under iron; nothing else has one
+    const cycP = d.heatDriven ? heatOf() / FURNACE_HEAT_MAX : 0;
+    b.cyc.style.width = (cycP * 100) + '%';
+    const cycCls = 'cyc' + (d.heatDriven && heatOf() > 0 ? ' on' : '');
+    if (b.cyc.className !== cycCls) b.cyc.className = cycCls;
+
+    let st = '', stCls = 'tstatus';
+    if (d.casting) { const r = benchStatus(d, o); st = r[0]; stCls = r[1]; }
+    else if (crucibleFull) { st = 'CRUCIBLE FULL · POUR A MOULD'; stCls += ' stuck'; }
+    else if (stuck) { st = 'BAG FULL · MAKE ROOM'; stCls += ' stuck'; }
+    else if (cold) { st = furnaceBuilt() ? 'FURNACE COLD · STOKE IT' : 'NEEDS A FURNACE'; stCls += ' cold'; }
+    else if (d.heatDriven) st = `SMELTING AT ${Math.round(heatOf())}°`;
+    else if (o.running) st = d.verb + ' · ' + ((1 - o.progress) * handTime(d.id)).toFixed(1) + 'S';
+    else if (o.progress > 0) { st = `PAUSED · ${((1 - o.progress) * handTime(d.id)).toFixed(1)}S LEFT · CLICK`; stCls += ' go'; }
+    else { st = `CLICK TO ${d.verb}`; stCls += ' go'; }
+    if (b.status.textContent !== st) b.status.textContent = st;
+    if (b.status.className !== stCls) b.status.className = stCls;
+
+    const curTxt = d.heatDriven ? fmt(o.molten) : String(held);
+    if (b.cur.textContent !== curTxt) b.cur.textContent = curTxt;
+    const capTxt = d.heatDriven ? `/ ${ironCap()} molten` : 'in the bag';
+    if (b.capv.textContent !== capTxt) b.capv.textContent = capTxt;
+    let rateTxt = '';
+    if (d.heatDriven) rateTxt = hasHeat() && !crucibleFull ? `+${fmt(pourRate())}/s` : '· idle ·';
+    else if (!d.casting) rateTxt = `${fmt(handTime(d.id))}s a swing`;
+    if (b.rate.textContent !== rateTxt) b.rate.textContent = rateTxt;
+    const rc = 'rate' + (rateTxt === '· idle ·' ? ' neg' : '');
+    if (b.rate.className !== rc) b.rate.className = rc;
+
+    let tags = '';
+    if (worked && o.swinging) tags += '<span class="tag work">SWINGING</span>';
+    if (d.heatDriven) tags += hasHeat() ? '<span class="tag on">HEAT</span>' : '<span class="tag cold">NO HEAT</span>';
+    const tool = !d.heatDriven ? toolFor(d.id) : null;
+    if (tool) tags += `<span class="tag on">${tool.name.toUpperCase()} ×${tool.mult}</span>`;
+    if (b.tags.innerHTML !== tags) b.tags.innerHTML = tags;
+  });
+
+  paintLinks();
+  paintTiles();
+  paintInv();
+}
+
+/* ---- upgrades ---- */
+
+function applySpec(b, spec) {
+  b._cur = spec;
+  if (spec.tint) b.style.setProperty('--uc', itemColor(spec.tint));
+  if (spec.label !== undefined) {
+    const l = b.querySelector('.ulabel');
+    if (l && l.textContent !== spec.label) l.textContent = spec.label;
+  }
+  b._pop = { title: spec.title, eff: spec.eff, tip: spec.tip, cost: spec.cost };
+  if (hovered === b) showPop(b);
+}
+function wireUp(b, spec, base) {
+  b.addEventListener('mouseenter', () => { if (panned) return; hovered = b; showPop(b); });
+  b.addEventListener('mouseleave', () => { if (hovered === b) { hovered = null; hidePop(); } });
+  b.addEventListener('pointerdown', ev => ev.stopPropagation());
+  b.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const s = b._cur;
+    if (s && s.cost && s.buy && canPay(s.cost)) s.buy();
+  });
+  upTiles.push({ node: b, prog: b.querySelector('.uprog'), ring: b.querySelector('.uringbar'), base });
+  applySpec(b, spec);
+  return b;
+}
+function refreshUps() {
+  ORES.forEach(d => (bars[d.id].ups || []).forEach(b => applySpec(b, b._spec())));
+}
+function uTile(o) {
+  const b = document.createElement('button');
+  b.className = 'utile wide';
+  if (o.tint) b.style.setProperty('--uc', itemColor(o.tint));
+  const price = o.cost ? `<span class="ucost">${costHtml(o.cost)}</span>` : '';
+  b.innerHTML = `<span class="uprog"></span><span class="usym">${o.sym}</span>` + price;
+  return wireUp(b, o, 'utile wide');
+}
+function ringPath(w, h, inset, r) {
+  const x0 = inset, y0 = inset, x1 = w - inset, y1 = h - inset;
+  const rr = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2));
+  const cx = ((x0 + x1) / 2).toFixed(2);
+  return `M${cx} ${y0} H${(x1 - rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${x1} ${(y0 + rr).toFixed(2)} ` +
+         `V${(y1 - rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${(x1 - rr).toFixed(2)} ${y1} ` +
+         `H${(x0 + rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${x0} ${(y1 - rr).toFixed(2)} ` +
+         `V${(y0 + rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${(x0 + rr).toFixed(2)} ${y0} Z`;
+}
+function fitRings() {
+  upTiles.forEach(t => {
+    if (!t.ring || !t.node._fitRing) return;
+    const w = t.node.clientWidth, h = t.node.clientHeight;
+    if (!w || !h || (t._w === w && t._h === h)) return;
+    t._w = w; t._h = h;
+    t.ring.ownerSVGElement.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    t.ring.setAttribute('d', ringPath(w, h, 1, 7));
+  });
+}
+function uText(o) {
+  const b = document.createElement('button');
+  b.className = 'utext';
+  b._fitRing = true;
+  if (o.tint) b.style.setProperty('--uc', itemColor(o.tint));
+  b.innerHTML =
+    `<svg class="uring"><path class="uringbar" pathLength="100" style="stroke-dasharray:0 100"/></svg>` +
+    `<span class="ulabel"></span>`;
+  b.querySelector('.ulabel').textContent = o.label;
+  return wireUp(b, o, 'utext');
+}
+function uBtn(o) {
+  const b = document.createElement('button');
+  b.className = 'ubtn';
+  if (o.tint) b.style.setProperty('--uc', itemColor(o.tint));
+  b.innerHTML =
+    `<svg class="uring" viewBox="0 0 28 28">` +
+      `<path class="uringbar" pathLength="100" style="stroke-dasharray:0 100" d="` +
+        `M14 1.25 H20.25 A6.5 6.5 0 0 1 26.75 7.75 V20.25 A6.5 6.5 0 0 1 20.25 26.75 ` +
+        `H7.75 A6.5 6.5 0 0 1 1.25 20.25 V7.75 A6.5 6.5 0 0 1 7.75 1.25 Z"/>` +
+    `</svg><span class="uplus"></span>`;
+  return wireUp(b, o, 'ubtn');
+}
+
+function renderStrips() {
+  upTiles = [];
+  hovered = null;
+  hidePop();
+  ORES.forEach(d => renderStrip(d.id));
+  fitRings();
+}
+
+function upgradesFor(d) {
+  if (d.heatDriven) return [CRUCIBLE];
+  if (d.casting) return [MOULDS];
+  return TILE_UPGRADES;
+}
+function unlockBlurb(d) {
+  if (d.casting) {
+    return `Opens the casting bench with <b>${MOULD_BASE}</b> moulds. Each mould takes <b>${MOULD_FILL_COST} molten iron</b> ` +
+           `from the crucible, sets in <em>${MOULD_COOL_TIME}s</em>, then puts a bar in the bag. Press the moulds themselves — ` +
+           `the bench runs alongside whatever you are working.`;
+  }
+  if (d.crafting) {
+    return `A <b>3×3</b> grid. Drag items from the bag onto it in the right shape and take what comes out. ` +
+           `A <b>chest</b> of eight logs adds a row to the bag; <b>axes</b>, <b>picks</b> and <b>tongs</b> speed things up once they are worn.`;
+  }
+  if (d.equipment) {
+    return `A rack with a slot for an <b>axe</b>, a <b>pick</b> and a pair of <b>tongs</b>. ` +
+           `A tool does nothing sat in the bag — drag it into its slot here and its bonus goes live.`;
+  }
+  if (d.facility) {
+    return `Builds the furnace and opens <b>Iron</b> with it, free. Click the furnace to burn <b>${FURNACE_STOKE_COST} log</b> ` +
+           `for <b>+${FURNACE_HEAT_GAIN}°</b> over <em>${FURNACE_BURN_TIME}s</em>. Iron then pours itself into a crucible, ` +
+           `<em>faster the hotter it burns</em>, and stays molten there until a mould takes it. ` +
+           `Stoking alone tops out around <b>${Math.round(heatCeiling(0, 0))}°</b>.`;
+  }
+  return `Brings <b>${d.name}</b> online: each click is one swing of <em>${d.time}s</em>, and one ${ITEMS[d.id].name.toLowerCase()} lands in the bag at the end of it.`;
+}
+function upgradeSpec(id, u) {
+  const o = S.ores[id], lvl = o.lvl[u.key];
+  if (lvl >= u.max) {
+    return { tint: payOre(id, u), title: `${u.name} — maxed`,
+             eff: u.eff(id, lvl - 1), tip: u.tip, cost: null };
+  }
+  const cost = costOf(id, u, lvl);
+  return { tint: payOre(id, u), title: `${u.name} — level ${lvl}/${u.max}`,
+           eff: u.eff(id, lvl), tip: u.tip, cost,
+           buy: () => { pay(cost); o.lvl[u.key]++; commit(); } };
+}
+function bellowsSpec(id) {
+  const o = S.ores[id], lvl = o.lvl.bellows, maxed = lvl >= BELLOWS.max;
+  return {
+    tint: BELLOWS.pay,
+    label: maxed ? 'Bellows: cooldown at minimum' : 'Bellows: reduce burn cooldown',
+    title: maxed ? `${BELLOWS.name} — maxed` : `${BELLOWS.name} — level ${lvl}/${BELLOWS.max}`,
+    eff: BELLOWS.eff(id, maxed ? lvl - 1 : lvl),
+    tip: BELLOWS.tip,
+    cost: maxed ? null : costOf(id, BELLOWS, lvl),
+    buy: () => { pay(costOf(id, BELLOWS, lvl)); o.lvl.bellows++; commit(); },
+  };
+}
+
+function renderStrip(id) {
+  const d = BY_ID[id], o = S.ores[id], b = bars[id];
+  b.strip.innerHTML = '';
+  b.strip.style.display = 'none';
+  Object.values(b.slots).forEach(s => s.innerHTML = '');
+  b.ups = [];
+
+  b.mrow.style.display = (d.casting && o.unlocked) ? '' : 'none';
+  if (d.casting && o.unlocked) buildMoulds(id, mouldCountAt(id));
+  b.crow.style.display = (d.crafting && o.unlocked) ? '' : 'none';
+  b.erow.style.display = (d.equipment && o.unlocked) ? '' : 'none';
+  b.cstat.style.display = ((d.crafting || d.equipment) && o.unlocked) ? '' : 'none';
+  b.rbook.style.display = (d.crafting && o.unlocked) ? '' : 'none';
+
+  if (!o.unlocked) {
+    b.strip.style.display = '';
+    b.strip.appendChild(uTile({
+      tint: id,
+      sym: (d.facility ? 'BUILD ' : 'OPEN ') + d.name.toUpperCase(),
+      title: (d.facility ? 'Build the ' : 'Open ') + d.name,
+      eff: unlockBlurb(d),
+      tip: 'Paid in items out of the bag. Each ingredient runs in along its own supply line.',
+      cost: d.unlock,
+      buy: () => {
+        pay(d.unlock);
+        o.unlocked = true;
+        ORES.forEach(x => { if (x.opensWith === id) S.ores[x.id].unlocked = true; });
+        commitUnlock();
+      },
+    }));
+    return;
+  }
+
+  const add = (node, spec) => { node._spec = spec; b.ups.push(node); return node; };
+
+  if (d.crafting || d.equipment) return;
+  if (d.facility) {
+    const sspec = () => upgradeSpec(id, STOKER);
+    b.slots.aut.appendChild(add(uBtn(sspec()), sspec));
+    b.strip.style.display = '';
+    const spec = () => bellowsSpec(id);
+    b.strip.appendChild(add(uText(spec()), spec));
+    return;
+  }
+  upgradesFor(d).forEach(u => {
+    const slot = b.slots[u.slot];
+    if (!slot) return;
+    const spec = () => upgradeSpec(id, u);
+    slot.appendChild(add(uBtn(spec()), spec));
+  });
+}
+
+function showPop(tile) {
+  const p = tile._pop;
+  if (!p) return;
+  let html = `<div class="pt">${p.title}</div><div class="pe">${p.eff}</div>`;
+  if (p.tip) html += `<div class="pd">${p.tip}</div>`;
+  if (p.cost) {
+    html += '<div class="pc">' + Object.keys(p.cost).map(k =>
+      `<span data-ore="${k}" style="--c:${itemColor(k)}">${fmt(p.cost[k])} ${icon(k)}</span>`
+    ).join('') + '</div>';
+  }
+  el.upop.innerHTML = html;
+  el.upop.classList.add('show');
+  const f = el.forge.getBoundingClientRect();
+  const t = tile.getBoundingClientRect();
+  const u = el.upop.getBoundingClientRect();
+  const gap = 14;
+  const tx = t.left - f.left, ty = t.top - f.top, tw = t.width, th = t.height;
+  const cands = [
+    { x: tx + tw + gap,             y: ty + th / 2 - u.height / 2 },
+    { x: tx - gap - u.width,        y: ty + th / 2 - u.height / 2 },
+    { x: tx + tw / 2 - u.width / 2, y: ty + th + gap },
+    { x: tx + tw / 2 - u.width / 2, y: ty - gap - u.height },
+  ];
+  const best = cands.find(c => c.x >= 6 && c.x + u.width <= f.width - 6 &&
+                               c.y >= 6 && c.y + u.height <= f.height - 6) || cands[0];
+  el.upop.style.left = Math.max(6, Math.min(best.x, f.width  - u.width  - 6)) + 'px';
+  el.upop.style.top  = Math.max(6, Math.min(best.y, f.height - u.height - 6)) + 'px';
+  paintTiles();
+}
+function hidePop() { el.upop.classList.remove('show'); }
+
+function paintTiles() {
+  upTiles.forEach(t => {
+    const cost = t.node._cur && t.node._cur.cost;
+    const p = cost ? costProgress(cost) : 0;
+    const pct = (p * 100).toFixed(1) + '%';
+    if (t.prog && t.prog.style.getPropertyValue('--p') !== pct) t.prog.style.setProperty('--p', pct);
+    if (t.ring) {
+      const dash = (p * 100).toFixed(1) + ' 100';
+      if (t.ring.style.strokeDasharray !== dash) t.ring.style.strokeDasharray = dash;
+    }
+    let cls = t.base;
+    if (!cost) cls += ' max';
+    else {
+      if (p >= 1) cls += ' can';
+      if (Object.keys(cost).some(k => BY_ID[k] && !S.ores[k].unlocked)) cls += ' gated';
+    }
+    if (t.node.className !== cls) t.node.className = cls;
+  });
+  if (hovered && hovered._pop && hovered._pop.cost) {
+    const cost = hovered._pop.cost;
+    Object.keys(cost).forEach(k => {
+      const s = el.upop.querySelector(`.pc span[data-ore="${k}"]`);
+      if (!s) return;
+      const c = heldOf(k) >= cost[k] ? 'ok' : 'short';
+      if (s.className !== c) s.className = c;
+    });
+  }
+}
+
+/* =========================================================================
+   ACTIONS
+   ========================================================================= */
+
+function commit() { refreshUps(); save(); }
+function commitUnlock() { rebuildBoard(true); save(); }
+
+function stokeFurnace() {
+  const furnace = S.ores[FURNACE_ID];
+  if (!furnaceReady() || furnace.heat >= FURNACE_HEAT_MAX) return false;
+  if (countItem('wood') < FURNACE_STOKE_COST) return false;
+  takeItems('wood', FURNACE_STOKE_COST);
+  furnace.burnLeft = FURNACE_BURN_TIME;
+  floatText(FURNACE_ID, '+' + FURNACE_HEAT_GAIN + '°', BY_ID[FURNACE_ID].color);
+  replay(bars[FURNACE_ID].root, 'hit');
+  return true;
+}
+
+/* One click, one swing. Clicking another tile mid-swing walks over to it and
+   starts there; the swing you left keeps its progress until you come back. */
+function work(id) {
+  if (!isWorkable(id)) return false;
+  const o = S.ores[id];
+  if (isWorked(id) && o.swinging) return false;      // already mid-swing here
+  const prev = S.ores[S.worked];
+  if (prev && prev !== o) { prev.running = false; prev.swinging = false; }
+  S.worked = id;
+  o.swinging = true; o.running = true;
+  replay(bars[id].root, 'hit');
+  save();
+  return true;
+}
+function nextWork() {
+  const list = workableIds();
+  if (!list.length) return false;
+  return work(list[(list.indexOf(S.worked) + 1) % list.length]);
+}
+
+function fillMould(id, i, auto) {
+  const d = BY_ID[id];
+  if (!d || !d.casting) return false;
+  const o = S.ores[id];
+  if (!o.unlocked) return false;
+  const m = syncMoulds(id)[i];
+  if (!m || m.s !== 'empty') return false;
+  if (!takeItems('iron', MOULD_FILL_COST)) return false;
+  m.s = 'cool'; m.t = MOULD_COOL_TIME;
+  if (!auto) { replay(bars[id].root, 'hit'); save(); }
+  return true;
+}
+function harvestMould(id, i, auto) {
+  const d = BY_ID[id];
+  if (!d || !d.casting) return false;
+  const o = S.ores[id];
+  if (!o.unlocked) return false;
+  const m = syncMoulds(id)[i];
+  if (!m || m.s !== 'ready') return false;
+  if (!deliver(id, 'bars')) return false;
+  m.s = 'empty'; m.t = 0;
+  if (!auto) save();
+  return true;
+}
+
+function tileClick(id) {
+  if (BY_ID[id].crafting || BY_ID[id].equipment) return;
+  if (BY_ID[id].facility) { stokeFurnace(); return; }
+  if (BY_ID[id].casting) return;
+  work(id);
+}
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!confirm('Wipe all progress and start over?')) return;
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* storage unavailable */ }
+  S = freshState();
+  buildInv();
+  rebuildBoard(false);
+  openingCam();
+});
+document.getElementById('cam-in').addEventListener('click', () => zoomCenter(1.25));
+document.getElementById('cam-out').addEventListener('click', () => zoomCenter(1 / 1.25));
+document.getElementById('cam-fit').addEventListener('click', () => { fitCam(); save(); });
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); nextWork(); return; }
+  if (e.key === '0')            { fitCam(); save(); return; }
+  if (e.key === '+' || e.key === '=') { zoomCenter(1.25); return; }
+  if (e.key === '-' || e.key === '_') { zoomCenter(1 / 1.25); return; }
+});
+
+let relayout;
+window.addEventListener('resize', () => {
+  clearTimeout(relayout);
+  relayout = setTimeout(() => { applyCam(); hidePop(); }, 120);
+});
+
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+
+S = load();
+buildEmbers();
+buildBars();
+buildInv();
+rebuildBoard(false);
+if (S.cam) { cam = S.cam; applyCam(); } else openingCam();
+setInterval(save, 10000);
+requestAnimationFrame(t => { lastT = t; tick(t); });
+
+window.__sw = {
+  get state() { return S; },
+  get cam() { return cam; },
+  get worked() { return S.worked; },
+  get inv() { return S.inv; },
+  get craft() { return S.craft; },
+  get equip() { return S.equip; },
+  EQUIP_SLOTS, ownsItem, isEquipped, fitsSlot, statsOf, showTip, hideTip,
+  step, paint, tileClick, work, nextWork, workableIds, isWorkable, isWorked,
+  renderStrips, buildLinks, stokeFurnace,
+  giveItem, takeItems, countItem, freeSlot, freeSlots, addRow, toolFor, toolMult,
+  craftOutput, craftTake, layRecipe, clearGrid, matchShape, dropItem,
+  fillMould: (i) => fillMould('bars', i),
+  harvestMould: (i) => harvestMould('bars', i),
+  moulds: () => S.ores.bars.moulds.map(m => ({ s: m.s, t: m.t })),
+  mouldCount, mouldCountAt, syncMoulds,
+  unlockProgress, costProgress, costOf, aboveOf, payOre, canPay, pay,
+  timeOf, handTime, pourRate, ironCap, ironCapAt, CRUCIBLE, stokeCooldown, heatCeiling, heatLoss, furnaceReady,
+  isRevealed, syncReveal, rebuildBoard, refreshUps, revealed, tileBox, commitUnlock, save, load,
+  fitCam, openingCam, zoomAt, applyCam, placeLabels,
+  ITEMS, RECIPES, LINKS, ORES, WORLD, SPD, MOULDS, BELLOWS, STOKER,
+  advance(seconds, slice = 1/60) {
+    fxOff = true;
+    try { for (let t = 0; t < seconds; t += slice) step(slice); }
+    finally { fxOff = false; }
+    paint();
+  },
+};
+</script>
+</body>
+</html>

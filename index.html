@@ -1,0 +1,3146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smeltworks</title>
+<style>
+  :root {
+    --bg: #07080c;
+    --panel2: #1d222e;
+    --panel3: #262c3b;
+    --line: #2f3648;
+    --line2: #3d465c;
+    --text: #e6ebf5;
+    --dim: #939bad;
+    --dimmer: #626a7d;
+    --ember: #ff9a3c;
+    --ember-hot: #ffc76b;
+    --ember-dim: #b3641f;
+    --good: #6ee7a8;
+    --bad: #ef6b6b;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'Cascadia Mono', 'Consolas', monospace;
+
+    /* the world is a fixed-size map now — the camera scales it, not the viewport */
+    --bar-w: 320px;
+    --amt-size: 33px;
+    --ut: 46px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: var(--font); font-size: 15px;
+    user-select: none; -webkit-user-select: none;
+  }
+
+  /* ================= forge (the viewport) ================= */
+
+  #forge {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    cursor: grab; touch-action: none;
+    background:
+      radial-gradient(60% 40% at 50% 102%, rgba(255,154,60,.20), transparent 68%),
+      radial-gradient(110% 80% at 50% -10%, #191e2b, var(--bg) 72%);
+  }
+  #forge.grabbing { cursor: grabbing; }
+  #forge::after {
+    content: ''; position: absolute; left: -20%; right: -20%; bottom: -12%; height: 40%;
+    background: radial-gradient(closest-side, rgba(255,120,30,.18), transparent 72%);
+    filter: blur(26px); animation: haze 7s ease-in-out infinite; pointer-events: none;
+  }
+  @keyframes haze {
+    0%,100% { transform: scaleY(1) translateY(0); opacity: .75; }
+    50%     { transform: scaleY(1.22) translateY(-10px); opacity: 1; }
+  }
+
+  /* ================= world (the pannable, zoomable map) ================= */
+
+  /* No will-change here on purpose: promoting this to a compositor layer makes
+     the browser rasterise it once and stretch that bitmap, which is what turns
+     every label soft as soon as you zoom in. Letting it repaint keeps text
+     crisp at any zoom, and the scene is small enough that it costs nothing. */
+  #world {
+    position: absolute; left: 0; top: 0;
+    transform-origin: 0 0;
+  }
+
+  #embers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .ember {
+    position: absolute; bottom: -20px; border-radius: 50%;
+    background: var(--ember); filter: blur(1px); animation: emberUp linear infinite;
+  }
+  @keyframes emberUp {
+    0%   { transform: translate(0,0) scale(.5); opacity: 0; }
+    12%  { opacity: .85; }
+    70%  { opacity: .5; }
+    100% { transform: translate(var(--drift), -104vh) scale(1.15); opacity: 0; }
+  }
+
+  /* One column, so however many lines the hint wraps to it can never end up
+     underneath the title. */
+  #corner {
+    position: absolute; bottom: 18px; left: 26px; z-index: 3;
+    display: flex; flex-direction: column; gap: 9px;
+    max-width: min(620px, calc(100% - 320px)); pointer-events: none;
+  }
+  #title { font-size: 13px; letter-spacing: .42em; text-transform: uppercase; color: var(--dimmer); }
+  #title b { color: var(--ember-dim); letter-spacing: .42em; text-shadow: 0 0 22px rgba(255,154,60,.45); }
+  #hint { font-size: 11px; color: #454b5b; letter-spacing: .05em; line-height: 1.7; }
+  /* on a narrow window the controls win the bottom strip */
+  @media (max-width: 720px) { #hint { display: none; } }
+
+  #camui {
+    position: absolute; bottom: 18px; right: 22px; z-index: 25;
+    display: flex; gap: 6px; align-items: center;
+  }
+  #camui button {
+    font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+    background: rgba(10,13,19,.7); border: 1px solid var(--line); color: var(--dimmer);
+    border-radius: 6px; padding: 7px 12px; cursor: pointer; font-family: var(--font);
+    transition: all .13s;
+  }
+  #camui button:hover { border-color: var(--line2); color: var(--dim); }
+  #camui .zbtn { width: 32px; padding: 7px 0; text-align: center; font-size: 13px; letter-spacing: 0; }
+  #camui #zlevel {
+    font-family: var(--mono); font-size: 10px; color: var(--dimmer);
+    min-width: 40px; text-align: center;
+  }
+  #camui #btn-reset:hover { border-color: var(--bad); color: var(--bad); }
+  #camui #btn-sound.on { color: var(--good); border-color: rgba(110,231,168,.4); }
+
+  /* ================= links — one per unlock ingredient ================= */
+
+  #arc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+  .lbase { fill: none; stroke: #1c212c; stroke-width: 6; stroke-linecap: round; }
+  /* the glow is a fat translucent stroke under the line, not a drop-shadow
+     filter — a filter would rasterise the line itself and go soft on zoom */
+  .lglow {
+    fill: none; stroke: var(--lc); stroke-width: 12; stroke-linecap: round;
+    opacity: .13; transition: stroke-dasharray .16s linear;
+  }
+  .lfill {
+    fill: none; stroke: var(--lc); stroke-width: 3.5; stroke-linecap: round;
+    transition: stroke-dasharray .16s linear;
+  }
+  .link.lit .lglow { stroke-width: 20; animation: glowPulse 1.25s ease-in-out infinite; }
+  .link.lit .lfill { stroke-width: 5.5; animation: linkPulse 1.25s ease-in-out infinite; }
+  @keyframes linkPulse { 0%,100% { opacity: .72; } 50% { opacity: 1; } }
+  @keyframes glowPulse { 0%,100% { opacity: .20; } 50% { opacity: .42; } }
+  /* a fuel line reads as a flow, not a requirement: dashed rail, thinner core */
+  .link.feed .lbase { stroke-dasharray: 11 10; stroke-width: 5; }
+  .link.feed .lfill { stroke-width: 3; }
+  .link.done { opacity: .3; }
+  .link.done .lfill { stroke-width: 2.5; }
+  .link.done .lglow { opacity: 0; }
+  .link.dormant { opacity: .34; }
+  .link.dormant .lglow { opacity: 0; }
+
+  #linklabels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+  .llabel {
+    position: absolute; transform: translate(-50%, -50%);
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+    padding: 3px 7px; border-radius: 5px; white-space: nowrap;
+    background: rgba(9,11,16,.92); border: 1px solid var(--line); color: var(--dim);
+    transition: opacity .2s;
+  }
+  .llabel.ready {
+    color: #0c0f15; background: var(--lc); border-color: var(--lc);
+    box-shadow: 0 0 18px -2px var(--lc); animation: linkPulse 1.25s ease-in-out infinite;
+  }
+  .llabel.gone { opacity: 0; }
+
+  /* ================= ore tile ================= */
+
+  .ore {
+    position: absolute; z-index: 4;
+    width: var(--bar-w); transform: translate(-50%, -50%);
+    padding: 10px 13px 11px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.035), transparent 40%),
+      linear-gradient(180deg, #1b2029, #14171f);
+    box-shadow: 0 10px 26px -12px #000, inset 0 1px 0 rgba(255,255,255,.05);
+    transition: border-color .18s, box-shadow .18s, transform .14s, opacity .25s;
+  }
+  .ore:not(.run) { opacity: .92; }
+  .ore.run { z-index: 5; border-color: color-mix(in srgb, var(--ore) 70%, var(--line)); }
+  .ore.locked { opacity: .55; background: #0e1117; border-style: dashed; }
+  .ore.ready {
+    opacity: .96; border-style: solid; border-color: var(--ore);
+    box-shadow: 0 0 34px -10px var(--ore), 0 10px 26px -14px #000;
+    animation: readyPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes readyPulse {
+    0%,100% { box-shadow: 0 0 40px -14px var(--ore), 0 14px 30px -14px #000; }
+    50%     { box-shadow: 0 0 62px -6px  var(--ore), 0 14px 30px -14px #000; }
+  }
+  .ore.facility {
+    background:
+      linear-gradient(180deg, rgba(243,173,85,.12), transparent 45%),
+      linear-gradient(180deg, #25201a, #161513);
+  }
+  .ore.facility.hot {
+    border-color: var(--ore);
+    box-shadow: 0 0 32px -10px var(--ore), 0 12px 28px -14px #000;
+  }
+  /* The one tile the worker is stood at. Exactly one card on the board ever
+     carries this, so it is the loudest thing on screen that is not a purchase.
+     The furnace is never one of them — you trigger it, you do not stand at it. */
+  .ore.worked {
+    opacity: 1; border-color: var(--ember);
+    box-shadow: 0 0 34px -8px var(--ember), 0 12px 28px -14px #000;
+    animation: workedPulse 1.9s ease-in-out infinite;
+  }
+  @keyframes workedPulse {
+    0%,100% { box-shadow: 0 0 30px -10px var(--ember), 0 12px 28px -14px #000; }
+    50%     { box-shadow: 0 0 52px -4px  var(--ember), 0 12px 28px -14px #000; }
+  }
+  .tag.work {
+    background: rgba(255,154,60,.16); color: var(--ember-hot);
+    border-color: rgba(255,154,60,.45); box-shadow: 0 0 12px -3px var(--ember);
+  }
+  .ore.facility .fill {
+    background: linear-gradient(90deg, #48250f, #d96820 55%, #ffd26b);
+  }
+  /* Feedback is done with light, never with scale. Animating the transform of
+     a tile re-rasterises everything inside it, so every pour used to smear the
+     readouts for a third of a second. */
+  .ore.pop { animation: pop .40s ease-out; }
+  @keyframes pop {
+    0%   { box-shadow: 0 10px 26px -12px #000, inset 0 1px 0 rgba(255,255,255,.05); }
+    26%  { box-shadow: 0 0 40px -6px var(--ore), 0 10px 26px -12px #000,
+                       inset 0 1px 0 rgba(255,255,255,.30); }
+    100% { box-shadow: 0 10px 26px -12px #000, inset 0 1px 0 rgba(255,255,255,.05); }
+  }
+  /* a tile arriving on the board for the first time — a one-off entrance, so a
+     scale here is fine; it never overlaps anything you're trying to read */
+  .ore.appear { animation: appear .55s cubic-bezier(.2,.9,.3,1); }
+  @keyframes appear {
+    0%   { opacity: 0; transform: translate(-50%,-50%) scale(.84); }
+    55%  { opacity: 1; }
+    100% { opacity: .92; transform: translate(-50%,-50%) scale(1); }
+  }
+  /* click acknowledgement: a ring that expands off the edge and fades */
+  .ore.hit { animation: hit .34s ease-out; }
+  @keyframes hit {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ore) 60%, transparent),
+                       0 10px 26px -12px #000; }
+    100% { box-shadow: 0 0 0 14px transparent, 0 10px 26px -12px #000; }
+  }
+
+  .obody { cursor: pointer; }
+  .obody:hover .ore-name { text-shadow: 0 0 22px var(--ore); }
+  /* the furnace works this tile, so there is nothing here to press */
+  .ore.passive .obody { cursor: inherit; }
+
+  .ore-head { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+  .ore-name {
+    font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ore); font-size: 12.5px;
+    text-shadow: 0 0 16px color-mix(in srgb, var(--ore) 55%, transparent);
+  }
+  .ore-tags { margin-left: auto; display: flex; gap: 5px; }
+  .tag {
+    font-size: 9px; font-weight: 600; letter-spacing: .1em;
+    padding: 2px 5px; border-radius: 4px;
+    background: #262d3c; color: var(--dim); border: 1px solid #333c4f;
+  }
+  .tag.on {
+    background: rgba(110,231,168,.14); color: var(--good);
+    border-color: rgba(110,231,168,.38); box-shadow: 0 0 12px -4px var(--good);
+  }
+  .tag.cold {
+    background: rgba(95,120,160,.14); color: #7f93b4; border-color: rgba(95,120,160,.4);
+  }
+
+  .amt { display: flex; align-items: baseline; gap: 7px; margin-bottom: 8px; }
+  .amt .cur {
+    font-family: var(--mono); font-size: var(--amt-size); font-weight: 700;
+    line-height: 1; letter-spacing: -.02em; color: var(--ore);
+    text-shadow: 0 0 26px color-mix(in srgb, var(--ore) 60%, transparent);
+  }
+  /* the capacity figure and the + that raises it read as one unit, set apart
+     from the stock figure by the row gap rather than floating between them */
+  .capgrp { display: inline-flex; align-items: center; gap: 6px; }
+  .amt .capv { font-family: var(--mono); font-size: 19px; color: var(--dimmer); }
+  .amt .rate {
+    margin-left: auto; font-family: var(--mono); font-size: 12px;
+    color: var(--good); text-shadow: 0 0 14px rgba(110,231,168,.45);
+  }
+  .amt .rate.neg { color: var(--dimmer); text-shadow: none; }
+
+  /* the output bar and the + that widens it share a row */
+  .trackrow { display: flex; align-items: center; gap: 7px; }
+  .trackrow .track { flex: 1 1 auto; min-width: 0; }
+  /* the number flashes white rather than growing — a scale or a filter on text
+     is the single worst offender for blur inside a zoomed layer */
+  .cur.tick { animation: tick .34s ease-out; }
+  @keyframes tick {
+    0%   { color: var(--ore); text-shadow: 0 0 26px color-mix(in srgb, var(--ore) 60%, transparent); }
+    20%  { color: #fff;       text-shadow: 0 0 12px #fff, 0 0 38px var(--ore); }
+    100% { color: var(--ore); text-shadow: 0 0 26px color-mix(in srgb, var(--ore) 60%, transparent); }
+  }
+  .ore.full .cur { color: var(--ember-hot); animation: fullPulse 1.1s ease-in-out infinite; }
+  @keyframes fullPulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+  /* the stock bar */
+  .track {
+    position: relative; height: 24px; border-radius: 5px;
+    background: #06070a; border: 1px solid #262d3c; overflow: hidden;
+    box-shadow: inset 0 2px 7px rgba(0,0,0,.85);
+  }
+  .fill {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background:
+      linear-gradient(100deg,
+        color-mix(in srgb, var(--ore) 30%, #000) 0%, var(--ore) 42%,
+        color-mix(in srgb, var(--ore) 55%, #fff) 52%, var(--ore) 62%,
+        color-mix(in srgb, var(--ore) 30%, #000) 100%);
+    background-size: 260% 100%; animation: molten 3.4s linear infinite;
+    box-shadow: 0 0 18px -3px var(--ore); transition: width .14s linear;
+  }
+  @keyframes molten { from { background-position: 160% 0; } to { background-position: -100% 0; } }
+  .gloss {
+    position: absolute; inset: 0 0 auto 0; height: 45%;
+    background: linear-gradient(180deg, rgba(255,255,255,.20), transparent); pointer-events: none;
+  }
+  .tstatus {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .14em;
+    color: rgba(255,255,255,.92); text-shadow: 0 1px 5px #000, 0 0 12px #000;
+    pointer-events: none; opacity: .62; transition: opacity .2s;
+  }
+  .obody:hover .tstatus, .ore.run .tstatus { opacity: 1; }
+  .tstatus.go { color: var(--ember-hot); animation: fullPulse 1.3s ease-in-out infinite; }
+  .tstatus.cold { color: #8fa6c8; }
+
+  /* the work cycle — its own rail UNDER the stock bar, never overlapping it */
+  .cycbar {
+    height: 6px; margin-top: 5px; border-radius: 3px; overflow: hidden;
+    background: #06070a; border: 1px solid #1f2532;
+  }
+  .cyc {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--ember-dim), var(--ember-hot));
+    box-shadow: 0 0 10px var(--ember);
+    opacity: 0; transition: opacity .2s;
+  }
+  .cyc.on { opacity: 1; }
+  /* heat going in reads hotter than the wait that follows it */
+  .cyc.burn {
+    background: linear-gradient(90deg, #d96820, #fff0c0);
+    box-shadow: 0 0 14px var(--ember-hot);
+  }
+  .cyc.cool {
+    background: linear-gradient(90deg, #2b3546, #55627d);
+    box-shadow: none;
+  }
+
+  /* ---- the casting bench: a row of moulds, each on its own timer ----
+     These are the only controls on the board that are NOT the worked tile:
+     you press a mould directly, from wherever the worker happens to be stood. */
+  .mrow { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
+  .moulds { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 5px; }
+  .mould {
+    flex: 1 1 26px; min-width: 26px; height: 30px; padding: 0;
+    position: relative; overflow: hidden;
+    border: 1px solid #2b3242; border-radius: 6px;
+    background: linear-gradient(180deg, #0f1219, #080a0f);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.8);
+    cursor: pointer; font-family: var(--mono);
+    transition: border-color .14s, box-shadow .14s, opacity .14s, transform .1s;
+  }
+  /* the cooling bar drains right to left; the hot layer fades out over it, so a
+     mould goes orange -> grey as it sets, without animating any transform */
+  .mcool { position: absolute; inset: 0 auto 0 0; width: 0%;
+           background: linear-gradient(180deg, #46536b, #2b3546);
+           transition: width .12s linear; }
+  .mhot { position: absolute; inset: 0;
+          background: linear-gradient(180deg, #ffb457, #d1610f);
+          box-shadow: 0 0 12px var(--ember); transition: opacity .12s linear; }
+  .msym {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8.5px; font-weight: 700; letter-spacing: .06em;
+    color: var(--dimmer); text-shadow: 0 1px 3px #000;
+  }
+  .mould.empty:hover { border-color: var(--ore); box-shadow: 0 0 14px -5px var(--ore); }
+  .mould.empty:hover .msym { color: var(--ore); }
+  .mould.empty.no { opacity: .38; cursor: default; }
+  .mould.cool { cursor: default; border-color: #3d4557; }
+  .mould.cool .msym { color: #f0e0c8; }
+  .mould.ready {
+    border-color: var(--ore);
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--ore) 62%, #000),
+      color-mix(in srgb, var(--ore) 26%, #000));
+    animation: mready 1.2s ease-in-out infinite;
+  }
+  .mould.ready .msym { color: #10131a; text-shadow: none; }
+  .mould.ready.no { animation: none; opacity: .55; cursor: default; }
+  @keyframes mready {
+    0%,100% { box-shadow: 0 0 12px -5px var(--ore), inset 0 1px 0 rgba(255,255,255,.22); }
+    50%     { box-shadow: 0 0 24px -2px var(--ore), inset 0 1px 0 rgba(255,255,255,.34); }
+  }
+  .mould:active:not(.cool):not(.no) { transform: scale(.94); }
+  /* a furrow runs the same timer as a mould, but nothing in it is molten —
+     green going in, green coming out */
+  .mould.crop .mhot { background: linear-gradient(180deg, #8fd45f, #3f7a2a);
+                      box-shadow: 0 0 12px rgba(143,191,106,.5); }
+  .mould.crop .mcool { background: linear-gradient(180deg, #3b4a33, #232d1f); }
+  .mould.crop.cool .msym { color: #dcecc9; }
+
+  /* ---- buckets: a mould that fills from the left with water and then just
+     sits there, full, waiting for whatever wants water ---- */
+  .mould.bucket { cursor: default; }
+  .mould.bucket .mcool { background: linear-gradient(180deg, #3aa7d6, #1f5f86);
+                         box-shadow: 0 0 10px rgba(95,183,224,.45); }
+  .mould.bucket .mhot { display: none; }
+  .mould.bucket .msym { color: #dff3fb; }
+  .mould.bucket.full { border-color: var(--ore); animation: mready 1.6s ease-in-out infinite; }
+  .mould.bucket.full .msym { color: #10131a; }
+  .mould.bucket.still .msym { color: var(--dimmer); }
+
+  /* ---- the water: sun, cloud and ocean on one card ---- */
+  .ore.water {
+    background:
+      linear-gradient(180deg, rgba(95,183,224,.12), transparent 45%),
+      linear-gradient(180deg, #171f2b, #10141c);
+  }
+  .ore.water.hot { border-color: var(--ore); box-shadow: 0 0 32px -10px var(--ore), 0 12px 28px -14px #000; }
+  .ore.water .fill { background: linear-gradient(90deg, #1f5f86, #5fb7e0 60%, #bfe9fb); }
+  /* the river's floor, marked on the flow bar */
+  .floormark {
+    position: absolute; top: 0; bottom: 0; left: 0; width: 2px; z-index: 2;
+    background: #ffd27a; box-shadow: 0 0 8px #ffd27a; opacity: .9; display: none;
+    transition: left .18s linear;
+  }
+  .wrow { display: flex; gap: 6px; margin-top: 7px; }
+  .wbtn {
+    flex: 1 1 0; position: relative; overflow: hidden; height: 46px; padding: 0;
+    border: 1px solid #2b3242; border-radius: 8px;
+    background: linear-gradient(180deg, #0f1219, #080a0f);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.8);
+    cursor: pointer; font-family: var(--mono); color: var(--dim); touch-action: none;
+    transition: border-color .14s, box-shadow .14s, opacity .14s;
+  }
+  .wbtn .wfill { position: absolute; left: 0; right: 0; bottom: 0; height: 0%; transition: height .12s linear; }
+  .wbtn.sun .wfill   { background: linear-gradient(180deg, #ffd27a, #c47a1a); opacity: .55; }
+  .wbtn.cloud .wfill { background: linear-gradient(180deg, #c9d6e6, #6f8199); opacity: .8; }
+  .wbtn .wtxt {
+    position: relative; z-index: 2; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font-size: 8.5px; letter-spacing: .12em; font-weight: 700; text-shadow: 0 1px 3px #000;
+  }
+  .wbtn .wsym { font-size: 17px; line-height: 1; }
+  .wbtn:hover:not(.dry) { border-color: var(--ore); }
+  .wbtn.held { border-color: var(--ore); box-shadow: 0 0 18px -3px var(--ore), inset 0 2px 6px rgba(0,0,0,.8); color: #fff; }
+  .wbtn.held .wtxt { animation: fullPulse 1s ease-in-out infinite; }
+  .wbtn.dry { opacity: .42; cursor: default; }
+  .ocean {
+    position: relative; height: 13px; margin-top: 6px; border-radius: 4px; overflow: hidden;
+    background: #06070a; border: 1px solid #1f2532;
+  }
+  .ocean .ofill {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: linear-gradient(90deg, #1f5f86, #5fb7e0);
+    box-shadow: 0 0 10px rgba(95,183,224,.5); transition: width .12s linear;
+  }
+  .ocean .olab {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .14em;
+    color: #dff3fb; text-shadow: 0 1px 3px #000;
+  }
+
+  .lockmsg {
+    font-family: var(--mono); font-size: 11px; color: var(--dimmer);
+    text-align: center; letter-spacing: .05em; line-height: 1.65; padding: 3px 0 1px;
+  }
+  .lockmsg b { color: var(--dim); font-weight: 600; }
+
+  .float {
+    position: absolute; z-index: 30; pointer-events: none;
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    text-shadow: 0 0 20px currentColor, 0 2px 6px #000;
+    animation: rise 1.05s cubic-bezier(.2,.7,.3,1) forwards;
+  }
+  @keyframes rise {
+    0%   { opacity: 0; transform: translate(-50%, 6px)   scale(.7); }
+    18%  { opacity: 1; transform: translate(-50%, -6px)  scale(1.14); }
+    100% { opacity: 0; transform: translate(-50%, -74px) scale(1); }
+  }
+
+  /* ========== upgrades ==========
+     Each one sits on the card next to what it changes. The bottom strip is
+     kept clear for whatever comes next, and only a locked card uses it. */
+
+  .ustrip {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    margin-top: 9px; padding-top: 9px;
+    border-top: 1px solid rgba(255,255,255,.06);
+  }
+
+  .uslot { display: inline-flex; align-items: center; flex: none; }
+
+  /* a full-width button whose face is a line of text */
+  .utext {
+    --uc: var(--line2);
+    position: relative; display: block; width: 100%;
+    padding: 8px 12px; margin: 0;
+    border: 1px solid color-mix(in srgb, var(--uc) 42%, var(--line));
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--uc) 15%, var(--panel3)),
+        color-mix(in srgb, var(--uc) 7%,  var(--panel2)));
+    text-align: left; font-family: var(--mono);
+    font-size: 11px; letter-spacing: .04em; line-height: 1.2;
+    color: var(--dim); cursor: pointer;
+    transition: border-color .13s, box-shadow .13s, color .13s, opacity .13s, transform .1s;
+  }
+  .ulabel { position: relative; z-index: 2; }
+  .utext.can {
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 78%, #fff);
+    box-shadow: 0 0 15px -3px var(--uc), inset 0 0 14px -9px var(--uc);
+  }
+  .utext:hover:not(.max) {
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 78%, #fff);
+    box-shadow: 0 0 20px -4px var(--uc);
+  }
+  .utext:active:not(.max) { transform: scale(.985); }
+  .utext.gated { opacity: .45; }
+  .utext.max { opacity: .35; cursor: default; border-style: dashed; }
+
+  /* the compact + button */
+  .ubtn {
+    --uc: var(--line2);
+    position: relative; flex: none;
+    width: 28px; height: 28px; padding: 0;
+    border: 1px solid color-mix(in srgb, var(--uc) 42%, var(--line));
+    border-radius: 7px;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--uc) 15%, var(--panel3)),
+        color-mix(in srgb, var(--uc) 7%,  var(--panel2)));
+    color: var(--dim); cursor: pointer; font-family: var(--font);
+    transition: border-color .13s, box-shadow .13s, color .13s, opacity .13s, transform .1s;
+  }
+  /* two bars rather than a glyph: a typed "+" sits off-centre in its em box,
+     and no font metric can be trusted to centre it in a 28px square */
+  .uplus { position: absolute; inset: 0; z-index: 2; }
+  .uplus::before, .uplus::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    background: currentColor; border-radius: 1px;
+    transform: translate(-50%, -50%);
+  }
+  .uplus::before { width: 13px; height: 2.5px; }
+  .uplus::after  { width: 2.5px; height: 13px; }
+
+  /* cost progress runs right around the button, so the glow closes on all four
+     sides instead of stopping at the top and bottom rails */
+  .uring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;
+           pointer-events: none; z-index: 3; }
+  /* No stroke-dasharray here: a CSS rule outranks a presentation attribute, so
+     declaring it would pin the ring at its initial value and nothing painted
+     per-frame could ever move it. The dash is set as an inline style instead.
+     Butt caps, not round — a round cap on a zero-length dash paints a dot. */
+  .uringbar {
+    fill: none; stroke: var(--uc); stroke-width: 2; stroke-linecap: butt;
+    transition: stroke-dasharray .18s linear;
+  }
+  .ubtn.can .uringbar { stroke-width: 2.5; }
+
+  .ubtn.can {
+    border-color: var(--uc);
+    color: color-mix(in srgb, var(--uc) 72%, #fff);
+    box-shadow: 0 0 15px -3px var(--uc), inset 0 0 12px -8px var(--uc);
+  }
+  .ubtn:hover:not(.max) {
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 72%, #fff);
+    box-shadow: 0 0 20px -4px var(--uc);
+  }
+  .ubtn:active:not(.max) { transform: scale(.9); }
+  .ubtn.gated { opacity: .45; }
+  .ubtn.max { opacity: .3; cursor: default; border-style: dashed; }
+  .ubtn.max .uringbar, .utext.max .uringbar { display: none; }
+  /* --uc is the colour of the resource this upgrade is priced in */
+  .utile {
+    --uc: var(--line2);
+    position: relative; flex: none;
+    width: var(--ut); min-height: 50px; padding: 4px 3px 3px;
+    border: 1px solid color-mix(in srgb, var(--uc) 45%, var(--line));
+    border-radius: 7px;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--uc) 15%, var(--panel3)),
+        color-mix(in srgb, var(--uc) 7%,  var(--panel2)));
+    color: var(--dim); cursor: pointer; font-family: var(--font);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    transition: border-color .13s, transform .1s, box-shadow .13s, color .13s, opacity .13s;
+  }
+  .utile.wide { width: auto; padding: 6px 14px 5px; }
+  .usym {
+    position: relative; z-index: 2;
+    font-size: 11.5px; font-weight: 800; letter-spacing: .03em; line-height: 1;
+  }
+  .ucost {
+    position: relative; z-index: 2;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700; line-height: 1;
+    color: var(--pricec, var(--dimmer)); white-space: nowrap;
+  }
+  .utile.wide .ucost { font-size: 11px; display: flex; gap: 8px; }
+  /* how many times this has been bought — always shown, starts at 0 */
+  .ulv {
+    position: relative; z-index: 2;
+    font-family: var(--mono); font-size: 9.5px; font-weight: 700; line-height: 1;
+    color: var(--dimmer); padding: 1px 5px; border-radius: 3px;
+    background: rgba(0,0,0,.35); min-width: 18px; text-align: center;
+  }
+  .utile.owned .ulv { color: var(--good); }
+
+  /* progress runs along the EDGES only — top and bottom rails, left to right */
+  .uprog { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+  .uprog::before, .uprog::after {
+    content: ''; position: absolute; left: 0; height: 2px; width: var(--p, 0%);
+    background: var(--uc); box-shadow: 0 0 7px var(--uc);
+    border-radius: 2px; transition: width .18s linear;
+  }
+  .uprog::before { top: -1px; }
+  .uprog::after  { bottom: -1px; }
+
+  .utile.can {
+    border-color: var(--uc);
+    color: color-mix(in srgb, var(--uc) 70%, #fff);
+    box-shadow: 0 0 15px -3px var(--uc);
+  }
+  .utile.gated { opacity: .5; }
+  .utile:hover:not(.max):not(.owned) {
+    transform: translateY(-2px);
+    border-color: var(--uc); color: color-mix(in srgb, var(--uc) 70%, #fff);
+    box-shadow: 0 8px 16px -8px #000, 0 0 20px -5px var(--uc);
+  }
+  .utile:active:not(.max):not(.owned) { transform: translateY(0) scale(.94); }
+  .utile.owned {
+    border-color: rgba(110,231,168,.42); background: rgba(110,231,168,.08);
+    color: var(--good); cursor: default;
+  }
+  .utile.max { opacity: .38; cursor: default; border-style: dashed; }
+
+  /* shared hover card, parked in the viewport so no tile can clip it and
+     zooming never distorts it */
+  #upop {
+    position: absolute; z-index: 40; width: 300px; pointer-events: none;
+    padding: 15px 17px; border-radius: 12px;
+    background: rgba(9,12,18,.975);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--line2); box-shadow: 0 22px 50px -18px #000;
+    opacity: 0; transition: opacity .12s;
+  }
+  #upop.show { opacity: 1; }
+  #upop .pt { font-size: 18px; font-weight: 700; letter-spacing: .01em; line-height: 1.25; }
+  #upop .pe { font-size: 15.5px; color: var(--text); margin-top: 9px; line-height: 1.5; }
+  #upop .pe em { color: var(--ember); font-style: normal; font-weight: 700; }
+  #upop .pe b { color: var(--ember-hot); font-weight: 700; }
+  #upop .pd { font-size: 13.5px; color: var(--dim); margin-top: 9px; line-height: 1.45; }
+  #upop .pc { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; font-family: var(--mono); font-size: 14px; }
+  #upop .pc span {
+    padding: 5px 10px; border-radius: 6px; border: 1px solid transparent;
+    display: inline-flex; align-items: center; gap: 7px; font-weight: 600;
+  }
+  #upop .pc span::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--c); box-shadow: 0 0 7px var(--c);
+  }
+  #upop .pc span.ok    { color: var(--text); background: #10141c; border-color: var(--line); }
+  #upop .pc span.short { color: var(--bad); background: rgba(239,107,107,.10); border-color: rgba(239,107,107,.32); }
+</style>
+</head>
+<body>
+<div id="forge">
+  <div id="embers"></div>
+  <div id="world">
+    <svg id="arc"></svg>
+    <div id="linklabels"></div>
+  </div>
+  <div id="corner">
+    <div id="title"><b>SMELTWORKS</b></div>
+    <div id="hint">
+      click a tile to work it &mdash; only one tile is worked at a time &middot; click the furnace to light a
+      burn without leaving it, and iron pours itself, faster the hotter it burns<br>
+      click a mould to pour iron into it, or a furrow to sow it, and again once it is ready &mdash; both
+      benches run from wherever you are stood, alongside the tile you are working<br>
+      hold the sun to lift the ocean into the cloud, hold the cloud to rain it back &mdash; the flow that makes
+      is what fills the buckets, and a river keeps some of it flowing on its own<br>
+      automation runs a tile whether or not you are on it, and is paid in the tier above &middot;
+      [space] moves the work &middot; drag to pan &middot; scroll to zoom &middot; [0] refits the view
+    </div>
+  </div>
+  <div id="camui">
+    <button class="zbtn" id="cam-out" title="zoom out">&minus;</button>
+    <span id="zlevel">100%</span>
+    <button class="zbtn" id="cam-in" title="zoom in">+</button>
+    <button id="cam-fit">fit</button>
+    <button id="btn-sound" title="toggle sound">sound</button>
+    <button id="btn-reset">reset</button>
+  </div>
+  <div id="upop"></div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   RESOURCE DEFINITIONS
+        ___    ___
+         ___  ___
+           ___
+   Wood -> Stone -> [Furnace] -> Iron -> [Moulds] -> [Plow Field].
+   Every bar starts at 0/5 — capacity is the first thing you ever buy.
+   ========================================================================= */
+
+const BASE_CAP = 5;
+
+const FURNACE_ID           = 'furnace';
+const FURNACE_HEAT_MAX     = 100;
+const FURNACE_STOKE_COST   = 5;     // wood per stoke
+const FURNACE_HEAT_GAIN    = 25;    // total heat one burn delivers
+const FURNACE_BURN_TIME    = 4.0;   // seconds the burn takes to deliver it
+const FURNACE_COOLDOWN     = 14.0;  // base seconds of cooldown once the burn ends
+const FURNACE_IDLE_COOL    = 0.20;  // flat heat lost per second
+const SMELT_HEAT_DRAIN     = 0.30;  // extra heat per second while the furnace is smelting
+const HEAT_SMELT_RATE      = 0.80;  // ingots per second at full heat
+
+/* Losses also rise with temperature, the way a real hot thing sheds heat
+   faster than a warm one. That is what stops heat climbing for ever: a stoke
+   delivers a fixed 25°, so each Bellows level settles at the temperature where
+   its cycle's losses finally cancel that out. Base holds ~22°, maxed ~100°. */
+const HEAT_LOSS_K          = 0.0405;  // extra loss per second, per degree held
+
+const BELLOWS_STEP         = 0.80;  // each level multiplies the cooldown
+const STOKER_STEP          = 0.85;  // and so does each Stoker level, by 15%
+const BELLOWS_FLOOR        = 1.5;   // and never takes it below this
+
+/* ---- the casting bench ----
+   Moulds are the one tile that is not "worked": each mould is its own little
+   machine you press directly, so the bench runs alongside whatever the worker
+   is doing rather than competing with it for the one pair of hands. */
+const MOULD_FILL_COST      = 3;     // iron poured into one mould
+const MOULD_COOL_TIME      = 8;     // seconds it takes to set
+const MOULD_AUTO_INTERVAL  = 4;     // seconds per automated action at level 1
+const MOULD_BASE           = 3;     // moulds on the bench before any upgrade
+const MOULD_PER_LEVEL      = 1;     // More Moulds adds this many each level
+
+/* ---- the plow field ----
+   A furrow is the same little machine as a mould, with the pour taken out:
+   sowing costs only the labour of the click, and what comes back is grain. */
+const FURROW_GROW_TIME     = 12;    // seconds a sown furrow takes to ripen
+const FURROW_BASE          = 3;     // furrows before any upgrade
+const FURROW_PER_LEVEL     = 1;
+
+/* ---- water ----
+   A fixed hundred units of water are split between the cloud and the ocean.
+   Holding the sun lifts ocean into cloud; holding the cloud rains it back. Every
+   unit moved counts toward the FLOW, measured over the last few seconds, and
+   flow is what fills the buckets. A river guarantees a floor under it. */
+const WATER_TOTAL          = 100;   // units in the cycle, cloud + ocean
+const CYCLE_RATE           = 10;    // units moved per second while a hold is down
+const FLOW_WINDOW          = 10;    // seconds the flow readout looks back over
+const FLOW_MAX             = CYCLE_RATE;   // what a perfectly worked cycle reads
+const BUCKET_SIZE          = 100;   // units of fill in a full bucket
+const BUCKET_FILL_K        = 0.8;   // fill per second, per unit of flow — 25s at half flow
+const BUCKET_MAX           = 8;
+const RIVER_FLOOR_STEP     = 1.2;   // flow the river guarantees, per level
+const RIVER_MAX            = 6;
+/* what a River level asks: the flow it needs to see right now, the flow it
+   spends out of the last window, and the stone it is built from */
+function riverGate(lvl)  { return 2 + 1.5 * lvl; }
+function riverSpend(lvl) { return 20 + 10 * lvl; }
+function riverStone(lvl) { return Math.floor(25 * Math.pow(1.6, lvl)); }
+function riverFloor(lvl) { lvl = lvl ?? S.ores.water.lvl.river; return RIVER_FLOOR_STEP * lvl; }
+/* the next bucket, priced in bars — 2, 3, 4, 6, 10, 15, 22, 34 */
+function bucketCost(n) { n = n ?? S.ores.buckets.buckets.length; return Math.max(1, Math.floor(2 * Math.pow(1.5, n))); }
+
+/* Both benches run on the same plot machinery; these say which numbers and
+   words a given one uses, so there is one implementation rather than two. */
+function isBench(id)   { const d = BY_ID[id]; return !!d && (d.casting || d.farming); }
+function plotCount(id, lvl) {
+  const d = BY_ID[id];
+  if (!isBench(id)) return 0;
+  lvl = lvl ?? S.ores[id].lvl.mould;
+  return d.farming ? FURROW_BASE + FURROW_PER_LEVEL * lvl : MOULD_BASE + MOULD_PER_LEVEL * lvl;
+}
+function plotTime(id)  { return BY_ID[id].farming ? FURROW_GROW_TIME : MOULD_COOL_TIME; }
+/* what one plot costs to start — the field asks for nothing but the click */
+function plotCost(id)  { return BY_ID[id].farming ? null : { iron: MOULD_FILL_COST }; }
+function plotWords(id) {
+  return BY_ID[id].farming
+    ? { unit:'furrow', start:'SOW', startVerb:'sow it', busy:'growing', done:'ripe', take:'reap' }
+    : { unit:'mould',  start:MOULD_FILL_COST + 'Fe', startVerb:`pour ${MOULD_FILL_COST} iron in`,
+        busy:'setting', done:'set', take:'take out' };
+}
+
+const ORES = [
+  { id:'wood',       name:'Wood',       sym:'Wd', color:'#d68a4c', tier:1,
+    unit:'logs',   verb:'CHOP',   yield:1, time:1800, unlock:null },
+  { id:'stone',      name:'Stone',      sym:'St', color:'#a9a49b', tier:2,
+    unit:'blocks', verb:'QUARRY', yield:1, time:2600, unlock:{ wood:20 } },
+  { id:'furnace',    name:'Furnace',    sym:'Fu', color:'#f3ad55', facility:true,
+    unlock:{ stone:20 } },
+  /* Iron costs nothing: building the furnace opens it in the same commit, so
+     it arrives with the thing that pours it. `opensWith` keeps it off the
+     board until then — it has no unlock cost to show on a locked card. */
+  { id:'iron',       name:'Iron',       sym:'Fe', color:'#c3d2e6', tier:3,
+    unit:'iron', verb:'SMELT', heatDriven:true, yield:1, unlock:null,
+    opensWith: FURNACE_ID },
+  /* The bench. `name` is what the tile is called, `res` what it holds — the
+     card says MOULDS, but every cost and lock line says "iron bars". */
+  { id:'bars',       name:'Moulds',     sym:'Br', color:'#e6cdb8', tier:4,
+    res:'Iron Bars', unit:'bars', verb:'CAST', casting:true, yield:1,
+    unlock:{ iron:10 } },
+  /* The field. Same bench shape as the moulds — a row of furrows, each on its
+     own timer — but nothing is poured in: the cost is the plow, paid once, and
+     after that it is only ever labour and time. */
+  { id:'farm',       name:'Plow Field', sym:'Pl', color:'#8fbf6a', tier:5,
+    res:'Grain', unit:'sheaves', verb:'REAP', farming:true, yield:1,
+    unlockLabel:'CRAFT PLOW', unlock:{ bars:5 } },
+  /* Buckets are beaten out of bars and fill with water on their own. They
+     arrive with the first bar you cast, and cost nothing to open. */
+  { id:'buckets',    name:'Buckets',    sym:'Bk', color:'#7fc4d8',
+    unit:'buckets', bucketing:true, unlock:null,
+    opensWhen: () => S.ores.bars.lifetime >= 1 },
+  /* The water cycle. Opens the moment the first bucket exists to fill. */
+  { id:'water',      name:'Water',      sym:'Wa', color:'#5fb7e0',
+    unit:'flow', water:true, unlock:null,
+    opensWhen: () => S.ores.buckets.buckets.length >= 1 },
+];
+ORES.forEach(o => { if (!o.facility) o.cap = BASE_CAP; });
+
+const BY_ID = {};
+ORES.forEach(o => BY_ID[o.id] = o);
+
+/* what a tile HOLDS, as opposed to what the tile is called: Moulds holds Iron
+   Bars, and every price and lock line wants the stock's name, not the bench's. */
+function resName(id) { const d = BY_ID[id]; return d ? (d.res || d.name) : id; }
+
+/* the next tier up. The field tops the ladder, so it has nothing above it and
+   is worked by hand for good — while it is what pays for the bench's. */
+function aboveOf(id) {
+  return ({ wood:'stone', stone:'iron', iron:'bars', bars:'farm', farm:'farm' })[id] || id;
+}
+
+/* The map is a fixed logical size — the camera scales it into the viewport,
+   so a tile never reflows and the layout is identical on every screen.
+   It grew upward to make room above the moulds for the field. */
+const WORLD = { w: 1900, h: 1450 };
+/* the old column sits 400px further right, so the water has room left of stone */
+const POS_OF_ORE = {
+  farm:       { x: 60.5, y: 9 },
+  bars:       { x: 60.5, y: 29 },
+  buckets:    { x: 36,   y: 29 },
+  iron:       { x: 60.5, y: 47 },
+  furnace:    { x: 60.5, y: 70 },
+  stone:      { x: 36,   y: 68.3 },
+  water:      { x: 13.5, y: 68.3 },
+  wood:       { x: 60.5, y: 89.7 },
+};
+
+/* One link per unlock ingredient, so a bar needing three resources gets three
+   separate progress lines feeding into it. */
+const LINKS = [];
+ORES.forEach(d => {
+  if (!d.unlock) return;
+  Object.keys(d.unlock).forEach(src => {
+    LINKS.push({ key: d.id + '<' + src, ore: d.id, src, need: d.unlock[src] });
+  });
+});
+
+/* Supply lines, as opposed to unlock lines: these stay on the board for good
+   and report a live flow rather than a requirement met once and forgotten.
+   Wood is the furnace's fuel going in, and heat is what comes back out of it
+   and into Iron. */
+const FEEDS = [
+  { ore: FURNACE_ID, src: 'wood',      need: FURNACE_STOKE_COST },
+  { ore: 'iron',     src: FURNACE_ID,  heat: true },
+  { ore: 'buckets',  src: 'bars',      bucket: true },   // bars become buckets
+  { ore: 'buckets',  src: 'water',     flow: true },     // flow fills them
+];
+FEEDS.forEach(f => LINKS.push({ key: f.ore + '~' + f.src, ore: f.ore, src: f.src,
+                                need: f.need, heat: f.heat, bucket: f.bucket, flow: f.flow, feed: true }));
+
+function slotPos(id) { return POS_OF_ORE[id]; }
+
+/* =========================================================================
+   UPGRADE DEFINITIONS
+
+   Every upgrade costs exactly ONE resource. Storage and Haul are paid in the
+   tile's own stock. Automation is paid in the tier above at EVERY level, which
+   is what stops a tile bootstrapping itself: to stop working wood by hand you
+   have to have gone and worked stone.
+   ========================================================================= */
+
+// 5 -> 8 -> 13 -> 20: three Storage levels take any bar from its starting 5 to 20.
+const CAP_GROWTH    = Math.pow(4, 1/3);
+const YIELD_GROWTH  = 1.40;
+const AUTO_RATE     = 0.15;    // units per second, per automation level
+
+/* Each upgrade lives on the card next to the thing it changes: Storage beside
+   the capacity figure, Bigger Haul beside the output bar, Automation top-left.
+   `slot` says which one. */
+const UPGRADES = [
+  { key:'cap',   sym:'CAP', slot:'cap', name:'Storage', base:3, mult:1.50, max:30,
+    eff: (o,l) => `Holds <em>&times;1.59</em> more &rarr; <b>${fmt(capOf(o, l+1))}</b> ${BY_ID[o].unit}.`,
+    tip: 'Paid in this tile’s own stock. Three levels take it from 5 to 20.' },
+  { key:'yield', sym:'OUT', slot:'out', name:'Bigger Haul', base:5, mult:1.70, max:30,
+    eff: (o,l) => isBench(o)
+      ? `Every ${plotWords(o).unit} you empty gives <em>&times;1.4</em> &rarr; ` +
+        `<b>${fmt(yieldOf(o, l+1))}</b> ${BY_ID[o].unit}.` +
+        (BY_ID[o].farming ? `<br>The furrow takes no longer to grow, so it is pure profit.`
+                          : `<br>The same iron goes in, so a deeper mould is pure profit.`)
+      : `Each cycle gives <em>&times;1.4</em> &rarr; <b>${fmt(yieldOf(o, l+1))}</b>.` +
+        (S.ores[o].lvl.auto > 0
+          ? `<br>Automation rises with it, to <b>${fmt(autoRateAt(o, null, l+1))}</b>/s.`
+          : `<br>It will lift Automation too, once you buy some.`),
+    tip: 'Paid in this tile’s own stock. Lifts everything this tile produces.' },
+];
+
+/* Only the bench has this: more moulds means more setting at the same time,
+   which is the only way the bench goes faster by hand. */
+const MOULDS = { key:'mould', sym:'MLD', slot:'mld', name:'More Plots',
+  base:4, mult:1.70, max:5,
+  eff: (o,l) => { const W = plotWords(o);
+    return `Another ${W.unit} &rarr; <b>${plotCount(o, l+1)}</b> in the row.` +
+           `<br>Each runs its own <em>${plotTime(o)}s</em> timer, so they overlap.`; },
+  tip: 'Paid in this tile’s own stock. Five levels take the row from 3 to 8.' };
+
+/* On the bench, automation is not a rate — it is literally a hand doing the
+   clicks, one press every few seconds, faster with every level. */
+const AUTO = { key:'auto', sym:'AUT', slot:'aut', name:'Automation',
+  base:5, mult:1.80, max:20, above:true,
+  eff: (o,l) => isBench(o)
+    ? `A hand at the bench: one press every <b>${(MOULD_AUTO_INTERVAL / (l+1)).toFixed(1)}s</b>.<br>` +
+      (BY_ID[o].farming
+        ? `It sows an empty furrow, or reaps one that has ripened — whichever is waiting, wherever you are stood.`
+        : `It pours <b>${MOULD_FILL_COST} iron</b> into an empty mould, or takes out one that has set — ` +
+          `whichever is waiting, wherever you are stood.`)
+    : `Works this tile on its own: <b>${fmt(autoRateAt(o, l+1))}</b>/s.<br>` +
+      `It keeps running while you are stood at another tile, and ` +
+      `working this one stacks on top.`,
+  tip: '' };
+
+// every upgrade a working tile carries, in the order they are built
+const TILE_UPGRADES = UPGRADES.concat([AUTO]);
+
+/* The furnace's own upgrade, and the only one paid in Iron — the furnace
+   buys its own draught back out of what it smelts. */
+const BELLOWS = { key:'bellows', name:'Bellows', base:6, mult:1.75, max:10, pay:'iron',
+  eff: (o,l) => {
+    const c0 = heatCeiling(l, null), c1 = heatCeiling(l + 1, null);
+    return `Cooldown after a burn <em>${stokeCooldown(l, null).toFixed(1)}s</em> &rarr; ` +
+           `<b>${stokeCooldown(l + 1, null).toFixed(1)}s</b>.<br>` +
+           `Stoking steadily then holds <em>${Math.round(c0)}&deg;</em> &rarr; <b>${Math.round(c1)}&deg;</b>, ` +
+           `for <b>${fmt(HEAT_SMELT_RATE * c1 / FURNACE_HEAT_MAX)}</b>/s of iron.`;
+  },
+  tip: 'Paid in Iron. Heat leaks faster the hotter it is, so a hotter furnace ' +
+       'is only reachable by stoking it more often.' };
+
+/* The furnace's automation. It sits in the same slot as every other tile's
+   Automation and is paid the same way — in the tier above, which for the
+   furnace is Iron. A stoker of any level feeds the fire exactly as a worker
+   stood at the furnace would, and each level also shortens the cooldown, so it
+   both frees you from the furnace and stokes it harder than you could. */
+const STOKER = { key:'stoker', sym:'STK', slot:'aut', name:'Stoker',
+  base:5, mult:1.80, max:5, pay:'iron',
+  eff: (o,l) => {
+    const c1 = heatCeiling(null, l + 1);
+    return `Burns <b>${FURNACE_STOKE_COST} wood</b> on its own whenever the fire is ready.<br>` +
+           `Cooldown <em>${stokeCooldown(null, l).toFixed(1)}s</em> &rarr; ` +
+           `<b>${stokeCooldown(null, l + 1).toFixed(1)}s</b>, holding <b>${Math.round(c1)}&deg;</b> ` +
+           `for <b>${fmt(HEAT_SMELT_RATE * c1 / FURNACE_HEAT_MAX)}</b>/s of iron.`;
+  },
+  tip: 'Paid in Iron, the tier above the furnace. Keeps the fire fed while you ' +
+       'are stood at another tile — and eats wood the whole time.' };
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+
+const SAVE_KEY = 'smeltworks.save.v4';
+
+let S;
+
+function freshOre(def) {
+  return {
+    unlocked: def.id === 'wood',
+    amount: 0,
+    heat: 0,
+    burnLeft: 0,          // seconds left of an active burn, while heat ramps up
+    burnCooldown: 0,      // seconds left before the next burn may start
+    burnCooldownMax: 0,   // how long that cooldown was when it started
+    lvl: { cap:0, yield:0, auto:0, mould:0, bellows:0, stoker:0, river:0 },
+    progress: 0,
+    running: false,
+    lifetime: 0,
+    // the bench only: one entry per mould, each with its own cooling clock
+    moulds: (def.casting || def.farming) ? freshMoulds(def.farming ? FURROW_BASE : MOULD_BASE) : [],
+    autoT: 0,             // seconds banked toward the next automated press
+    // buckets: one entry per bucket, how full it is
+    buckets: [],
+    // water: where the hundred units are, what has moved lately, and what is held
+    ocean: WATER_TOTAL, cloud: 0, hist: [], holding: null,
+  };
+}
+
+function freshMoulds(n) {
+  const a = [];
+  for (let i = 0; i < n; i++) a.push({ s: 'empty', t: 0 });
+  return a;
+}
+
+function freshState() {
+  const ores = {};
+  ORES.forEach(d => ores[d.id] = freshOre(d));
+  // the worker has to be stood somewhere, and at the start wood is all there is
+  return { ores, worked: 'wood', cam: null };
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return freshState();
+    const s = JSON.parse(raw);
+    const base = freshState();
+    ORES.forEach(d => {
+      const o = s.ores && s.ores[d.id];
+      if (!o) return;
+      const t = base.ores[d.id];
+      t.unlocked = !!o.unlocked || d.id === 'wood';
+      t.lifetime = Number(o.lifetime) || 0;
+      Object.keys(t.lvl).forEach(k => t.lvl[k] = Number(o.lvl && o.lvl[k]) || 0);
+      // levels first: a save written under older balance numbers must not
+      // carry holdings above the capacity those levels actually grant.
+      if (d.facility) {
+        t.heat = Math.max(0, Math.min(FURNACE_HEAT_MAX, Number(o.heat) || 0));
+        t.burnLeft = Math.max(0, Math.min(FURNACE_BURN_TIME, Number(o.burnLeft) || 0));
+        t.burnCooldown = Math.max(0, Math.min(FURNACE_COOLDOWN, Number(o.burnCooldown) || 0));
+        t.burnCooldownMax = Math.max(t.burnCooldown, Number(o.burnCooldownMax) || 0);
+      } else {
+        const cap = Math.round(d.cap * Math.pow(CAP_GROWTH, t.lvl.cap));
+        t.amount = Math.max(0, Math.min(Number(o.amount) || 0, cap));
+      }
+      /* Moulds are restored one by one, and only as many as the levels in this
+         same save actually grant — a longer row in an older file is truncated
+         rather than trusted, and a half-cooled mould keeps its clock. */
+      if (d.bucketing) {
+        const src = Array.isArray(o.buckets) ? o.buckets : [];
+        t.buckets = src.slice(0, BUCKET_MAX).map(q => ({ f: Math.max(0, Math.min(BUCKET_SIZE, Number(q && q.f) || 0)) }));
+      }
+      if (d.water) {
+        t.lvl.river = Math.min(RIVER_MAX, t.lvl.river);
+        const cloud = Math.max(0, Math.min(WATER_TOTAL, Number(o.cloud) || 0));
+        t.cloud = cloud; t.ocean = WATER_TOTAL - cloud;
+        const h = Array.isArray(o.hist) ? o.hist : [];
+        t.hist = h.filter(x => Array.isArray(x) && x[0] >= 0 && x[0] < FLOW_WINDOW && x[1] > 0)
+                  .map(x => [Number(x[0]), Number(x[1])]).slice(-600);
+      }
+      if (isBench(d.id)) {
+        const src = Array.isArray(o.moulds) ? o.moulds : [];
+        t.moulds = freshMoulds(plotCount(d.id, t.lvl.mould));
+        t.moulds.forEach((m, i) => {
+          const q = src[i] || {};
+          m.s = (q.s === 'cool' || q.s === 'ready') ? q.s : 'empty';
+          m.t = m.s === 'cool'
+            ? Math.max(0, Math.min(plotTime(d.id), Number(q.t) || 0))
+            : 0;
+          if (m.s === 'cool' && m.t <= 0) m.s = 'ready';
+        });
+      }
+    });
+    /* An old save, or a doctored one, can name a tile that cannot be worked —
+       iron, the bench, something still locked, something that no longer exists.
+       Fall back to wood rather than leaving the worker nowhere. */
+    const w = s.worked;
+    base.worked = (typeof w === 'string' && BY_ID[w] &&
+                   !BY_ID[w].facility && !BY_ID[w].heatDriven && !isBench(w) &&
+                   !BY_ID[w].bucketing && !BY_ID[w].water &&
+                   base.ores[w] && base.ores[w].unlocked) ? w : 'wood';
+    if (s.cam && Number.isFinite(s.cam.z)) {
+      base.cam = { x: Number(s.cam.x) || 0, y: Number(s.cam.y) || 0, z: clampZoom(s.cam.z) };
+    }
+    return base;
+  } catch (e) {
+    return freshState();
+  }
+}
+
+function save() {
+  const slim = { ores: {}, worked: S.worked, cam: { x: cam.x, y: cam.y, z: cam.z } };
+  ORES.forEach(d => {
+    const o = S.ores[d.id];
+    slim.ores[d.id] = { unlocked:o.unlocked, amount:o.amount, heat:o.heat,
+                        burnLeft:o.burnLeft, burnCooldown:o.burnCooldown,
+                        burnCooldownMax:o.burnCooldownMax,
+                        lvl:o.lvl, lifetime:o.lifetime };
+    if (isBench(d.id)) slim.ores[d.id].moulds = o.moulds.map(m => ({ s:m.s, t:+m.t.toFixed(3) }));
+    if (d.bucketing) slim.ores[d.id].buckets = o.buckets.map(q => ({ f:+q.f.toFixed(2) }));
+    if (d.water) { slim.ores[d.id].cloud = +o.cloud.toFixed(3);
+                   slim.ores[d.id].hist = o.hist.map(x => [+x[0].toFixed(2), +x[1].toFixed(3)]); }
+  });
+  // storage can be unavailable (private mode, file:// restrictions, quota) —
+  // the game must stay playable, just without persistence
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(slim)); } catch (e) { /* no save */ }
+}
+
+/* =========================================================================
+   DERIVED STATS
+   ========================================================================= */
+
+function capOf(id, lvl)   { const d = BY_ID[id]; if (d.facility) return FURNACE_HEAT_MAX; lvl = lvl ?? S.ores[id].lvl.cap;
+                            return Math.round(d.cap * Math.pow(CAP_GROWTH, lvl)); }
+function yieldOf(id, lvl) { const d = BY_ID[id]; lvl = lvl ?? S.ores[id].lvl.yield;
+                            return d.yield * Math.pow(YIELD_GROWTH, lvl); }
+function timeOf(id)       { return BY_ID[id].time; }
+
+/* Automation works continuously instead of firing cycles, so hand work
+   stacks on top of it. Bigger Haul lifts this too. */
+/* ---- the bench ---- */
+
+/* kept as the old name so every caller reads the same; plotCount is where the
+   moulds-versus-furrows difference actually lives */
+function mouldCountAt(id, lvl) { return plotCount(id, lvl); }
+function mouldCount(id) { return plotCount(id); }
+
+/* keep the row the length the levels say it should be — buying More Moulds is
+   the only thing that ever changes it, and an empty mould is what gets added */
+function syncMoulds(id) {
+  const o = S.ores[id], n = mouldCountAt(id);
+  while (o.moulds.length < n) o.moulds.push({ s: 'empty', t: 0 });
+  if (o.moulds.length > n) o.moulds.length = n;
+  return o.moulds;
+}
+/* seconds between automated presses — level 1 every 4s, level 2 every 2s */
+function mouldAutoEvery(id, lvl) {
+  lvl = lvl ?? S.ores[id].lvl.auto;
+  return lvl > 0 ? MOULD_AUTO_INTERVAL / lvl : Infinity;
+}
+
+function autoRateAt(id, autoLvl, yieldLvl) {
+  // the bench's automation presses buttons; it has no per-second pour to quote
+  if (BY_ID[id].facility || isBench(id)) return 0;
+  const o = S.ores[id];
+  const a = autoLvl  ?? o.lvl.auto;
+  const y = yieldLvl ?? o.lvl.yield;
+  if (a <= 0) return 0;
+  return yieldOf(id, y) * AUTO_RATE * a;
+}
+function autoRate(id) { return autoRateAt(id); }
+
+function heldOf(id) { return S.ores[id].unlocked ? Math.floor(S.ores[id].amount) : 0; }
+
+/* ---- water ---- */
+
+/* units moved in the last window, as a per-second rate — the flow you made */
+function rawFlow() {
+  const o = S.ores.water;
+  let sum = 0;
+  for (const x of o.hist) sum += x[1];
+  return sum / FLOW_WINDOW;
+}
+/* what the buckets actually see: your flow, or the river's floor, whichever is higher */
+function flowNow() { return S.ores.water.unlocked ? Math.max(rawFlow(), riverFloor()) : 0; }
+function bucketFillRate() { return flowNow() * BUCKET_FILL_K; }
+/* take a chunk of flow out of the window, oldest first — what a River costs */
+function spendFlow(units) {
+  const o = S.ores.water;
+  let left = units;
+  for (const x of o.hist) {
+    if (left <= 0) break;
+    const take = Math.min(x[1], left);
+    x[1] -= take; left -= take;
+  }
+  o.hist = o.hist.filter(x => x[1] > 1e-6);
+  return left <= 1e-6;
+}
+
+/* the furnace is built and still holding heat */
+function furnaceBuilt() { return S.ores[FURNACE_ID].unlocked; }
+function hasHeat() { return furnaceBuilt() && S.ores[FURNACE_ID].heat > 0; }
+function heatOf() { return furnaceBuilt() ? S.ores[FURNACE_ID].heat : 0; }
+
+/* Seconds of cooldown after a burn. Bellows and Stoker both shorten it — pass
+   null for either to keep whatever level is actually bought. */
+function stokeCooldown(bLvl, sLvl) {
+  const f = S.ores[FURNACE_ID];
+  const b = bLvl ?? f.lvl.bellows, s = sLvl ?? f.lvl.stoker;
+  return Math.max(BELLOWS_FLOOR,
+                  FURNACE_COOLDOWN * Math.pow(BELLOWS_STEP, b) * Math.pow(STOKER_STEP, s));
+}
+
+/* heat lost per second at a given temperature: a flat trickle plus a share of
+   whatever is currently held, so a hot furnace bleeds far faster than a warm one */
+function heatLoss(heat, smelting) {
+  return FURNACE_IDLE_COOL + HEAT_LOSS_K * heat + (smelting ? SMELT_HEAT_DRAIN : 0);
+}
+
+/* The temperature a Bellows level settles at: one stoke delivers a fixed 25°
+   per cycle, and losses climb with heat, so they meet at exactly one point.
+   This is the ceiling that level can hold, not a rate. */
+function heatCeiling(bLvl, sLvl, smelting = true) {
+  const cycle = FURNACE_BURN_TIME + stokeCooldown(bLvl, sLvl);
+  const spare = FURNACE_HEAT_GAIN / cycle - FURNACE_IDLE_COOL - (smelting ? SMELT_HEAT_DRAIN : 0);
+  return Math.max(0, Math.min(FURNACE_HEAT_MAX, spare / HEAT_LOSS_K));
+}
+
+function furnaceReady() {
+  const o = S.ores[FURNACE_ID];
+  return o.unlocked && o.burnLeft <= 0 && o.burnCooldown <= 0;
+}
+function heatBlocked(id) { return !!BY_ID[id].heatDriven && !hasHeat(); }
+
+/* A heat-driven bar is never worked by hand — the furnace pours it, and the
+   rate is simply how hot the furnace is right now. Bigger Haul scales it. */
+function heatRateAt(id, yieldLvl, heat) {
+  if (!BY_ID[id].heatDriven) return 0;
+  return yieldOf(id, yieldLvl) * HEAT_SMELT_RATE * ((heat ?? heatOf()) / FURNACE_HEAT_MAX);
+}
+function heatRate(id) { return heatRateAt(id); }
+
+/* everything a bar is producing per second, from the furnace and from its own
+   automation together */
+function totalRate(id) {
+  // a heat-driven tile has one source and one only: the furnace
+  if (BY_ID[id].heatDriven) return hasHeat() ? heatRate(id) : 0;
+  return autoRate(id);
+}
+
+/* Only the next step of the ladder is on the board: a locked tile appears once
+   every ingredient it wants is itself open. At the start that is Wood and the
+   Stone it feeds, and nothing else. */
+function isRevealed(id) {
+  const o = S.ores[id], d = BY_ID[id];
+  if (o.unlocked) return true;
+  // a tile that opens itself on a condition is never on the board before it does
+  if (d.opensWhen) return false;
+  // a tile that is granted by another one is never on the board unbought:
+  // there is no cost to show and no OPEN button to press
+  if (d.opensWith) return false;
+  if (!d.unlock) return true;
+  return Object.keys(d.unlock).every(k => S.ores[k].unlocked);
+}
+
+function costProgress(cost) {
+  let p = 1;
+  for (const k in cost) p = Math.min(p, heldOf(k) / cost[k]);
+  return Math.max(0, Math.min(1, p));
+}
+function unlockProgress(oreId) {
+  const d = BY_ID[oreId];
+  return d.unlock ? costProgress(d.unlock) : 1;
+}
+
+/* Every upgrade costs exactly one resource: the tile's own stock, or — for
+   automation, at every level — the resource one tier above. */
+function payOre(id, def) {
+  if (def.pay) return def.pay;               // fixed currency, whatever the tile
+  return def.above ? aboveOf(id) : id;
+}
+
+function costOf(id, def, lvl) {
+  const n = Math.max(1, Math.floor(def.base * Math.pow(def.mult, lvl)));
+  return { [payOre(id, def)]: n };
+}
+
+function canPay(cost) {
+  return Object.keys(cost).every(k => S.ores[k].unlocked && Math.floor(S.ores[k].amount) >= cost[k]);
+}
+function pay(cost) {
+  Object.keys(cost).forEach(k => S.ores[k].amount -= cost[k]);
+}
+
+/* Automation is the one thing that does not care where the worker is stood:
+   an automated tile pours whether or not it is the worked one. */
+function autoFeeds(id) {
+  return !BY_ID[id].facility && S.ores[id].unlocked && autoRate(id) > 0;
+}
+
+/* ---- the worked tile ----
+   Exactly one tile is worked at a time. Iron is the only unlocked tile that
+   can never be worked: the furnace pours it, there is nothing to do by hand. */
+
+/* The furnace is a thing you trigger, not a place you stand: clicking it lights
+   a burn and leaves the worker wherever they already were. Iron is likewise
+   never workable — the furnace pours it. */
+function isWorkable(id) {
+  const d = BY_ID[id];
+  return !!d && !d.facility && !d.heatDriven && !isBench(id) && !d.bucketing && !d.water && S.ores[id].unlocked;
+}
+function workableIds() { return ORES.filter(d => isWorkable(d.id)).map(d => d.id); }
+function isWorked(id)  { return S.worked === id; }
+
+/* The field tops the ladder, so there is nothing above it to pay for
+   automation with — it stays hand-worked for good. */
+function canAuto(id) {
+  const d = BY_ID[id];
+  return !d.facility && !d.heatDriven && !d.bucketing && !d.water && aboveOf(id) !== id;
+}
+
+function liveSet() {
+  return ORES.filter(d => S.ores[d.id].running || autoFeeds(d.id) ||
+                          (d.bucketing && S.ores[d.id].unlocked && flowNow() > 0) ||
+                          (d.water && S.ores[d.id].unlocked && (S.ores[d.id].holding || rawFlow() > 0)) ||
+                          (isBench(d.id) && S.ores[d.id].unlocked &&
+                           (S.ores[d.id].lvl.auto > 0 ||
+                            S.ores[d.id].moulds.some(m => m.s !== 'empty'))) ||
+                          (d.heatDriven && S.ores[d.id].unlocked && hasHeat())).map(d => d.id);
+}
+
+/* =========================================================================
+   SOUND — every effect is synthesised on the spot, so there is nothing to
+   load. The context is only created on the first press, which is the only
+   time the browser lets it start.
+   ========================================================================= */
+
+const SFX_VOLUME = 1.0;   // master gain; the compressor after it keeps the peaks in check
+const SFX_GAIN   = 1.3;   // every one-shot's peak is scaled by this
+/* the loops: filter shape, wobble, and how loud — the sky is kept quiet, it
+   runs for as long as a finger is down */
+const SFX_LOOPS = {
+  sun:   { type:'lowpass',  f:700,  q:0.4, lfo:0.35, depth:250, vol:0.035 },
+  cloud: { type:'highpass', f:2600, q:0.6, lfo:1.7,  depth:900, vol:0.05 },
+  fire:  { type:'bandpass', f:420,  q:0.5, lfo:7,    depth:260, vol:0.06, rumble:true },
+};
+
+const SFX = {
+  ctx: null, master: null, noise: null, loops: {}, loopKind: null, bg: false,
+  muted: (() => { try { return localStorage.getItem('smeltworks.sound') === 'off'; } catch (e) { return false; } })(),
+
+  boot() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return true; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    this.ctx = new AC();
+    /* loud, but through a compressor so a pile of overlapping hits squashes
+       rather than clips */
+    this.master = this.ctx.createGain();
+    this.master.gain.value = this.muted ? 0 : SFX_VOLUME;
+    const comp = this.ctx.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.knee.value = 20; comp.ratio.value = 6;
+    comp.attack.value = 0.003; comp.release.value = 0.15;
+    this.master.connect(comp); comp.connect(this.ctx.destination);
+    // two seconds of white noise, looped by whoever needs a hiss or a knock
+    const n = this.ctx.sampleRate * 2, buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    this.noise = buf;
+    return true;
+  },
+  setMuted(m) {
+    this.muted = m;
+    if (m) this.stopLoops();
+    try { localStorage.setItem('smeltworks.sound', m ? 'off' : 'on'); } catch (e) { /* no store */ }
+    if (this.master) this.master.gain.setTargetAtTime(m ? 0 : SFX_VOLUME, this.ctx.currentTime, 0.02);
+    const b = document.getElementById('btn-sound');
+    if (b) { b.textContent = m ? 'muted' : 'sound'; b.className = m ? '' : 'on'; }
+  },
+
+  /* a tone: type, start and end frequency, length, peak gain */
+  tone(type, f0, f1, dur, gain = 0.2, at = 0) {
+    const c = this.ctx, t = c.currentTime + at;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain * SFX_GAIN, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  },
+  /* a burst of noise through a filter, with the cutoff sweeping */
+  burst(kind, f0, f1, dur, gain = 0.2, q = 1, at = 0) {
+    const c = this.ctx, t = c.currentTime + at;
+    const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
+    const f = c.createBiquadFilter(); f.type = kind; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain * SFX_GAIN, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + dur + 0.02);
+  },
+
+  play(name) {
+    if (fxOff || this.muted || this.bg || !this.boot()) return;
+    switch (name) {
+      case 'tick':    this.tone('sine', 660, 660, 0.05, 0.08); break;
+      case 'chop':    this.burst('lowpass', 900, 200, 0.12, 0.35, 0.7);
+                      this.tone('sine', 140, 70, 0.10, 0.25); break;
+      case 'quarry':  this.burst('bandpass', 1800, 900, 0.07, 0.35, 2);
+                      this.tone('square', 220, 90, 0.05, 0.08); break;
+      case 'reap':    this.burst('bandpass', 2500, 700, 0.18, 0.18, 1.2); break;
+      case 'sow':     this.burst('lowpass', 600, 250, 0.10, 0.18, 0.8); break;
+      case 'pour':    this.burst('lowpass', 2400, 350, 0.38, 0.22, 0.6); break;
+      case 'clink':   this.tone('sine', 2300, 2250, 0.18, 0.16);
+                      this.tone('sine', 3450, 3400, 0.14, 0.08, 0.01); break;
+      case 'stoke':   this.burst('lowpass', 180, 1600, 0.45, 0.28, 0.5);
+                      this.tone('sine', 60, 40, 0.30, 0.18); break;
+      case 'buy':     this.tone('triangle', 880, 1320, 0.11, 0.14); break;
+      case 'no':      this.tone('square', 160, 120, 0.09, 0.05); break;
+      case 'unlock':  [523, 659, 784, 1047].forEach((f, i) => this.tone('triangle', f, f, 0.22, 0.14, i * 0.09)); break;
+      case 'open':    [392, 523].forEach((f, i) => this.tone('triangle', f, f, 0.25, 0.12, i * 0.10)); break;
+      case 'full':    this.tone('sine', 300, 520, 0.16, 0.18);
+                      this.burst('lowpass', 1200, 300, 0.10, 0.10, 0.5); break;
+      case 'river':   [98, 147, 196].forEach(f => this.tone('sine', f, f, 0.9, 0.12));
+                      this.burst('lowpass', 500, 900, 0.9, 0.10, 0.4); break;
+    }
+  },
+
+  /* Loops, by name: a hiss while the sun works, rain while the cloud does,
+     a crackle while the furnace burns. Each is asked for every frame by the
+     card that owns it; asking for one already running costs nothing. */
+  loopSet(name, on) {
+    const cur = this.loops[name];
+    if (!on) {
+      if (!cur) return;
+      const c = this.ctx;
+      cur.g.gain.setTargetAtTime(0.0001, c.currentTime, 0.05);
+      cur.src.stop(c.currentTime + 0.3);
+      if (cur.rum) cur.rum.stop(c.currentTime + 0.3);
+      delete this.loops[name];
+      return;
+    }
+    if (cur || this.muted || this.bg || !this.boot()) return;
+    const P = SFX_LOOPS[name];
+    if (!P) return;
+    const c = this.ctx;
+    const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = P.type; f.frequency.value = P.f; f.Q.value = P.q;
+    // a wobble on the filter so the loop does not read as a flat tone
+    const lfo = c.createOscillator(), lg = c.createGain();
+    lfo.frequency.value = P.lfo; lg.gain.value = P.depth;
+    lfo.connect(lg); lg.connect(f.frequency); lfo.start();
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, c.currentTime);
+    g.gain.setTargetAtTime(P.vol * SFX_GAIN, c.currentTime, 0.08);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start();
+    let rum = null;
+    if (P.rumble) {
+      // a low roar under the crackle
+      rum = c.createOscillator(); rum.type = 'sawtooth'; rum.frequency.value = 48;
+      const rf = c.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 120;
+      const rg = c.createGain(); rg.gain.value = 0.5;
+      rum.connect(rf); rf.connect(rg); rg.connect(g); rum.start();
+    }
+    this.loops[name] = { g, src, lfo, rum };
+  },
+  /* the sky runs one loop at a time: the sun's, the cloud's, or none */
+  loop(kind) {
+    this.loopKind = kind && !this.muted ? kind : null;
+    this.loopSet('sun', kind === 'sun');
+    this.loopSet('cloud', kind === 'cloud');
+  },
+  stopLoops() { Object.keys(this.loops).forEach(n => this.loopSet(n, false)); },
+  /* out of sight, out of earshot: a hidden tab or an unfocused window goes
+     silent, and comes back when it is looked at again */
+  background(hidden) {
+    this.bg = hidden;
+    if (!this.ctx) return;
+    if (hidden) { this.stopLoops(); this.ctx.suspend(); }
+    else if (!this.muted) this.ctx.resume();
+  },
+};
+function sfx(name) { SFX.play(name); }
+
+document.addEventListener('visibilitychange', () => SFX.background(document.hidden));
+window.addEventListener('blur', () => SFX.background(true));
+window.addEventListener('focus', () => SFX.background(document.hidden));
+// the context can only be created on a gesture; the first press of anything does it
+['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, () => SFX.boot(), { capture: true, passive: true }));
+document.getElementById('btn-sound').addEventListener('click', () => { SFX.boot(); SFX.setMuted(!SFX.muted); if (!SFX.muted) sfx('tick'); });
+SFX.setMuted(SFX.muted);
+
+/* =========================================================================
+   GAME LOOP
+   ========================================================================= */
+
+function isFull(id) { return !BY_ID[id].facility && Math.floor(S.ores[id].amount) >= capOf(id); }
+
+function completeCycle(id) {
+  const gain = yieldOf(id);
+  addOre(id, gain);
+  floatText(id, '+' + fmt(gain), BY_ID[id].color);
+  punch(id);
+  sfx(id === 'stone' ? 'quarry' : 'chop');
+}
+
+function addOre(id, amt) {
+  const o = S.ores[id], cap = capOf(id);
+  const before = o.amount;
+  o.amount = Math.min(cap, o.amount + amt);
+  o.lifetime += o.amount - before;
+}
+
+let lastT = performance.now();
+let heatDrainNow = FURNACE_IDLE_COOL;    // for the furnace readout
+let heatNetNow   = -FURNACE_IDLE_COOL;   // gain minus losses, signed
+
+let pendingUnlock = false;
+
+function tick(now) {
+  const dt = Math.min(0.25, (now - lastT) / 1000);
+  lastT = now;
+  step(dt);
+  if (pendingUnlock) { pendingUnlock = false; commitUnlock(); sfx('open'); }
+  paint();
+  requestAnimationFrame(tick);
+}
+
+function step(dt) {
+  const furnace = S.ores[FURNACE_ID];
+  let burn = 0;
+
+  ORES.forEach(d => {
+    const o = S.ores[d.id];
+    if (!o.unlocked) return;
+
+    if (d.facility) {
+      // a burn feeds its heat in over its whole duration; only once it has
+      // finished does the cooldown start running
+      if (o.burnLeft > 0) {
+        const slice = Math.min(dt, o.burnLeft);
+        o.heat = Math.min(FURNACE_HEAT_MAX,
+                          o.heat + (FURNACE_HEAT_GAIN / FURNACE_BURN_TIME) * slice);
+        o.burnLeft -= slice;
+        // remember the length this cooldown started at, so buying Bellows
+        // part-way through does not leave the rail reading over full
+        if (o.burnLeft <= 1e-6) {
+          o.burnLeft = 0;
+          o.burnCooldown = o.burnCooldownMax = stokeCooldown();
+        }
+      } else {
+        o.burnCooldown = Math.max(0, o.burnCooldown - dt);
+      }
+      /* Nobody stands at the furnace. You light it by hand a burn at a time,
+         or you buy a Stoker to keep feeding it for you. */
+      if (o.lvl.stoker > 0) stokeFurnace();
+      o.heat = Math.max(0, o.heat - (FURNACE_IDLE_COOL + HEAT_LOSS_K * o.heat) * dt);
+      return;
+    }
+
+    /* The water cycle. A held sun lifts ocean into the cloud, a held cloud
+       rains it back, and either one counts as flow. The window of recent
+       flow ages out here, sample by sample. */
+    if (d.water) {
+      o.running = false; o.progress = 0;
+      let moved = 0;
+      if (o.holding === 'sun' && o.ocean > 0) {
+        moved = Math.min(o.ocean, CYCLE_RATE * dt);
+        o.ocean -= moved; o.cloud += moved;
+      } else if (o.holding === 'cloud' && o.cloud > 0) {
+        moved = Math.min(o.cloud, CYCLE_RATE * dt);
+        o.cloud -= moved; o.ocean += moved;
+      }
+      for (const x of o.hist) x[0] += dt;
+      if (moved > 0) o.hist.push([0, moved]);
+      if (o.hist.length && o.hist[0][0] >= FLOW_WINDOW) o.hist = o.hist.filter(x => x[0] < FLOW_WINDOW);
+      // a coarse sim slice can pile up samples; fold neighbours together
+      if (o.hist.length > 400) {
+        const folded = [];
+        for (let i = 0; i < o.hist.length; i += 2) {
+          const a = o.hist[i], b = o.hist[i + 1];
+          folded.push(b ? [(a[0] + b[0]) / 2, a[1] + b[1]] : a);
+        }
+        o.hist = folded;
+      }
+      o.lifetime += moved;
+      o.running = moved > 0 || riverFloor() > 0;
+      return;
+    }
+
+    /* Buckets fill in step with the flow, every one of them at once, and a
+       full one simply stays full. */
+    if (d.bucketing) {
+      o.running = false; o.progress = 0;
+      const rate = bucketFillRate();
+      if (rate <= 0) return;
+      o.buckets.forEach(q => {
+        if (q.f >= BUCKET_SIZE) return;
+        const before = q.f;
+        q.f = Math.min(BUCKET_SIZE, q.f + rate * dt);
+        o.lifetime += q.f - before;
+        if (q.f >= BUCKET_SIZE && before < BUCKET_SIZE) { floatText(d.id, 'FULL', d.color); punch(d.id); sfx('full'); }
+      });
+      o.running = o.buckets.some(q => q.f < BUCKET_SIZE);
+      return;
+    }
+
+    // a heat-driven bar has no cycle at all — the furnace pours it, and how
+    // fast depends entirely on how hot the furnace is
+    if (d.heatDriven) {
+      o.running = false; o.progress = 0;
+      if (hasHeat() && !isFull(d.id)) {
+        addOre(d.id, totalRate(d.id) * dt);
+        burn += SMELT_HEAT_DRAIN * dt;
+      }
+      return;
+    }
+
+    /* The bench never cycles and is never the worked tile. Every mould counts
+       its own cooling down, and an Automation level is a hand pressing them on
+       a fixed beat — it does one thing per beat, exactly as you would. */
+    if (isBench(d.id)) {
+      o.running = false; o.progress = 0;
+      syncMoulds(d.id);
+      o.moulds.forEach(m => {
+        if (m.s !== 'cool') return;
+        m.t -= dt;
+        if (m.t <= 0) { m.t = 0; m.s = 'ready'; }
+      });
+      const every = mouldAutoEvery(d.id);
+      if (Number.isFinite(every)) {
+        o.autoT += dt;
+        // a big dt (a fast-forward slice) can bank several presses at once
+        let guard = 0;
+        while (o.autoT >= every && guard++ < 200) {
+          o.autoT -= every;
+          // nothing it could usefully press: drop the banked time rather than
+          // stockpiling presses to spend in a burst later
+          if (!autoPressMould(d.id)) { o.autoT = 0; break; }
+        }
+      } else o.autoT = 0;
+      return;
+    }
+
+    // automation is a steady pour and ignores the worker entirely
+    if (autoFeeds(d.id) && !isFull(d.id)) addOre(d.id, autoRate(d.id) * dt);
+
+    /* Only the worked tile cycles, and it cycles for as long as it is worked:
+       one cycle runs straight into the next. Leaving abandons whatever was in
+       progress, and a full bar stops until there is somewhere to put the haul. */
+    if (!isWorked(d.id) || isFull(d.id)) { o.running = false; o.progress = 0; return; }
+    o.running = true;
+    o.progress += dt * 1000 / timeOf(d.id);
+    if (o.progress >= 1) {
+      completeCycle(d.id);
+      // carry the overshoot into the next cycle rather than dropping it
+      o.progress = isFull(d.id) ? 0 : o.progress - 1;
+      if (isFull(d.id)) o.running = false;
+    }
+  });
+
+  /* Tiles that open themselves: the buckets with the first bar, the water
+     with the first bucket. The board is rebuilt after the step, not inside it. */
+  let opened = false;
+  ORES.forEach(d => {
+    const o = S.ores[d.id];
+    if (!o.unlocked && d.opensWhen && d.opensWhen()) { o.unlocked = true; opened = true; }
+  });
+  if (opened) pendingUnlock = true;
+
+  if (burn > 0) furnace.heat = Math.max(0, furnace.heat - burn);
+  heatDrainNow = FURNACE_IDLE_COOL + HEAT_LOSS_K * furnace.heat +
+                 (burn > 0 && dt > 0 ? burn / dt : 0);
+  // what the gauge is actually doing right now, gain included
+  heatNetNow = (furnace.burnLeft > 0 ? FURNACE_HEAT_GAIN / FURNACE_BURN_TIME : 0) - heatDrainNow;
+
+  return liveSet();
+}
+
+/* =========================================================================
+   DOM
+   ========================================================================= */
+
+const el = {
+  forge:  document.getElementById('forge'),
+  world:  document.getElementById('world'),
+  arc:    document.getElementById('arc'),
+  labels: document.getElementById('linklabels'),
+  embers: document.getElementById('embers'),
+  upop:   document.getElementById('upop'),
+  zlevel: document.getElementById('zlevel'),
+};
+
+el.world.style.width  = WORLD.w + 'px';
+el.world.style.height = WORLD.h + 'px';
+
+const bars = {};
+const linkEls = {};
+let upTiles = [];
+let hovered = null;
+
+function fmt(n) {
+  if (n < 1000) {
+    if (n % 1 === 0 || n >= 10) return String(Math.floor(n));
+    return n < 1 ? n.toFixed(2) : n.toFixed(1);   // sub-1 rates deserve the extra digit
+  }
+  const units = ['K','M','B','T','Qa','Qi','Sx','Sp'];
+  let u = -1;
+  while (n >= 1000 && u < units.length - 1) { n /= 1000; u++; }
+  return n.toFixed(n < 10 ? 2 : n < 100 ? 1 : 0) + units[u];
+}
+
+/* =========================================================================
+   CAMERA — pan by dragging, zoom on the wheel
+   ========================================================================= */
+
+const ZOOM_MIN = 0.30, ZOOM_MAX = 2.40;
+let cam = { x: 0, y: 0, z: 1 };
+
+function clampZoom(z) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); }
+
+/* keep at least a slice of the map on screen no matter how far you drag */
+function clampPan() {
+  const W = el.forge.clientWidth, H = el.forge.clientHeight;
+  const m = 160;
+  cam.x = Math.min(W - m, Math.max(m - WORLD.w * cam.z, cam.x));
+  cam.y = Math.min(H - m, Math.max(m - WORLD.h * cam.z, cam.y));
+}
+
+function applyCam() {
+  clampPan();
+  // land the map on whole device pixels — a half-pixel offset softens every
+  // border and glyph on the board
+  const dpr = window.devicePixelRatio || 1;
+  const px = Math.round(cam.x * dpr) / dpr;
+  const py = Math.round(cam.y * dpr) / dpr;
+  el.world.style.transform = `translate(${px}px, ${py}px) scale(${cam.z})`;
+  const pct = Math.round(cam.z * 100) + '%';
+  if (el.zlevel.textContent !== pct) el.zlevel.textContent = pct;
+}
+
+/* zoom around a point in viewport space, so the map stays under the cursor */
+function zoomAt(sx, sy, z) {
+  const nz = clampZoom(z);
+  if (nz === cam.z) return;
+  cam.x = sx - (sx - cam.x) * (nz / cam.z);
+  cam.y = sy - (sy - cam.y) * (nz / cam.z);
+  cam.z = nz;
+  applyCam();
+}
+
+/* the wheel fires far too often to write storage on every notch */
+let camSaveT;
+function saveCam() { clearTimeout(camSaveT); camSaveT = setTimeout(save, 400); }
+
+function zoomCenter(mult) {
+  zoomAt(el.forge.clientWidth / 2, el.forge.clientHeight / 2, cam.z * mult);
+  saveCam();
+}
+
+/* Frame what is actually on the board, not the whole empty map — early on that
+   is just Wood and Stone, and the view opens out as the ladder reveals. */
+/* a tile's box in world units — untransformed, so the camera can't skew it */
+function tileBox(id) {
+  const bar = bars[id], n = bar.root;
+  // a hidden card measures zero, so keep the last real size it reported
+  if (n.offsetWidth) { bar._bw = n.offsetWidth; bar._bh = n.offsetHeight; }
+  const w = bar._bw || 320, h = bar._bh || 130;
+  return { cx: n.offsetLeft, cy: n.offsetTop,
+           l: n.offsetLeft - w / 2, r: n.offsetLeft + w / 2,
+           t: n.offsetTop  - h / 2, b: n.offsetTop  + h / 2 };
+}
+
+function revealedBounds() {
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  ORES.forEach(d => {
+    if (!revealed.has(d.id)) return;
+    const q = tileBox(d.id);
+    l = Math.min(l, q.l); r = Math.max(r, q.r);
+    t = Math.min(t, q.t); b = Math.max(b, q.b);
+  });
+  if (!Number.isFinite(l)) return { l: 0, t: 0, r: WORLD.w, b: WORLD.h };
+  const pad = 70;
+  return { l: l - pad, t: t - pad, r: r + pad, b: b + pad };
+}
+
+function fitCam() {
+  const W = el.forge.clientWidth, H = el.forge.clientHeight;
+  const g = revealedBounds(), gw = g.r - g.l, gh = g.b - g.t;
+  // never blow a two-tile board up past life size
+  cam.z = clampZoom(Math.min(1, W / gw, H / gh));
+  cam.x = (W - gw * cam.z) / 2 - g.l * cam.z;
+  cam.y = (H - gh * cam.z) / 2 - g.t * cam.z;
+  applyCam();
+}
+
+/* The opening shot: Wood dead centre, pulled back just far enough that the
+   Stone it feeds sits up in the top-left corner. */
+function openingCam() {
+  if (!revealed.has('stone')) return fitCam();
+  const W = el.forge.clientWidth, H = el.forge.clientHeight;
+  const w = tileBox('wood'), s = tileBox('stone');
+  const margin = 34;
+  // wood is centred, so half the viewport has to reach stone's outer corner
+  const dx = (w.cx - s.l) + margin, dy = (w.cy - s.t) + margin;
+  cam.z = clampZoom(Math.min(1, (W / 2) / dx, (H / 2) / dy));
+  cam.x = W / 2 - w.cx * cam.z;
+  cam.y = H / 2 - w.cy * cam.z;
+  applyCam();
+}
+
+el.forge.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = el.forge.getBoundingClientRect();
+  // trackpad pinches arrive as ctrl+wheel and want a stronger response
+  const k = e.ctrlKey ? 0.010 : 0.0016;
+  const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  zoomAt(e.clientX - f.left, e.clientY - f.top, cam.z * Math.exp(-step * k));
+  hidePop();
+  saveCam();
+}, { passive: false });
+
+/* Dragging pans from anywhere, tiles included — a drag past a few pixels
+   cancels the click underneath so panning never smelts by accident. */
+let drag = null, panned = false, swallowClick = false;
+
+el.forge.addEventListener('pointerdown', e => {
+  if (e.button !== 0 && e.button !== 1) return;
+  drag = { sx: e.clientX, sy: e.clientY, cx: cam.x, cy: cam.y, id: e.pointerId };
+  panned = false;
+});
+
+window.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (!panned) {
+    if (Math.hypot(dx, dy) < 5) return;
+    panned = true;
+    el.forge.classList.add('grabbing');
+    hovered = null;
+    hidePop();
+  }
+  cam.x = drag.cx + dx;
+  cam.y = drag.cy + dy;
+  applyCam();
+});
+
+window.addEventListener('pointerup', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  drag = null;
+  el.forge.classList.remove('grabbing');
+  if (panned) { swallowClick = true; saveCam(); }
+  panned = false;
+});
+
+el.forge.addEventListener('click', e => {
+  if (!swallowClick) return;
+  swallowClick = false;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
+
+/* ---- links ---- */
+
+/* the card's footprint plus a little breathing room, in world units */
+function linkBox(id) {
+  const q = tileBox(id), pad = 8;
+  return { l: q.l - pad, r: q.r + pad, t: q.t - pad, b: q.b + pad };
+}
+function inBox(bx, p) { return p[0] > bx.l && p[0] < bx.r && p[1] > bx.t && p[1] < bx.b; }
+
+/* bisect between a point known to be inside the box and one known to be
+   outside it, and return the parameter that lands on the boundary */
+function edgeT(bez, box, tIn, tOut) {
+  for (let k = 0; k < 18; k++) {
+    const m = (tIn + tOut) / 2;
+    if (inBox(box, bez(m))) tIn = m; else tOut = m;
+  }
+  return tOut;
+}
+
+function buildLinks() {
+  const W = WORLD.w, H = WORLD.h;
+  const at = id => ({ x: POS_OF_ORE[id].x / 100 * W, y: POS_OF_ORE[id].y / 100 * H });
+
+  const byTarget = {};
+  LINKS.forEach(L => (byTarget[L.ore] = byTarget[L.ore] || []).push(L));
+
+  let svg = '', labels = '';
+  Object.keys(byTarget).forEach(target => {
+    const group = byTarget[target];
+    group.forEach((L, i) => {
+      const a = at(L.src), b = at(target);
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      const off = (i - (group.length - 1) / 2) * Math.min(70, len * 0.22);
+      const c = { x: (a.x + b.x) / 2 - dy / len * off, y: (a.y + b.y) / 2 + dx / len * off };
+      const bez = t => { const u = 1 - t;
+        return [u*u*a.x + 2*u*t*c.x + t*t*b.x, u*u*a.y + 2*u*t*c.y + t*t*b.y]; };
+
+      /* Both ends start at a card's centre, where the card itself covers them.
+         Walk in from each end to where the curve clears the card, and draw
+         only the span between — so a line runs edge to edge, not centre to
+         centre, and the whole of it is visible. */
+      const sb = linkBox(L.src), tb = linkBox(target);
+      const N = 48;
+      let t0 = 0, t1 = 1;
+      for (let k = 1; k <= N; k++) {
+        const t = k / N;
+        if (!inBox(sb, bez(t))) { t0 = edgeT(bez, sb, (k - 1) / N, t); break; }
+      }
+      for (let k = N - 1; k >= 0; k--) {
+        const t = k / N;
+        if (!inBox(tb, bez(t))) { t1 = edgeT(bez, tb, (k + 1) / N, t); break; }
+      }
+      if (!(t1 > t0)) { t0 = 0.46; t1 = 0.54; }   // cards overlap: leave a stub
+
+      const pts = [];
+      for (let s = 0; s <= 24; s++) {
+        const p = bez(t0 + (t1 - t0) * (s / 24));
+        pts.push(p[0].toFixed(1) + ',' + p[1].toFixed(1));
+      }
+      const d = pts.join(' ');
+      const col = BY_ID[L.src].color;
+      svg += `<g class="link" data-k="${L.key}" style="--lc:${col}">
+          <polyline class="lbase" points="${d}"/>
+          <polyline class="lglow" points="${d}" pathLength="100" stroke-dasharray="0 200"/>
+          <polyline class="lfill" points="${d}" pathLength="100" stroke-dasharray="0 200"/>
+        </g>`;
+      L._pts = pts.map(s => s.split(',').map(Number));
+      labels += `<div class="llabel" data-k="${L.key}" style="--lc:${col}"></div>`;
+    });
+  });
+  el.arc.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  el.arc.innerHTML = svg;
+  el.labels.innerHTML = labels;
+
+  LINKS.forEach(L => {
+    const g = el.arc.querySelector(`.link[data-k="${L.key}"]`);
+    linkEls[L.key] = { g, fill: g && g.querySelector('.lfill'),
+                       glow: g && g.querySelector('.lglow'),
+                       label: el.labels.querySelector(`.llabel[data-k="${L.key}"]`) };
+  });
+  placeLabels();
+}
+
+/* Slide each readout along its own curve to a spot that clears the tiles.
+   Measured in world units via offset*, so the camera never skews it. */
+function placeLabels() {
+  const boxes = ORES.filter(d => revealed.has(d.id)).map(d => {
+    const n = bars[d.id].root;
+    const w = n.offsetWidth, h = n.offsetHeight;
+    return { l: n.offsetLeft - w / 2 - 6, r: n.offsetLeft + w / 2 + 6,
+             t: n.offsetTop  - h / 2 - 6, b: n.offsetTop  + h / 2 + 6 };
+  });
+  const clear = (p) => !boxes.some(x => p[0] > x.l && p[0] < x.r && p[1] > x.t && p[1] < x.b);
+  const order = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.2, 0.8];
+  LINKS.forEach(L => {
+    const e = linkEls[L.key];
+    if (!e || !e.label || !L._pts || !revealed.has(L.ore)) return;
+    const at = t => L._pts[Math.min(L._pts.length - 1, Math.round(t * (L._pts.length - 1)))];
+    const p = (order.map(at).find(clear)) || at(0.5);
+    e.label.style.left = p[0].toFixed(1) + 'px';
+    e.label.style.top  = p[1].toFixed(1) + 'px';
+  });
+}
+
+function paintLinks() {
+  LINKS.forEach(L => {
+    const e = linkEls[L.key];
+    if (!e || !e.fill || !revealed.has(L.ore)) return;
+    const srcOpen = S.ores[L.src].unlocked;
+    // a supply line is never "done" — it reports a live flow
+    const done = !L.feed && S.ores[L.ore].unlocked;
+    const nextBucket = L.bucket && S.ores.buckets.buckets.length < BUCKET_MAX;
+    const p = L.heat   ? heatOf() / FURNACE_HEAT_MAX
+            : L.flow   ? Math.min(1, flowNow() / FLOW_MAX)
+            : L.bucket ? (nextBucket ? Math.min(1, heldOf('bars') / bucketCost()) : 1)
+            : done     ? 1
+            :            Math.min(1, heldOf(L.src) / L.need);
+    // a heat or flow line runs at any level; the others only once affordable
+    const lit = (L.heat || L.flow) ? p > 0 : p >= 1;
+
+    const dash = (p * 100).toFixed(2) + ' 200';
+    if (e.fill.getAttribute('stroke-dasharray') !== dash) {
+      e.fill.setAttribute('stroke-dasharray', dash);
+      if (e.glow) e.glow.setAttribute('stroke-dasharray', dash);
+    }
+    let cls = 'link' + (L.feed ? ' feed' : '');
+    cls += done ? ' done' : (!srcOpen ? ' dormant' : (lit ? ' lit' : ''));
+    if (e.g.getAttribute('class') !== cls) e.g.setAttribute('class', cls);
+
+    if (!e.label) return;
+    let txt = '', lc = 'llabel';
+    if (done || !srcOpen) lc += ' gone';
+    else if (L.heat) txt = lit ? `${Math.round(heatOf())}°` : 'NO HEAT';
+    else if (L.flow) txt = lit ? `${fmt(flowNow())}/s` : 'NO FLOW';
+    else if (L.bucket) txt = nextBucket ? `${fmt(heldOf('bars'))}/${bucketCost()} Br` : 'ALL FORGED';
+    else if (L.feed) txt = (p >= 1 ? 'FUEL ' : `${fmt(heldOf(L.src))}/`) +
+                           `${fmt(L.need)} ${BY_ID[L.src].sym}`;
+    else txt = `${fmt(heldOf(L.src))}/${fmt(L.need)} ${BY_ID[L.src].sym}`;
+    if (e.label.textContent !== txt) e.label.textContent = txt;
+    if (e.label.className !== lc) e.label.className = lc;
+  });
+}
+
+function buildEmbers() {
+  let html = '';
+  for (let i = 0; i < 26; i++) {
+    const size = 2 + Math.random() * 4, dur = 9 + Math.random() * 12;
+    html += `<div class="ember" style="
+      left:${(Math.random()*100).toFixed(1)}%;
+      width:${size.toFixed(1)}px; height:${size.toFixed(1)}px;
+      opacity:${(.25+Math.random()*.5).toFixed(2)};
+      --drift:${(Math.random()*120-60).toFixed(0)}px;
+      animation-duration:${dur.toFixed(1)}s;
+      animation-delay:-${(Math.random()*dur).toFixed(1)}s;"></div>`;
+  }
+  el.embers.innerHTML = html;
+}
+
+/* ---- tiles ---- */
+
+function buildBars() {
+  ORES.forEach(d => {
+    const p = slotPos(d.id);
+    const node = document.createElement('div');
+    node.className = 'ore';
+    node.style.setProperty('--ore', d.color);
+    node.style.left = p.x + '%';
+    node.style.top  = p.y + '%';
+    node.innerHTML = `
+      <div class="obody">
+        <div class="ore-head">
+          <span class="ore-name">${d.name}</span>
+          <span class="ore-tags"></span>
+          <span class="uslot slot-aut"></span>
+        </div>
+        <div class="amt">
+          <span class="cur">0</span>
+          <span class="capgrp"><span class="capv"></span><span class="uslot slot-cap"></span></span>
+          <span class="rate"></span>
+        </div>
+        <div class="trackrow">
+          <div class="track">
+            <div class="fill"></div><div class="gloss"></div><div class="floormark"></div><div class="tstatus"></div>
+          </div>
+          <span class="uslot slot-out"></span>
+        </div>
+        <div class="mrow" style="display:none"><div class="moulds"></div><span class="uslot slot-mld"></span></div>
+        <div class="wrow" style="display:none">
+          <button class="wbtn sun" data-hold="sun"><span class="wfill"></span>
+            <span class="wtxt"><span class="wsym">&#9728;</span><span class="wl">HOLD · EVAPORATE</span></span></button>
+          <button class="wbtn cloud" data-hold="cloud"><span class="wfill"></span>
+            <span class="wtxt"><span class="wsym">&#9729;</span><span class="wl">CLOUD 0%</span></span></button>
+        </div>
+        <div class="ocean" style="display:none"><div class="ofill"></div><div class="olab"></div></div>
+        <div class="cycbar"><div class="cyc"></div></div>
+        <div class="lockmsg"></div>
+      </div>
+      <div class="ustrip"></div>`;
+    node.querySelector('.obody').addEventListener('click', () => tileClick(d.id));
+    /* Sun and cloud are HOLDS, not clicks: down starts the cycle moving, up
+       anywhere stops it. The down must not start a pan or work the tile. */
+    if (d.water) node.querySelectorAll('.wbtn').forEach(btn => {
+      btn.addEventListener('pointerdown', ev => {
+        if (ev.button !== 0) return;
+        ev.stopPropagation(); ev.preventDefault();
+        holdWater(btn.dataset.hold);
+      });
+      btn.addEventListener('click', ev => ev.stopPropagation());
+    });
+    el.world.appendChild(node);
+    bars[d.id] = {
+      root: node,
+      tags: node.querySelector('.ore-tags'),
+      fill: node.querySelector('.fill'),
+      cyc:  node.querySelector('.cyc'),
+      cycbar: node.querySelector('.cycbar'),
+      status: node.querySelector('.tstatus'),
+      amtRow: node.querySelector('.amt'),
+      trackEl: node.querySelector('.trackrow'),
+      mrow: node.querySelector('.mrow'),
+      mouldsEl: node.querySelector('.moulds'),
+      mouldEls: [],
+      floor: node.querySelector('.floormark'),
+      wrow: node.querySelector('.wrow'),
+      sun: node.querySelector('.wbtn.sun'),
+      cloud: node.querySelector('.wbtn.cloud'),
+      sunFill: node.querySelector('.wbtn.sun .wfill'),
+      cloudFill: node.querySelector('.wbtn.cloud .wfill'),
+      sunLab: node.querySelector('.wbtn.sun .wl'),
+      cloudLab: node.querySelector('.wbtn.cloud .wl'),
+      ocean: node.querySelector('.ocean'),
+      oceanFill: node.querySelector('.ofill'),
+      oceanLab: node.querySelector('.olab'),
+      slots: { cap: node.querySelector('.slot-cap'),
+               out: node.querySelector('.slot-out'),
+               mld: node.querySelector('.slot-mld'),
+               aut: node.querySelector('.slot-aut') },
+      cur:  node.querySelector('.cur'),
+      capv: node.querySelector('.capv'),
+      rate: node.querySelector('.rate'),
+      lock: node.querySelector('.lockmsg'),
+      strip: node.querySelector('.ustrip'),
+      pos: p,
+    };
+  });
+}
+
+/* Show or hide whole tiles and their supply lines. Reveal only ever changes on
+   an unlock, so this runs on commit rather than every frame. */
+const revealed = new Set();
+
+function syncTiles(animate) {
+  ORES.forEach(d => {
+    const on = isRevealed(d.id), was = revealed.has(d.id);
+    bars[d.id].root.style.display = on ? '' : 'none';
+    if (on) { revealed.add(d.id); if (!was && animate) replay(bars[d.id].root, 'appear'); }
+    else revealed.delete(d.id);
+  });
+  fitRings();               // a tile just shown can finally be measured
+}
+
+function syncLinks() {
+  LINKS.forEach(L => {
+    const e = linkEls[L.key];
+    if (!e) return;
+    const on = revealed.has(L.ore);
+    if (e.g) e.g.style.display = on ? '' : 'none';
+    if (e.label) e.label.style.display = on ? '' : 'none';
+  });
+}
+
+function syncReveal(animate) { syncTiles(animate); syncLinks(); }
+
+/* Tiles must be shown before the lines are cut, because each line is trimmed
+   to the measured edges of the cards it runs between. */
+function rebuildBoard(animate) {
+  renderStrips();
+  syncTiles(animate);
+  buildLinks();
+  syncLinks();
+  placeLabels();
+}
+
+/* Fast-forwarding runs thousands of cycles in one go. Every one of them would
+   otherwise spawn a floating number and restart an animation, so the feedback
+   is muted while the sim is being driven rather than played. */
+let fxOff = false;
+
+function replay(node, cls) {
+  if (fxOff) return;
+  node.classList.remove(cls);
+  void node.offsetWidth;
+  node.classList.add(cls);
+}
+
+function punch(id) {
+  const b = bars[id];
+  if (!b) return;
+  replay(b.root, 'pop');
+  replay(b.cur, 'tick');
+}
+
+function floatText(id, txt, color) {
+  const b = bars[id];
+  if (!b || fxOff) return;
+  const n = document.createElement('div');
+  n.className = 'float';
+  n.textContent = txt;
+  n.style.color = color;
+  n.style.left = b.pos.x + '%';
+  n.style.top = (b.pos.y - 6) + '%';
+  el.world.appendChild(n);
+  setTimeout(() => n.remove(), 1100);
+}
+
+/* ---- the bench's moulds ----
+   Each mould is its own button. They are rebuilt only when the row changes
+   length, which happens exactly once per More Moulds level; everything else is
+   diffed in place, the same as the rest of the board. */
+
+function buildMoulds(id, n) {
+  const b = bars[id];
+  b.mouldsEl.innerHTML = '';
+  b.mouldEls = [];
+  for (let i = 0; i < n; i++) {
+    const m = document.createElement('button');
+    m.className = 'mould empty';
+    m.innerHTML = `<span class="mcool"><span class="mhot"></span></span><span class="msym"></span>`;
+    /* A mould is a DIRECT action: it never moves the worker, so the click must
+       not reach the tile body underneath it. */
+    m.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const st = S.ores[id].moulds[i];
+      if (!st) return;
+      if (st.s === 'ready') harvestMould(id, i);
+      else if (st.s === 'empty') fillMould(id, i);
+    });
+    b.mouldsEl.appendChild(m);
+    b.mouldEls.push({ node: m, cool: m.querySelector('.mcool'),
+                      hot: m.querySelector('.mhot'), sym: m.querySelector('.msym') });
+  }
+}
+
+function paintMoulds(d, o, b) {
+  const list = syncMoulds(d.id);
+  if (b.mouldEls.length !== list.length) buildMoulds(d.id, list.length);
+  const cost = plotCost(d.id), W = plotWords(d.id);
+  const poor = !!cost && (!S.ores.iron.unlocked || Math.floor(S.ores.iron.amount) < cost.iron);
+  const full = isFull(d.id);
+  list.forEach((m, i) => {
+    const e = b.mouldEls[i];
+    if (!e) return;
+    let cls = 'mould ' + m.s + (d.farming ? ' crop' : ''), sym = '', tip = '';
+    let w = 0, hot = 0;
+    if (m.s === 'empty') {
+      if (poor) cls += ' no';
+      sym = W.start;
+      tip = poor ? `Empty — needs ${cost.iron} iron`
+                 : `Empty — click to ${W.startVerb}`;
+    } else if (m.s === 'cool') {
+      // the bar drains as it sets, and the heat fades out of it with it
+      const k = Math.max(0, Math.min(1, m.t / plotTime(d.id)));
+      w = k * 100; hot = k;
+      sym = Math.ceil(m.t) + 's';
+      tip = `${W.busy[0].toUpperCase() + W.busy.slice(1)} — ${m.t.toFixed(1)}s left`;
+    } else {
+      if (full) cls += ' no';
+      sym = full ? 'FULL' : (d.farming ? 'REAP' : 'OUT');
+      tip = full ? `${W.done} — no room, expand storage`
+                 : `${W.done} — click to ${W.take} ${fmt(yieldOf(d.id))} ${d.unit}`;
+    }
+    if (e.node.className !== cls) e.node.className = cls;
+    const wpx = w.toFixed(1) + '%';
+    if (e.cool.style.width !== wpx) e.cool.style.width = wpx;
+    const op = hot.toFixed(2);
+    if (e.hot.style.opacity !== op) e.hot.style.opacity = op;
+    if (e.sym.textContent !== sym) e.sym.textContent = sym;
+    if (e.node.title !== tip) e.node.title = tip;
+  });
+}
+
+/* the bench's own status line, in place of a work cycle */
+function benchStatus(d, o) {
+  const list = o.moulds;
+  const ready = list.some(m => m.s === 'ready');
+  if (isFull(d.id)) return ['FULL · EXPAND STORAGE', 'tstatus'];
+  if (ready) return [d.farming ? 'RIPE · REAP IT' : 'SET · TAKE IT OUT', 'tstatus go'];
+  const cooling = list.filter(m => m.s === 'cool');
+  const empty = list.some(m => m.s === 'empty');
+  const cost = plotCost(d.id), W = plotWords(d.id);
+  const busy = W.busy.toUpperCase();
+  const waiting = () => [`${busy} · ${Math.min(...cooling.map(m => m.t)).toFixed(1)}S`, 'tstatus'];
+  const poor = !!cost && (!S.ores.iron.unlocked || Math.floor(S.ores.iron.amount) < cost.iron);
+  if (empty && poor) {
+    return cooling.length ? waiting() : [`NEEDS ${cost.iron} FE`, 'tstatus cold'];
+  }
+  if (empty) return [`CLICK A ${W.unit.toUpperCase()}` + (cost ? ` · ${cost.iron} FE` : ''), 'tstatus go'];
+  return waiting();
+}
+
+/* ---- per-frame paint ---- */
+
+function lockLines(d) {
+  const need = Object.keys(d.unlock)
+    .map(k => `<b>${fmt(d.unlock[k])}</b> ${resName(k).toLowerCase()}`).join(' + ');
+  const head = unlockProgress(d.id) >= 1
+    ? (d.facility ? 'READY TO BUILD' : 'READY TO OPEN')
+    : 'LOCKED';
+  return head + '<br>' + need;
+}
+
+function paintLocked(d, b) {
+  b.amtRow.style.display = 'none';
+  b.trackEl.style.display = 'none';
+  b.mrow.style.display = 'none';
+  b.wrow.style.display = 'none';
+  b.ocean.style.display = 'none';
+  b.cycbar.style.display = 'none';
+  b.lock.style.display = '';
+  const html = lockLines(d);
+  if (b.lock.innerHTML !== html) b.lock.innerHTML = html;
+  if (b.tags.innerHTML !== '') b.tags.innerHTML = '';
+}
+
+function paintFurnace(d, o, b) {
+  let cls = 'ore facility';
+  if (!o.unlocked) {
+    cls += ' locked';
+    if (unlockProgress(d.id) >= 1) cls += ' ready';
+  } else if (o.heat > 0) cls += ' hot';
+  if (b.root.classList.contains('hit')) cls += ' hit';
+  if (b.root.classList.contains('appear')) cls += ' appear';
+  if (b.root.className !== cls) b.root.className = cls;
+
+  if (!o.unlocked) { paintLocked(d, b); return; }
+
+  b.amtRow.style.display = '';
+  b.trackEl.style.display = '';
+  b.mrow.style.display = 'none';
+  b.wrow.style.display = 'none';
+  b.ocean.style.display = 'none';
+  b.cycbar.style.display = '';
+  b.lock.style.display = 'none';
+
+  b.fill.style.width = (o.heat / FURNACE_HEAT_MAX * 100) + '%';
+  const heatTxt = fmt(o.heat);
+  if (b.cur.textContent !== heatTxt) b.cur.textContent = heatTxt;
+  if (b.capv.textContent !== '/ 100°') b.capv.textContent = '/ 100°';
+
+  const rateTxt = (heatNetNow >= 0 ? '+' : '') + heatNetNow.toFixed(1) + '°/s';
+  if (b.rate.textContent !== rateTxt) b.rate.textContent = rateTxt;
+  const rateCls = 'rate' + (heatNetNow < 0 ? ' neg' : '');
+  if (b.rate.className !== rateCls) b.rate.className = rateCls;
+
+  const stoker = o.lvl.stoker > 0;
+  const fed = S.ores.wood.amount >= FURNACE_STOKE_COST;
+  let st = '', stCls = 'tstatus';
+  if (o.burnLeft > 0)             st = `BURNING · ${o.burnLeft.toFixed(1)}S`;
+  else if (o.burnCooldown > 0)    st = `COOLING · ${o.burnCooldown.toFixed(1)}S`;
+  else if (o.heat >= FURNACE_HEAT_MAX) st = 'AT FULL HEAT';
+  else if (!fed)   st = `NEEDS ${FURNACE_STOKE_COST} WOOD`;
+  else if (stoker) { st = 'STOKER'; stCls += ' go'; }
+  else { st = `CLICK · BURN ${FURNACE_STOKE_COST} WOOD`; stCls += ' go'; }
+  if (b.status.textContent !== st) b.status.textContent = st;
+  if (b.status.className !== stCls) b.status.className = stCls;
+
+  // the burn fills the rail left to right as heat goes in; the cooldown then
+  // runs the other way, draining back off from the right until it is ready
+  let cycP = 0, burning = o.burnLeft > 0, cooling = !burning && o.burnCooldown > 0;
+  if (burning) cycP = 1 - o.burnLeft / FURNACE_BURN_TIME;
+  else if (cooling) cycP = o.burnCooldown / Math.max(0.001, o.burnCooldownMax || stokeCooldown());
+  b.cyc.style.width = Math.max(0, Math.min(100, cycP * 100)) + '%';
+  const cycCls = 'cyc' + (burning || cooling ? ' on' : '') +
+                 (burning ? ' burn' : cooling ? ' cool' : '');
+  if (b.cyc.className !== cycCls) b.cyc.className = cycCls;
+
+  SFX.loopSet('fire', o.burnLeft > 0);
+
+  // the STOKER n tag below already says whether one is fitted
+  let tag = o.heat > 0
+    ? '<span class="tag on">LIT</span>'
+    : '<span class="tag cold">COLD</span>';
+  // always shown, so the + beside it has a label
+  tag += `<span class="tag${stoker ? ' on' : ''}">STOKER ${o.lvl.stoker}</span>`;
+  if (b.tags.innerHTML !== tag) b.tags.innerHTML = tag;
+}
+
+/* ---- the buckets: a row of them, filling from the flow ---- */
+
+function buildBuckets(id, n) {
+  const b = bars[id];
+  b.mouldsEl.innerHTML = '';
+  b.mouldEls = [];
+  for (let i = 0; i < n; i++) {
+    const m = document.createElement('button');
+    m.className = 'mould bucket';
+    m.innerHTML = `<span class="mcool"><span class="mhot"></span></span><span class="msym"></span>`;
+    m.addEventListener('click', ev => ev.stopPropagation());
+    b.mouldsEl.appendChild(m);
+    b.mouldEls.push({ node: m, cool: m.querySelector('.mcool'),
+                      hot: m.querySelector('.mhot'), sym: m.querySelector('.msym') });
+  }
+}
+
+function paintBuckets(d, o, b) {
+  let cls = 'ore passive';
+  if (o.running) cls += ' run';
+  if (o.buckets.length && o.buckets.every(q => q.f >= BUCKET_SIZE)) cls += ' full';
+  if (b.root.classList.contains('pop')) cls += ' pop';
+  if (b.root.classList.contains('hit')) cls += ' hit';
+  if (b.root.classList.contains('appear')) cls += ' appear';
+  if (b.root.className !== cls) b.root.className = cls;
+
+  b.amtRow.style.display = '';
+  b.trackEl.style.display = '';
+  b.mrow.style.display = '';
+  b.wrow.style.display = 'none';
+  b.ocean.style.display = 'none';
+  b.cycbar.style.display = 'none';
+  b.lock.style.display = 'none';
+
+  const list = o.buckets;
+  if (b.mouldEls.length !== list.length) buildBuckets(d.id, list.length);
+  const rate = bucketFillRate();
+  const full = list.filter(q => q.f >= BUCKET_SIZE).length;
+  list.forEach((q, i) => {
+    const e = b.mouldEls[i];
+    if (!e) return;
+    const isFullB = q.f >= BUCKET_SIZE;
+    const c = 'mould bucket' + (isFullB ? ' full' : (rate > 0 ? '' : ' still'));
+    if (e.node.className !== c) e.node.className = c;
+    const wpx = (q.f / BUCKET_SIZE * 100).toFixed(1) + '%';
+    if (e.cool.style.width !== wpx) e.cool.style.width = wpx;
+    const sym = isFullB ? 'FULL' : Math.floor(q.f / BUCKET_SIZE * 100) + '%';
+    if (e.sym.textContent !== sym) e.sym.textContent = sym;
+    const tip = isFullB ? 'Full — it keeps its water for whatever needs it next'
+              : rate > 0 ? `Filling — ${((BUCKET_SIZE - q.f) / rate).toFixed(1)}s to go at this flow`
+              : 'Empty — needs water flowing';
+    if (e.node.title !== tip) e.node.title = tip;
+  });
+
+  // the big bar is the average fill of the row
+  const mean = list.length ? list.reduce((a, q) => a + q.f, 0) / (list.length * BUCKET_SIZE) : 0;
+  b.fill.style.width = (mean * 100) + '%';
+  const curTxt = String(full);
+  if (b.cur.textContent !== curTxt) b.cur.textContent = curTxt;
+  const capTxt = `/ ${list.length} full`;
+  if (b.capv.textContent !== capTxt) b.capv.textContent = capTxt;
+  const rateTxt = rate > 0 ? `+${fmt(rate)}/s each` : (list.length ? '· no flow ·' : '');
+  if (b.rate.textContent !== rateTxt) b.rate.textContent = rateTxt;
+  const rc = 'rate' + (rate > 0 ? '' : ' neg');
+  if (b.rate.className !== rc) b.rate.className = rc;
+
+  let st = '', stCls = 'tstatus';
+  const wOpen = S.ores.water.unlocked;
+  if (!list.length) { st = `FORGE A BUCKET · ${bucketCost()} BARS`; stCls += ' go'; }
+  else if (full === list.length) st = 'ALL FULL · WAITING FOR A USE';
+  else if (!wOpen) st = 'NO WATER YET';
+  else if (rate <= 0) { st = 'NO FLOW · WORK THE WATER'; stCls += ' cold'; }
+  else st = `FILLING · ${((BUCKET_SIZE - Math.min(...list.filter(q => q.f < BUCKET_SIZE).map(q => q.f))) / rate).toFixed(1)}S`;
+  if (b.status.textContent !== st) b.status.textContent = st;
+  if (b.status.className !== stCls) b.status.className = stCls;
+
+  let tags = '';
+  tags += rate > 0 ? `<span class="tag on">FLOW ${fmt(flowNow())}/s</span>` : '<span class="tag cold">NO FLOW</span>';
+  if (b.tags.innerHTML !== tags) b.tags.innerHTML = tags;
+}
+
+/* ---- the water card ---- */
+
+function paintWater(d, o, b) {
+  const raw = rawFlow(), floor = riverFloor(), eff = flowNow();
+  let cls = 'ore water passive';
+  if (o.running) cls += ' run';
+  if (o.holding) cls += ' hot';
+  if (b.root.classList.contains('pop')) cls += ' pop';
+  if (b.root.classList.contains('hit')) cls += ' hit';
+  if (b.root.classList.contains('appear')) cls += ' appear';
+  if (b.root.className !== cls) b.root.className = cls;
+
+  b.amtRow.style.display = '';
+  b.trackEl.style.display = '';
+  b.mrow.style.display = 'none';
+  b.wrow.style.display = '';
+  b.ocean.style.display = '';
+  b.cycbar.style.display = 'none';
+  b.lock.style.display = 'none';
+
+  // the flow bar, with the river's floor marked on it
+  b.fill.style.width = Math.min(100, eff / FLOW_MAX * 100) + '%';
+  b.floor.style.display = floor > 0 ? '' : 'none';
+  const fl = Math.min(100, floor / FLOW_MAX * 100).toFixed(1) + '%';
+  if (b.floor.style.left !== fl) b.floor.style.left = fl;
+
+  const curTxt = fmt(eff);
+  if (b.cur.textContent !== curTxt) b.cur.textContent = curTxt;
+  const capTxt = `/ ${FLOW_MAX}`;
+  if (b.capv.textContent !== capTxt) b.capv.textContent = capTxt;
+  const rateTxt = floor > 0 ? `floor ${fmt(floor)}/s` : 'no river yet';
+  if (b.rate.textContent !== rateTxt) b.rate.textContent = rateTxt;
+  const rc = 'rate' + (floor > 0 ? '' : ' neg');
+  if (b.rate.className !== rc) b.rate.className = rc;
+
+  let st = '', stCls = 'tstatus';
+  if (o.holding === 'sun' && o.ocean > 0)   { st = 'EVAPORATING · OCEAN → CLOUD'; stCls += ' go'; }
+  else if (o.holding === 'cloud' && o.cloud > 0) { st = 'RAINING · CLOUD → OCEAN'; stCls += ' go'; }
+  else if (o.holding === 'sun')   { st = 'OCEAN DRY · HOLD THE CLOUD'; stCls += ' cold'; }
+  else if (o.holding === 'cloud') { st = 'CLOUD EMPTY · HOLD THE SUN'; stCls += ' cold'; }
+  else if (raw > 0) st = `FLOW ${fmt(raw)}/S · FADING`;
+  else if (floor > 0) st = `RIVER · ${fmt(floor)}/S`;
+  else { st = 'HOLD THE SUN OR THE CLOUD'; stCls += ' go'; }
+  if (b.status.textContent !== st) b.status.textContent = st;
+  if (b.status.className !== stCls) b.status.className = stCls;
+
+  // the two holds: the sun shows the ocean it has left to lift, the cloud what it holds
+  const sunC = 'wbtn sun' + (o.holding === 'sun' ? ' held' : '') + (o.ocean <= 0 ? ' dry' : '');
+  if (b.sun.className !== sunC) b.sun.className = sunC;
+  const cloudC = 'wbtn cloud' + (o.holding === 'cloud' ? ' held' : '') + (o.cloud <= 0 ? ' dry' : '');
+  if (b.cloud.className !== cloudC) b.cloud.className = cloudC;
+  const sh = (o.ocean / WATER_TOTAL * 100).toFixed(1) + '%';
+  if (b.sunFill.style.height !== sh) b.sunFill.style.height = sh;
+  const ch = (o.cloud / WATER_TOTAL * 100).toFixed(1) + '%';
+  if (b.cloudFill.style.height !== ch) b.cloudFill.style.height = ch;
+  const sl = o.holding === 'sun' ? 'LIFTING' : 'HOLD · EVAPORATE';
+  if (b.sunLab.textContent !== sl) b.sunLab.textContent = sl;
+  const cl = o.holding === 'cloud' ? 'RAINING' : `HOLD · RAIN ${Math.round(o.cloud)}%`;
+  if (b.cloudLab.textContent !== cl) b.cloudLab.textContent = cl;
+  const ow = (o.ocean / WATER_TOTAL * 100).toFixed(1) + '%';
+  if (b.oceanFill.style.width !== ow) b.oceanFill.style.width = ow;
+  const ol = `OCEAN ${Math.round(o.ocean)}%`;
+  if (b.oceanLab.textContent !== ol) b.oceanLab.textContent = ol;
+
+  SFX.loop(o.holding === 'sun' && o.ocean > 0 ? 'sun' : o.holding === 'cloud' && o.cloud > 0 ? 'cloud' : null);
+
+  let tags = raw > 0 ? `<span class="tag on">FLOW ${fmt(raw)}/s</span>` : '<span class="tag cold">STILL</span>';
+  tags += `<span class="tag${o.lvl.river > 0 ? ' on' : ''}">RIVER ${o.lvl.river}</span>`;
+  if (b.tags.innerHTML !== tags) b.tags.innerHTML = tags;
+}
+
+function paint() {
+  ORES.forEach(d => {
+    if (!revealed.has(d.id)) return;          // off the board entirely
+    const o = S.ores[d.id], b = bars[d.id];
+    if (d.bucketing) { paintBuckets(d, o, b); return; }
+    if (d.water) { paintWater(d, o, b); return; }
+    if (d.facility) { paintFurnace(d, o, b); return; }
+
+    const cap = capOf(d.id);
+    const worked = o.unlocked && isWorked(d.id);
+    let cls = 'ore';
+    if (o.running) cls += ' run';
+    if (!o.unlocked) {
+      cls += ' locked';
+      if (unlockProgress(d.id) >= 1) cls += ' ready';
+    }
+    if (o.unlocked && Math.floor(o.amount) >= cap) cls += ' full';
+    if (worked) cls += ' worked';
+    // nothing to click on the card itself: the furnace pours iron, and on the
+    // bench the only controls are the moulds
+    if (d.heatDriven || isBench(d.id)) cls += ' passive';
+    if (b.root.classList.contains('pop')) cls += ' pop';
+    if (b.root.classList.contains('hit')) cls += ' hit';
+    if (b.root.classList.contains('appear')) cls += ' appear';
+    if (b.root.className !== cls) b.root.className = cls;
+
+    if (!o.unlocked) { paintLocked(d, b); return; }
+
+    b.amtRow.style.display = '';
+    b.trackEl.style.display = '';
+    b.wrow.style.display = 'none';
+    b.ocean.style.display = 'none';
+    // the bench's moulds take the place of the work-cycle rail
+    b.mrow.style.display = isBench(d.id) ? '' : 'none';
+    b.cycbar.style.display = isBench(d.id) ? 'none' : '';
+    b.lock.style.display = 'none';
+    b.fill.style.width = Math.min(100, o.amount / cap * 100) + '%';
+
+    if (isBench(d.id)) paintMoulds(d, o, b);
+
+    const cold = heatBlocked(d.id);
+    // on a heat-driven bar the cycle rail becomes a live furnace-heat gauge
+    const cycP = d.heatDriven ? heatOf() / FURNACE_HEAT_MAX : o.progress;
+    b.cyc.style.width = (cycP * 100) + '%';
+    const cycCls = 'cyc' + ((d.heatDriven ? heatOf() > 0 : o.running) ? ' on' : '');
+    if (b.cyc.className !== cycCls) b.cyc.className = cycCls;
+
+    let st = '', stCls = 'tstatus';
+    if (isBench(d.id)) { const r = benchStatus(d, o); st = r[0]; stCls = r[1]; }
+    else if (isFull(d.id)) st = worked ? 'FULL · WORK ELSEWHERE' : 'FULL · EXPAND STORAGE';
+    else if (cold) {
+      st = furnaceBuilt() ? 'FURNACE COLD · STOKE IT' : 'NEEDS A FURNACE';
+      stCls += ' cold';
+    }
+    else if (d.heatDriven) st = `SMELTING AT ${Math.round(heatOf())}°`;
+    else if (o.running) st = d.verb + ' · ' + ((1 - o.progress) * timeOf(d.id) / 1000).toFixed(1) + 'S';
+    else if (autoFeeds(d.id)) st = `AUTO · +${fmt(autoRate(d.id))}/S`;
+    else { st = 'IDLE · CLICK TO WORK'; stCls += ' go'; }
+    if (b.status.textContent !== st) b.status.textContent = st;
+    if (b.status.className !== stCls) b.status.className = stCls;
+
+    const curTxt = fmt(o.amount);
+    if (b.cur.textContent !== curTxt) b.cur.textContent = curTxt;
+    // the bench names its unit: "12 / 20 bars" reads as stock, not as a cycle
+    const capTxt = '/ ' + fmt(cap) + (isBench(d.id) ? ' ' + d.unit : '');
+    if (b.capv.textContent !== capTxt) b.capv.textContent = capTxt;
+    const rate = totalRate(d.id);
+    const rateTxt = rate > 0 ? '+' + fmt(rate) + '/s'
+                  : (d.heatDriven || autoRate(d.id) > 0) && cold ? '· idle ·' : '';
+    if (b.rate.textContent !== rateTxt) b.rate.textContent = rateTxt;
+
+    let tags = '';
+    if (worked) tags += '<span class="tag work">WORKING</span>';
+    if (d.heatDriven) tags += hasHeat()
+      ? '<span class="tag on">HEAT</span>'
+      : '<span class="tag cold">NO HEAT</span>';
+    // always shown where automation exists, so the + beside it has a label
+    if (canAuto(d.id)) tags += `<span class="tag${o.lvl.auto > 0 ? ' on' : ''}">AUTO ${o.lvl.auto}</span>`;
+    if (b.tags.innerHTML !== tags) b.tags.innerHTML = tags;
+  });
+
+  paintLinks();
+  paintTiles();
+}
+
+/* ---- upgrades: inline on the card, beside whatever they change ---- */
+
+/* Buttons are built once and then kept — buying an upgrade refreshes the
+   numbers on the existing node rather than replacing it. Rebuilding would
+   reset every cost ring on the board back to zero, so a single purchase looked
+   like it had cleared everyone's progress. */
+function applySpec(b, spec) {
+  b._cur = spec;
+  if (spec.tint) b.style.setProperty('--uc', BY_ID[spec.tint].color);
+  if (spec.label !== undefined) {
+    const l = b.querySelector('.ulabel');
+    if (l && l.textContent !== spec.label) l.textContent = spec.label;
+  }
+  b._pop = { title: spec.title, eff: spec.eff, tip: spec.tip, cost: spec.cost,
+             gate: spec.gate, gateText: spec.gateText };
+  if (hovered === b) showPop(b);            // keep an open hover card current
+}
+
+/* shared wiring for any upgrade control — hover card, purchase, and the
+   registration that drives its cost ring every frame */
+function wireUp(b, spec, base) {
+  b.addEventListener('mouseenter', () => { if (panned) return; hovered = b; showPop(b); });
+  b.addEventListener('mouseleave', () => { if (hovered === b) { hovered = null; hidePop(); } });
+  b.addEventListener('pointerdown', ev => ev.stopPropagation());
+  b.addEventListener('click', (ev) => {
+    ev.stopPropagation();                   // never works the tile underneath
+    const s = b._cur;
+    if (s && s.cost && s.buy && canPay(s.cost) && (!s.gate || s.gate())) { s.buy(); sfx(s.sound || 'buy'); }
+    else if (s && s.cost) sfx('no');
+  });
+  upTiles.push({ node: b, prog: b.querySelector('.uprog'),
+                 ring: b.querySelector('.uringbar'), base });
+  applySpec(b, spec);
+  return b;
+}
+
+/* re-read every live button's cost and description in place */
+function refreshUps() {
+  ORES.forEach(d => (bars[d.id].ups || []).forEach(b => applySpec(b, b._spec())));
+}
+
+/* the wide OPEN / BUILD button that fills a locked card's bottom strip */
+function uTile(o) {
+  const b = document.createElement('button');
+  b.className = 'utile wide';
+  if (o.tint) b.style.setProperty('--uc', BY_ID[o.tint].color);
+  const price = o.cost
+    ? `<span class="ucost">` + Object.keys(o.cost).map(k =>
+        `<span style="color:${BY_ID[k].color}">${fmt(o.cost[k])} ${BY_ID[k].sym}</span>`).join('') + `</span>`
+    : '';
+  b.innerHTML = `<span class="uprog"></span><span class="usym">${o.sym}</span>` + price;
+  return wireUp(b, o, 'utile wide');
+}
+
+/* a rounded-rect outline as a single path, starting at top centre and running
+   clockwise, so stroke-dasharray fills it like a dial */
+function ringPath(w, h, inset, r) {
+  const x0 = inset, y0 = inset, x1 = w - inset, y1 = h - inset;
+  const rr = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2));
+  const cx = ((x0 + x1) / 2).toFixed(2);
+  return `M${cx} ${y0} H${(x1 - rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${x1} ${(y0 + rr).toFixed(2)} ` +
+         `V${(y1 - rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${(x1 - rr).toFixed(2)} ${y1} ` +
+         `H${(x0 + rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${x0} ${(y1 - rr).toFixed(2)} ` +
+         `V${(y0 + rr).toFixed(2)} A${rr} ${rr} 0 0 1 ${(x0 + rr).toFixed(2)} ${y0} Z`;
+}
+
+/* A wide button whose face is a line of text. Its ring has to be built from
+   the rendered size — the world is a fixed-size map, so that size is stable
+   once the strip is on screen. */
+function fitRings() {
+  upTiles.forEach(t => {
+    if (!t.ring || !t.node._fitRing) return;
+    const w = t.node.clientWidth, h = t.node.clientHeight;
+    if (!w || !h || (t._w === w && t._h === h)) return;
+    t._w = w; t._h = h;
+    t.ring.ownerSVGElement.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    t.ring.setAttribute('d', ringPath(w, h, 1, 7));
+  });
+}
+
+function uText(o) {
+  const b = document.createElement('button');
+  b.className = 'utext';
+  b._fitRing = true;
+  if (o.tint) b.style.setProperty('--uc', BY_ID[o.tint].color);
+  b.innerHTML =
+    `<svg class="uring"><path class="uringbar" pathLength="100" style="stroke-dasharray:0 100"/></svg>` +
+    `<span class="ulabel"></span>`;
+  b.querySelector('.ulabel').textContent = o.label;
+  return wireUp(b, o, 'utext');
+}
+
+/* a compact + that sits next to the number, bar or tag it affects. The cost
+   ring is an SVG rect driven by stroke-dasharray, the same trick the supply
+   lines use — exact at any zoom, and it wraps the whole button. */
+function uBtn(o) {
+  const b = document.createElement('button');
+  b.className = 'ubtn';
+  if (o.tint) b.style.setProperty('--uc', BY_ID[o.tint].color);
+  // a <path>, not a <rect>: pathLength is reliable on paths, and drawing it by
+  // hand lets the fill start at top centre and run clockwise
+  b.innerHTML =
+    `<svg class="uring" viewBox="0 0 28 28">` +
+      `<path class="uringbar" pathLength="100" style="stroke-dasharray:0 100" d="` +
+        `M14 1.25 H20.25 A6.5 6.5 0 0 1 26.75 7.75 V20.25 A6.5 6.5 0 0 1 20.25 26.75 ` +
+        `H7.75 A6.5 6.5 0 0 1 1.25 20.25 V7.75 A6.5 6.5 0 0 1 7.75 1.25 Z"/>` +
+    `</svg><span class="uplus"></span>`;
+  return wireUp(b, o, 'ubtn');
+}
+
+function renderStrips() {
+  upTiles = [];
+  hovered = null;
+  hidePop();
+  ORES.forEach(d => renderStrip(d.id));
+  fitRings();
+}
+
+/* A heat-driven tile is worked entirely by the furnace — it has no output of
+   its own to deepen and nothing to automate, only somewhere to put the ingots.
+   The field has nothing above it to pay an automator with, so it never gets
+   one: the top of the ladder is worked by hand for ever. */
+function upgradesFor(d) {
+  if (d.heatDriven) return UPGRADES.filter(u => u.key === 'cap');
+  // the bench gets More Moulds where a worked tile would show nothing extra
+  if (isBench(d.id)) return UPGRADES.concat([MOULDS, AUTO]);
+  return canAuto(d.id) ? TILE_UPGRADES : UPGRADES;
+}
+
+/* what automation costs right now, in plain words */
+function autoTip(id) {
+  const self = resName(id), a = aboveOf(id);
+  return `Paid in <b>${resName(a)}</b>, the tier above ${self} — every level, ` +
+         `so automating a tile always means having worked the next one up.`;
+}
+
+function unlockBlurb(d) {
+  if (d.farming) {
+    return `Beats <b>${d.unlock.bars} iron bars</b> into a plow and breaks the ground: <b>${FURROW_BASE}</b> furrows ` +
+           `and <b>0 / ${BASE_CAP}</b> sheaves. A furrow costs nothing to sow — click it, wait ` +
+           `<em>${FURROW_GROW_TIME}s</em> for it to ripen, then click again to reap. ` +
+           `Like the moulds it is never the tile you are stood at, so the field grows while you work elsewhere.`;
+  }
+  if (d.casting) {
+    return `Opens the casting bench with <b>${MOULD_BASE}</b> moulds and <b>0 / ${BASE_CAP}</b> bars. ` +
+           `Each mould takes <b>${MOULD_FILL_COST} iron</b>, sets in <em>${MOULD_COOL_TIME}s</em>, ` +
+           `then hands you a bar. Press the moulds themselves — the bench is never the tile ` +
+           `you are stood at, so it runs alongside whatever you are working.`;
+  }
+  if (d.facility) {
+    return `Builds the furnace and opens <b>Iron</b> with it, free. Work the furnace and you stoke it: ` +
+           `<b>${FURNACE_STOKE_COST} wood</b> goes in whenever it is ready, feeding <b>+${FURNACE_HEAT_GAIN}°</b> ` +
+           `over <em>${FURNACE_BURN_TIME}s</em>. Iron then pours itself, <em>faster the hotter it burns</em>. ` +
+           `Heat leaks faster the hotter it gets, so stoking alone tops out around ` +
+           `<b>${Math.round(heatCeiling(0, 0))}°</b>.`;
+  }
+  return `Brings <b>${d.name}</b> online at <b>0 / ${BASE_CAP}</b>. Worked by hand until you automate it.`;
+}
+
+/* what one upgrade offers right now — re-read after every purchase so the
+   button can restate itself without being rebuilt */
+function upgradeSpec(id, u) {
+  const o = S.ores[id], lvl = o.lvl[u.key];
+  if (lvl >= u.max) {
+    return { tint: payOre(id, u), title: `${u.name} — maxed`,
+             eff: u.eff(id, lvl - 1), tip: u.above ? autoTip(id) : u.tip, cost: null };
+  }
+  const cost = costOf(id, u, lvl);
+  return { tint: payOre(id, u), title: `${u.name} — level ${lvl}/${u.max}`,
+           eff: u.eff(id, lvl), tip: u.above ? autoTip(id) : u.tip, cost,
+           buy: () => { pay(cost); o.lvl[u.key]++; commit(); } };
+}
+
+function bucketSpec(id) {
+  const o = S.ores[id], n = o.buckets.length, maxed = n >= BUCKET_MAX;
+  const cost = maxed ? null : { bars: bucketCost(n) };
+  return {
+    tint: 'bars',
+    title: maxed ? 'Forge Bucket — the row is full' : `Forge Bucket — ${n}/${BUCKET_MAX} made`,
+    eff: `Beats bars into a bucket &rarr; <b>${Math.min(BUCKET_MAX, n + 1)}</b> in the row.<br>` +
+         `Every bucket fills at once, at <em>${BUCKET_FILL_K}</em> per unit of flow — ` +
+         `<b>${fmt(BUCKET_SIZE / Math.max(0.01, bucketFillRate()))}s</b> to fill at today's flow.`,
+    tip: 'Paid in iron bars. A full bucket stays full; it is water for whatever comes next.',
+    cost,
+    buy: () => { pay(cost); o.buckets.push({ f: 0 }); replay(bars[id].root, 'hit'); commit(); },
+  };
+}
+
+/* The river is bought with stone AND with flow: it wants to see a strong flow
+   at the moment you build it, and it takes a chunk of that flow out of the
+   window. What it gives back is a floor the flow never drops under again. */
+function riverSpec(id) {
+  const o = S.ores[id], lvl = o.lvl.river, maxed = lvl >= RIVER_MAX;
+  const gate = riverGate(lvl), spend = riverSpend(lvl);
+  const cost = maxed ? null : { stone: riverStone(lvl) };
+  const label = maxed ? `River: floor at ${fmt(riverFloor(lvl))}/s, as wide as it gets`
+              : `River ${lvl + 1}: floor ${fmt(riverFloor(lvl))} → ${fmt(riverFloor(lvl + 1))}/s · needs flow ${fmt(gate)}/s`;
+  return {
+    tint: 'stone', label,
+    title: maxed ? 'River — maxed' : `River — level ${lvl}/${RIVER_MAX}`,
+    eff: `Flow floor <em>${fmt(riverFloor(lvl))}/s</em> &rarr; <b>${fmt(riverFloor(lvl + 1))}/s</b>. ` +
+         `The buckets fill at least that fast whether or not you touch the sky.` +
+         (maxed ? '' : `<br>Needs a flow of <b>${fmt(gate)}/s</b> right now (you have <b>${fmt(rawFlow())}/s</b>), ` +
+                       `and spends <b>${spend}</b> units of it.`),
+    tip: 'Paid in stone, plus flow: work the sun and cloud hard, then build while it is high.',
+    cost, sound: 'river',
+    gate: () => rawFlow() >= gate - 1e-6,
+    gateText: `flow ${fmt(gate)}/s`,
+    buy: () => {
+      if (rawFlow() < gate - 1e-6) return;
+      pay(cost); spendFlow(spend);
+      o.lvl.river++;
+      floatText(id, 'RIVER ' + o.lvl.river, BY_ID[id].color);
+      replay(bars[id].root, 'hit');
+      commit();
+    },
+  };
+}
+
+function bellowsSpec(id) {
+  const o = S.ores[id], lvl = o.lvl.bellows, maxed = lvl >= BELLOWS.max;
+  return {
+    tint: BELLOWS.pay,
+    label: maxed ? 'Bellows: cooldown at minimum' : 'Bellows: reduce burn cooldown',
+    title: maxed ? `${BELLOWS.name} — maxed` : `${BELLOWS.name} — level ${lvl}/${BELLOWS.max}`,
+    eff: BELLOWS.eff(id, maxed ? lvl - 1 : lvl),
+    tip: BELLOWS.tip,
+    cost: maxed ? null : costOf(id, BELLOWS, lvl),
+    buy: () => { pay(costOf(id, BELLOWS, lvl)); o.lvl.bellows++; commit(); },
+  };
+}
+
+function renderStrip(id) {
+  const d = BY_ID[id], o = S.ores[id], b = bars[id];
+  b.strip.innerHTML = '';
+  b.strip.style.display = 'none';            // the bottom strip is free for later
+  Object.values(b.slots).forEach(s => s.innerHTML = '');
+  b.ups = [];
+
+  /* The mould row changes the card's height, and the supply lines are cut to
+     the measured card — so it has to be in place before buildLinks runs, not
+     on the first paint after it. */
+  b.mrow.style.display = ((isBench(d.id) || d.bucketing) && o.unlocked) ? '' : 'none';
+  if (isBench(d.id) && o.unlocked) buildMoulds(id, plotCount(id));
+  if (d.bucketing && o.unlocked) buildBuckets(id, o.buckets.length);
+  b.wrow.style.display = (d.water && o.unlocked) ? '' : 'none';
+  b.ocean.style.display = (d.water && o.unlocked) ? '' : 'none';
+
+  // a locked card has no bars or figures to hang buttons off, so its one
+  // action gets the bottom strip
+  if (!o.unlocked) {
+    b.strip.style.display = '';
+    b.strip.appendChild(uTile({
+      tint: id,
+      sym: d.unlockLabel || ((d.facility ? 'BUILD ' : 'OPEN ') + d.name.toUpperCase()),
+      title: (d.facility ? 'Build the ' : 'Open ') + d.name,
+      eff: unlockBlurb(d),
+      tip: 'Each ingredient runs in along its own supply line.',
+      cost: d.unlock, sound: 'unlock',
+      buy: () => {
+        pay(d.unlock);
+        o.unlocked = true;
+        // whatever this tile grants comes online in the same commit, free
+        ORES.forEach(x => { if (x.opensWith === id) S.ores[x.id].unlocked = true; });
+        commitUnlock();
+      },
+    }));
+    return;
+  }
+
+  const add = (node, spec) => { node._spec = spec; b.ups.push(node); return node; };
+
+  // the buckets' one purchase: another bucket, beaten out of bars
+  if (d.bucketing) {
+    const spec = () => bucketSpec(id);
+    b.slots.mld.appendChild(add(uBtn(spec()), spec));
+    return;
+  }
+  // the water's one purchase: the river, in the strip
+  if (d.water) {
+    b.strip.style.display = '';
+    const spec = () => riverSpec(id);
+    b.strip.appendChild(add(uText(spec()), spec));
+    return;
+  }
+
+  /* The furnace carries a Stoker where every other tile carries Automation,
+     and Bellows gets the strip below it. */
+  if (d.facility) {
+    const sspec = () => upgradeSpec(id, STOKER);
+    b.slots.aut.appendChild(add(uBtn(sspec()), sspec));
+    b.strip.style.display = '';
+    const spec = () => bellowsSpec(id);
+    b.strip.appendChild(add(uText(spec()), spec));
+    return;
+  }
+
+  upgradesFor(d).forEach(u => {
+    const slot = b.slots[u.slot];
+    if (!slot) return;
+    const spec = () => upgradeSpec(id, u);
+    slot.appendChild(add(uBtn(spec()), spec));
+  });
+}
+
+/* hover card, parked in the viewport so nothing clips it and zoom never
+   stretches it. Tile rects are screen-space, and so is the card. */
+function showPop(tile) {
+  const p = tile._pop;
+  if (!p) return;
+  let html = `<div class="pt">${p.title}</div><div class="pe">${p.eff}</div>`;
+  if (p.tip) html += `<div class="pd">${p.tip}</div>`;
+  if (p.cost) {
+    html += '<div class="pc">' + Object.keys(p.cost).map(k =>
+      `<span data-ore="${k}" style="--c:${BY_ID[k].color}">${fmt(p.cost[k])} ${BY_ID[k].sym}</span>`
+    ).join('') +
+    (p.gate ? `<span data-gate="1" style="--c:${BY_ID.water.color}">${p.gateText}</span>` : '') +
+    '</div>';
+  }
+  el.upop.innerHTML = html;
+  el.upop.classList.add('show');
+
+  const f = el.forge.getBoundingClientRect();
+  const t = tile.getBoundingClientRect();
+  const u = el.upop.getBoundingClientRect();
+  const gap = 14;
+  const tx = t.left - f.left, ty = t.top - f.top, tw = t.width, th = t.height;
+  const cands = [
+    { x: tx + tw + gap,             y: ty + th / 2 - u.height / 2 },
+    { x: tx - gap - u.width,        y: ty + th / 2 - u.height / 2 },
+    { x: tx + tw / 2 - u.width / 2, y: ty + th + gap },
+    { x: tx + tw / 2 - u.width / 2, y: ty - gap - u.height },
+  ];
+  const best = cands.find(c => c.x >= 6 && c.x + u.width <= f.width - 6 &&
+                               c.y >= 6 && c.y + u.height <= f.height - 6) || cands[0];
+  el.upop.style.left = Math.max(6, Math.min(best.x, f.width  - u.width  - 6)) + 'px';
+  el.upop.style.top  = Math.max(6, Math.min(best.y, f.height - u.height - 6)) + 'px';
+  paintTiles();
+}
+function hidePop() { el.upop.classList.remove('show'); }
+
+/* per-frame: run each tile's edge rails toward its price, light it when payable */
+function paintTiles() {
+  upTiles.forEach(t => {
+    const cost = t.node._cur && t.node._cur.cost;
+    const p = cost ? costProgress(cost) : 0;
+    const pct = (p * 100).toFixed(1) + '%';
+    if (t.prog && t.prog.style.getPropertyValue('--p') !== pct) t.prog.style.setProperty('--p', pct);
+    if (t.ring) {
+      const dash = (p * 100).toFixed(1) + ' 100';
+      if (t.ring.style.strokeDasharray !== dash) t.ring.style.strokeDasharray = dash;
+    }
+    let cls = t.base;
+    const s = t.node._cur;
+    if (!cost) cls += ' max';
+    else {
+      if (p >= 1 && (!s.gate || s.gate())) cls += ' can';
+      if (Object.keys(cost).some(k => !S.ores[k].unlocked)) cls += ' gated';
+    }
+    if (t.node.className !== cls) t.node.className = cls;
+  });
+  if (hovered && hovered._pop && hovered._pop.cost) {
+    const cost = hovered._pop.cost;
+    Object.keys(cost).forEach(k => {
+      const s = el.upop.querySelector(`.pc span[data-ore="${k}"]`);
+      if (!s) return;
+      const have = S.ores[k].unlocked && Math.floor(S.ores[k].amount) >= cost[k];
+      const c = have ? 'ok' : 'short';
+      if (s.className !== c) s.className = c;
+    });
+    const g = el.upop.querySelector('.pc span[data-gate]');
+    if (g && hovered._pop.gate) {
+      const c = hovered._pop.gate() ? 'ok' : 'short';
+      if (g.className !== c) g.className = c;
+    }
+  }
+}
+
+/* =========================================================================
+   ACTIONS
+   ========================================================================= */
+
+/* A purchase only moves numbers: restate the existing buttons and leave every
+   other cost ring exactly where it was. Rebuilding them all is what made one
+   click look like it had wiped everybody's progress. */
+function commit() { refreshUps(); save(); }
+
+/* An unlock puts a whole new tile on the board and resizes the one you bought,
+   so the strips, reveal, lines and labels all have to be redone. */
+function commitUnlock() { rebuildBoard(true); save(); }
+
+/* Lighting a burn only starts it — the heat arrives over the next few seconds,
+   and the cooldown begins when the burn finishes. Called from the loop now,
+   by whoever is feeding the fire: the worker, or a Stoker. */
+function stokeFurnace(byHand) {
+  const furnace = S.ores[FURNACE_ID], wood = S.ores.wood;
+  if (!furnaceReady() || furnace.heat >= FURNACE_HEAT_MAX) { if (byHand) sfx('no'); return false; }
+  if (wood.amount < FURNACE_STOKE_COST) { if (byHand) sfx('no'); return false; }
+  wood.amount -= FURNACE_STOKE_COST;
+  furnace.burnLeft = FURNACE_BURN_TIME;
+  floatText(FURNACE_ID, '+' + FURNACE_HEAT_GAIN + '°', BY_ID[FURNACE_ID].color);
+  replay(bars[FURNACE_ID].root, 'hit');
+  if (byHand) sfx('stoke');
+  return true;
+}
+
+/* Move the worker. Whatever cycle was in progress where they were standing is
+   abandoned — you do not get to bank half a swing by walking away. */
+function work(id) {
+  if (!isWorkable(id) || isWorked(id)) return false;
+  const prev = S.ores[S.worked];
+  if (prev) { prev.running = false; prev.progress = 0; }
+  S.worked = id;
+  const o = S.ores[id];
+  if (!isFull(id)) { o.running = true; o.progress = 0; }
+  replay(bars[id].root, 'hit');
+  sfx('tick');
+  save();
+  return true;
+}
+
+/* the next workable tile up the ladder, wrapping back to wood off the top */
+function nextWork() {
+  const list = workableIds();
+  if (!list.length) return false;
+  return work(list[(list.indexOf(S.worked) + 1) % list.length]);
+}
+
+/* ---- the bench ----
+   Neither of these moves the worker: a mould is a direct action, so the bench
+   runs in parallel with whatever tile is being worked. */
+
+function fillMould(id, i, auto) {
+  const d = BY_ID[id];
+  if (!isBench(id)) return false;
+  const o = S.ores[id];
+  if (!o.unlocked) return false;
+  const m = syncMoulds(id)[i];
+  if (!m || m.s !== 'empty') return false;
+  // the moulds want iron poured in; a furrow only wants working
+  const cost = plotCost(id);
+  if (cost) {
+    const iron = S.ores.iron;
+    if (!iron.unlocked || Math.floor(iron.amount) < cost.iron) return false;
+    iron.amount -= cost.iron;
+  }
+  m.s = 'cool'; m.t = plotTime(id);
+  if (!auto) { replay(bars[id].root, 'hit'); sfx(d.farming ? 'sow' : 'pour'); save(); }
+  return true;
+}
+
+function harvestMould(id, i, auto) {
+  if (!isBench(id)) return false;
+  const o = S.ores[id];
+  if (!o.unlocked) return false;
+  const m = syncMoulds(id)[i];
+  if (!m || m.s !== 'ready') return false;
+  // a full store leaves the bar sat in its mould rather than losing it
+  if (isFull(id)) return false;
+  const gain = yieldOf(id);
+  addOre(id, gain);
+  m.s = 'empty'; m.t = 0;
+  floatText(id, '+' + fmt(gain), BY_ID[id].color);
+  punch(id);
+  if (!auto) { sfx(BY_ID[id].farming ? 'reap' : 'clink'); save(); }
+  return true;
+}
+
+/* One automated press: clear a set mould first, since that is what frees the
+   mould to be filled again. Returns false when there is nothing worth doing. */
+function autoPressMould(id) {
+  const list = syncMoulds(id);
+  for (let i = 0; i < list.length; i++)
+    if (list[i].s === 'ready' && harvestMould(id, i, true)) return true;
+  for (let i = 0; i < list.length; i++)
+    if (list[i].s === 'empty' && fillMould(id, i, true)) return true;
+  return false;
+}
+
+/* ---- the sky ----
+   A hold, not a click: the cycle moves for exactly as long as the button is
+   down. Releasing anywhere lets go, and so does the pointer being cancelled. */
+function holdWater(kind) {
+  const o = S.ores.water;
+  if (!o.unlocked) return false;
+  o.holding = kind === 'sun' || kind === 'cloud' ? kind : null;
+  hovered = null; hidePop();
+  return !!o.holding;
+}
+function releaseWater() {
+  const o = S.ores.water;
+  if (!o.holding) return;
+  o.holding = null;
+  save();
+}
+window.addEventListener('pointerup', releaseWater);
+window.addEventListener('pointercancel', releaseWater);
+window.addEventListener('blur', releaseWater);
+
+/* Clicking a resource tile is how you go and stand at it. Clicking the furnace
+   just lights it — the worker never leaves the tile they were on. The bench's
+   card does nothing at all: its moulds are the only controls on it. */
+function tileClick(id) {
+  if (BY_ID[id].facility) { stokeFurnace(true); return; }
+  if (isBench(id) || BY_ID[id].bucketing || BY_ID[id].water) return;
+  work(id);
+}
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!confirm('Wipe all progress and start over?')) return;
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* storage unavailable */ }
+  S = freshState();
+  rebuildBoard(false);
+  openingCam();
+});
+document.getElementById('cam-in').addEventListener('click', () => zoomCenter(1.25));
+document.getElementById('cam-out').addEventListener('click', () => zoomCenter(1 / 1.25));
+document.getElementById('cam-fit').addEventListener('click', () => { fitCam(); save(); });
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); nextWork(); return; }
+  if (e.key === '0')            { fitCam(); save(); return; }
+  if (e.key === '+' || e.key === '=') { zoomCenter(1.25); return; }
+  if (e.key === '-' || e.key === '_') { zoomCenter(1 / 1.25); return; }
+});
+
+let relayout;
+window.addEventListener('resize', () => {
+  clearTimeout(relayout);
+  relayout = setTimeout(() => { applyCam(); hidePop(); }, 120);
+});
+
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+
+S = load();
+buildEmbers();
+buildBars();
+rebuildBoard(false);
+if (S.cam) { cam = S.cam; applyCam(); } else openingCam();
+setInterval(save, 10000);
+requestAnimationFrame(t => { lastT = t; tick(t); });
+
+// debug handle — lets the sim be driven without a compositing frame loop
+window.__sw = {
+  get state() { return S; },
+  get cam() { return cam; },
+  get worked() { return S.worked; },
+  step, paint, tileClick, work, nextWork, workableIds, isWorkable, isWorked, canAuto,
+  renderStrips, buildLinks, stokeFurnace,
+  fillMould: (i) => fillMould('bars', i),
+  harvestMould: (i) => harvestMould('bars', i),
+  moulds: () => S.ores.bars.moulds.map(m => ({ s: m.s, t: m.t })),
+  mouldCount, mouldCountAt, mouldAutoEvery, autoPressMould, syncMoulds, MOULDS,
+  MOULD_FILL_COST, MOULD_COOL_TIME, MOULD_AUTO_INTERVAL, MOULD_BASE,
+  isBench, plotCount, plotTime, plotCost, plotWords,
+  rawFlow, flowNow, riverFloor, riverGate, riverSpend, riverStone, spendFlow, bucketCost, bucketFillRate,
+  holdWater, releaseWater, bucketSpec, riverSpec, SFX, sfx,
+  WATER_TOTAL, CYCLE_RATE, FLOW_WINDOW, FLOW_MAX, BUCKET_SIZE, BUCKET_FILL_K, BUCKET_MAX, RIVER_MAX,
+  get pendingUnlock() { return pendingUnlock; },
+  flushUnlock() { if (pendingUnlock) { pendingUnlock = false; commitUnlock(); } },
+  FURROW_GROW_TIME, FURROW_BASE, fillMould, harvestMould,
+  unlockProgress, costProgress, costOf, aboveOf, payOre, autoFeeds, liveSet,
+  autoRate, autoRateAt, heatRate, heatRateAt, totalRate, showPop, hidePop, hasHeat, heatBlocked,
+  stokeCooldown, heatCeiling, heatLoss, furnaceReady, isFull, BELLOWS, STOKER,
+  isRevealed, syncReveal, syncTiles, syncLinks, rebuildBoard, refreshUps,
+  revealed, revealedBounds, tileBox, commitUnlock, save, load,
+  fitCam, openingCam, zoomAt, applyCam, placeLabels,
+  LINKS, UPGRADES, TILE_UPGRADES, AUTO, ORES, WORLD,
+  // muted while fast-forwarding: a thousand cycles is a thousand float labels
+  advance(seconds, slice = 1/60) {
+    fxOff = true;
+    try { for (let t = 0; t < seconds; t += slice) step(slice); }
+    finally { fxOff = false; }
+    if (pendingUnlock) { pendingUnlock = false; commitUnlock(); }
+    paint();
+  },
+  stats: (id) => ({ cap: capOf(id), yield: yieldOf(id), time: timeOf(id),
+                    auto: autoRate(id), heat: heatRate(id), total: totalRate(id) }),
+};
+</script>
+</body>
+</html>
