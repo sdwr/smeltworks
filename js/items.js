@@ -21,7 +21,7 @@ const RARE_SUF = {
 };
 const MAGIC_PRE = { dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', lightPct: 'Crackling', dot: 'Festering', crit: 'Keen', critDmg: 'Savage', aspd: 'Quick',
   vuln: 'Exposing', elite: 'Slaying', life: 'Stout', lifePct: 'Hale', armor: 'Sturdy', armorPct: 'Plated', dodge: 'Nimble', dr: 'Warding', loh: 'Thirsting', regen: 'Mending',
-  thorns: 'Barbed', flask: 'Brimming', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
+  thorns: 'Barbed', flask: 'Brimming', barrier: 'Shielding', move: 'Fleet', orbFind: 'Seeking', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
 
 /* ---------------------------------------------------------------- rolling */
 I.rarityWeights = function (lvl, mf, tier, boost) {
@@ -49,9 +49,9 @@ I.greaterCount = it => it.affixes.reduce((n, a) => n + (a.g ? 1 : 0), 0);
 /* the affixes a slot can still gain, optionally of one type */
 I.poolKey = it => (it.slot === 'offhand' ? it.base : it.slot);      // shields and lanterns roll different affixes
 I.affixPool = (key, have, cat) => Object.values(D.AFFIX).filter(a => a.slots.includes(key) && !have.includes(a.id) && (!cat || a.cat === cat));
-function rollAffix(slot, have, tier, cat) {
+function rollAffix(slot, have, tier, cat, plain) {
   const a = U.wpick(I.affixPool(slot, have, cat), x => x.w);
-  return { k: a.id, r: U.rng(), g: U.chance(I.greaterChance(tier)) ? 1 : 0 };
+  return { k: a.id, r: U.rng(), g: !plain && U.chance(I.greaterChance(tier)) ? 1 : 0 };   // plain: cube rolls never crit
 }
 /* opts: slot, base, rar, minRar, mf, tier, boost, unique (id) */
 I.roll = function (ilvl, o) {
@@ -185,9 +185,10 @@ I.upgrade = function (it) {
   return -1;
 };
 I.enchantCost = it => ({ gold: Math.round(45 * I.goldScale(it.ilvl) * Math.pow(1.6, Math.min(8, it.enchN || 0))), dust: 2 });
-/* Legendaries and Uniques are finished pieces: their affixes cannot be rerolled, added or removed */
+/* Legendaries and Uniques cannot be cubed (no adding, removing or rerolling affixes), though a Tempering Orb can
+   reroll their numbers. The forge can still enchant one affix on a Legendary; a Unique's affixes are fixed. */
 I.fixed = it => !!it.uniq || it.rar >= 3;
-I.canEnchant = (it, idx) => !I.fixed(it) && it.affixes.length > 0 && (it.ench < 0 || it.ench === idx);
+I.canEnchant = (it, idx) => !it.uniq && it.affixes.length > 0 && (it.ench < 0 || it.ench === idx);
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
   const na = rollAffix(I.poolKey(it), have, tier || 0);
@@ -208,7 +209,7 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 I.cubeCheck = function (it, orb, cat) {
   const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
   if (orb === 'divine') return n ? null : 'It has no affixes to reroll.';
-  if (I.fixed(it)) return (it.uniq ? 'Uniques' : 'Legendaries') + ' are finished pieces. Only a Tempering Orb works on them.';
+  if (I.fixed(it)) return it.uniq ? 'A Unique is fixed. Only a Tempering Orb works on it.' : 'A Legendary cannot be cubed. A Tempering Orb can reroll its numbers, and the forge can enchant one affix.';
   if (orb === 'add') {
     if (n >= D.MAX_AFFIXES) return 'It already has ' + D.MAX_AFFIXES + ' affixes.';
     if (C && !I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat).length) return `No ${C.name} affix is left that fits a ${D.BASES[it.base].name.toLowerCase()}.`;
@@ -222,8 +223,8 @@ I.cubeCheck = function (it, orb, cat) {
 I.cube = function (it, orb, tier, cat) {
   const res = { orb };
   if (orb === 'add') {
-    const a = rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, cat);
-    it.affixes.push(a); res.idx = it.affixes.length - 1; if (a.g) res.crit = 1;
+    const a = rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, cat, true);
+    it.affixes.push(a); res.idx = it.affixes.length - 1;
     const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
     if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
   } else if (orb === 'remove') {
@@ -235,8 +236,8 @@ I.cube = function (it, orb, tier, cat) {
     it.mw = (it.mw || []).filter(x => x !== i).map(x => (x > i ? x - 1 : x));
   } else if (orb === 'chaos') {
     const n = it.affixes.length; it.affixes = [];
-    for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0));
-    it.ench = -1; res.crit = I.greaterCount(it);
+    for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, null, true));
+    it.ench = -1;
   } else if (orb === 'divine') {
     for (const a of it.affixes) { a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng(); if (!a.g && U.chance(I.greaterChance(tier))) { a.g = 1; res.crit = (res.crit || 0) + 1; } }
   }

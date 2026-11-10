@@ -99,46 +99,49 @@ D.material = l => D.MATERIALS.find(m => l <= m.to);
    dp: decimals shown. w: roll weight.
 
    Which slot can roll what follows Diablo's logic. Offhands are split by type (shield / lantern).
-   - The big damage multipliers (crit chance, crit damage, attack speed, Vulnerable) only roll on the pieces that
-     strike or adorn the hands: weapon, gloves, rings, amulet, lantern. Crit chance and attack speed stay off
-     weapons, because a weapon's speed is fixed by its type; boots carry attack speed as their one premium stat,
-     the way they carry movement speed in Diablo.
-   - Body armour (helm, chest, pants, boots) and shields are where life, armor and mitigation live. Their offence is
-     the lesser kind: Thorns, damage to Elites, damage over time.
+   - The big damage multipliers (crit chance, crit damage, attack speed) roll on the pieces that strike or adorn
+     the hands: weapon, gloves, rings, amulet (crit chance on the lantern too). Vulnerable is gloves and rings only.
+   - Body armour (helm, chest, pants) and shields are where life, armor and mitigation live. Their offence is the
+     lesser kind: Thorns, damage to Elites, damage over time.
+   - Boots are the travel slot: Movement Speed rolls nowhere else. They carry no offence.
    - Damage Reduction is chest, pants and shield. Dodge is pants, boots and amulet. % Total Armor is amulet and shield.
-   - Cooldown Reduction is helm, amulet and offhand. Heat (the resource) is hands and trinkets: gloves, rings,
-     amulet, lantern. Flask healing is chest and pants, where potion affixes sit in Diablo.
+   - Cooldown Reduction is helm, amulet and offhand. Heat (the resource) is gloves, rings, amulet, lantern and chest.
+     Flask healing is shield, chest and pants. The fortune stats (gold, magic find, orb find) are spread thin.
    - Skill ranks are helm, gloves and amulet.
-   - The amulet is the wildcard: it can roll something from nearly every group, but has no flat life or armor.
-   Every slot can roll from at least two of the four types, so the cube can always be aimed. Uniques ignore all this. */
+   - The amulet is the wildcard: something from nearly every group, but no flat life or armor.
+   A slot does not need every type, but any type it has offers at least three affixes, so aiming the cube is
+   always a real roll. Uniques ignore all this. */
 D.AFFIX = {
   // offence
   dmgPct:  { t: '+{v}% Damage',                 lo: 6,  hi: 10,  sc: 'pct',  w: 10, slots: ['weapon', 'shield', 'lantern', 'ring', 'amulet'] },
   physPct: { t: '+{v}% Physical Damage',        lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   firePct: { t: '+{v}% Fire Damage',            lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   lightPct:{ t: '+{v}% Lightning Damage',       lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
-  dot:     { t: '+{v}% Burn and Bleed Damage',  lo: 12, hi: 20,  sc: 'pct',  w: 6,  slots: ['weapon', 'chest', 'ring', 'amulet'] },
-  crit:    { t: '+{v}% Critical Strike Chance', lo: 2,  hi: 4.5, sc: 'none', w: 8,  dp: 1, slots: ['gloves', 'lantern', 'ring', 'amulet'] },
+  dot:     { t: '+{v}% Burn and Bleed Damage',  lo: 12, hi: 20,  sc: 'pct',  w: 6,  slots: ['weapon', 'helm', 'chest', 'pants', 'ring', 'amulet'] },
+  crit:    { t: '+{v}% Critical Strike Chance', lo: 2,  hi: 4.5, sc: 'none', w: 8,  dp: 1, slots: ['weapon', 'gloves', 'lantern', 'ring', 'amulet'] },
   critDmg: { t: '+{v}% Critical Strike Damage', lo: 10, hi: 18,  sc: 'pct',  w: 8,  slots: ['weapon', 'gloves', 'ring', 'amulet'] },
-  aspd:    { t: '+{v}% Attack Speed',           lo: 3,  hi: 7,   sc: 'none', w: 8,  dp: 1, slots: ['gloves', 'boots', 'ring', 'amulet'] },
-  vuln:    { t: '+{v}% Vulnerable Damage',      lo: 8,  hi: 14,  sc: 'pct',  w: 6,  slots: ['weapon', 'ring'] },
-  elite:   { t: '+{v}% Damage to Elites',       lo: 10, hi: 16,  sc: 'pct',  w: 6,  slots: ['weapon', 'shield', 'lantern', 'helm', 'pants'] },
+  aspd:    { t: '+{v}% Attack Speed',           lo: 3,  hi: 7,   sc: 'none', w: 8,  dp: 1, slots: ['weapon', 'gloves', 'ring', 'amulet'] },
+  vuln:    { t: '+{v}% Vulnerable Damage',      lo: 8,  hi: 14,  sc: 'pct',  w: 6,  slots: ['gloves', 'ring'] },
+  elite:   { t: '+{v}% Damage to Elites',       lo: 10, hi: 16,  sc: 'pct',  w: 6,  slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'pants'] },
   thorns:  { t: '+{v} Thorns',                  lo: 5,  hi: 9,   sc: 'flat', w: 6,  slots: ['shield', 'helm', 'chest', 'pants'] },
   // defence
-  life:    { t: '+{v} Maximum Life',            lo: 14, hi: 22,  sc: 'flat', w: 12, slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'pants', 'boots', 'ring'] },
+  life:    { t: '+{v} Maximum Life',            lo: 14, hi: 22,  sc: 'flat', w: 12, slots: ['weapon', 'shield', 'helm', 'chest', 'gloves', 'pants', 'boots', 'ring'] },
   lifePct: { t: '+{v}% Maximum Life',           lo: 3,  hi: 6,   sc: 'none', w: 5,  dp: 1, slots: ['chest', 'amulet'] },
   armor:   { t: '+{v} Armor',                   lo: 4,  hi: 7,   sc: 'flat', w: 9,  slots: ['shield', 'helm', 'chest', 'gloves', 'pants', 'boots'] },
   armorPct:{ t: '+{v}% Total Armor',            lo: 4,  hi: 8,   sc: 'none', w: 5,  dp: 1, slots: ['shield', 'amulet'] },
   dodge:   { t: '+{v}% Dodge Chance',           lo: 2,  hi: 4,   sc: 'none', w: 6,  dp: 1, slots: ['pants', 'boots', 'amulet'] },
   dr:      { t: '+{v}% Damage Reduction',       lo: 2,  hi: 4,   sc: 'none', w: 5,  dp: 1, slots: ['shield', 'chest', 'pants'] },
   loh:     { t: '+{v} Life on Hit',             lo: 0.9, hi: 1.6, sc: 'flat', w: 6, slots: ['weapon', 'gloves', 'ring'] },
-  regen:   { t: '+{v} Life per Second',         lo: 1.2, hi: 2.2, sc: 'flat', w: 6, slots: ['helm', 'chest', 'pants'] },
+  regen:   { t: '+{v} Life per Second',         lo: 1.2, hi: 2.2, sc: 'flat', w: 6, slots: ['weapon', 'helm', 'chest', 'pants', 'ring'] },
+  barrier: { t: '+{v}% Barrier Strength',       lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['shield', 'helm', 'chest', 'pants', 'amulet'] },
   // utility
   cdr:     { t: '+{v}% Cooldown Reduction',     lo: 3,  hi: 6,   sc: 'none', w: 6,  dp: 1, slots: ['shield', 'lantern', 'helm', 'amulet'] },
-  heat:    { t: '+{v}% Heat Generation',        lo: 5,  hi: 10,  sc: 'none', w: 6,  slots: ['lantern', 'gloves', 'ring', 'amulet'] },
-  flask:   { t: '+{v}% Flask Healing',          lo: 10, hi: 20,  sc: 'none', w: 5,  slots: ['chest', 'pants'] },
-  gold:    { t: '+{v}% Gold Find',              lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['boots', 'amulet'] },
-  mf:      { t: '+{v}% Magic Find',             lo: 4,  hi: 8,   sc: 'none', w: 4,  slots: ['helm', 'boots', 'ring', 'amulet'] },
+  heat:    { t: '+{v}% Heat Generation',        lo: 5,  hi: 10,  sc: 'none', w: 6,  slots: ['lantern', 'chest', 'gloves', 'ring', 'amulet'] },
+  flask:   { t: '+{v}% Flask Healing',          lo: 10, hi: 20,  sc: 'none', w: 5,  slots: ['shield', 'chest', 'pants'] },
+  move:    { t: '+{v}% Movement Speed',         lo: 15, hi: 30,  sc: 'none', w: 9,  slots: ['boots'] },
+  gold:    { t: '+{v}% Gold Find',              lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['shield', 'chest', 'gloves', 'pants', 'boots', 'amulet'] },
+  mf:      { t: '+{v}% Magic Find',             lo: 4,  hi: 8,   sc: 'none', w: 4,  slots: ['lantern', 'helm', 'pants', 'boots', 'ring', 'amulet'] },
+  orbFind: { t: '+{v}% Orb Find',               lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['lantern', 'helm', 'gloves', 'boots', 'ring', 'amulet'] },
   // skills
   skHammer:{ t: '+{v} to Hammer Skills',        lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
   skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
@@ -147,8 +150,8 @@ D.AFFIX = {
 /* affix types, used to aim Kindling and Quenching Orbs in the cube */
 D.AFFIX_CAT = {
   off:   { name: 'Offence', color: '#ff8a6a', keys: ['dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite', 'thorns'] },
-  def:   { name: 'Defence', color: '#8fd0ff', keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen'] },
-  util:  { name: 'Utility', color: '#9be36a', keys: ['cdr', 'heat', 'flask', 'gold', 'mf'] },
+  def:   { name: 'Defence', color: '#8fd0ff', keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen', 'barrier'] },
+  util:  { name: 'Utility', color: '#9be36a', keys: ['cdr', 'heat', 'flask', 'move', 'gold', 'mf', 'orbFind'] },
   skill: { name: 'Skills',  color: '#ffd27a', keys: ['skHammer', 'skEmber', 'skStorm'] },
 };
 for (const c in D.AFFIX_CAT) for (const k of D.AFFIX_CAT[c].keys) D.AFFIX[k].cat = c;
@@ -156,7 +159,7 @@ for (const k in D.AFFIX) D.AFFIX[k].id = k;
 /* labels for the stat sheet */
 D.STAT_LABEL = { dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
   aspd: 'Attack speed', vuln: 'Vulnerable', elite: 'vs Elites', life: 'Life', armor: 'Armor', dodge: 'Dodge', dr: 'Dmg reduction', loh: 'Life on hit',
-  regen: 'Life / sec', thorns: 'Thorns', flask: 'Flask healing', cdr: 'Cooldown red.', heat: 'Heat gen', gold: 'Gold find', mf: 'Magic find' };
+  regen: 'Life / sec', thorns: 'Thorns', flask: 'Flask healing', barrier: 'Barrier strength', move: 'Movement speed', orbFind: 'Orb find', cdr: 'Cooldown red.', heat: 'Heat gen', gold: 'Gold find', mf: 'Magic find' };
 
 /* ------------------------------------------------------------- aspects
    cat decides which slots can hold it. mod = key read by the combat engine (or a plain stat). */
@@ -221,7 +224,7 @@ D.UNIQUES = [
   { id: 'quench', name: 'Quenchwater Loop', base: 'ring', minLvl: 18, affixes: ['dmgPct', 'heat', 'critDmg', 'life'], pal: 'u_storm',
     mods: { heatRefund: [20, 35] }, desc: 'Core skills have a {heatRefund}% chance to cost no Heat.',
     flavor: 'Always cool to the touch.' },
-  { id: 'emberwake', name: 'Emberwake Treads', base: 'boots', minLvl: 20, affixes: ['aspd', 'dodge', 'life', 'firePct'], pal: 'u_fire',
+  { id: 'emberwake', name: 'Emberwake Treads', base: 'boots', minLvl: 20, affixes: ['move', 'dodge', 'life', 'firePct'], pal: 'u_fire',
     mods: { burnHaste: [6, 12] }, desc: 'Gain +{burnHaste}% Attack Speed for each Burning enemy.',
     flavor: 'The footprints are still warm.' },
   { id: 'crown', name: 'Crown of the First Smith', base: 'helm', minLvl: 26, affixes: ['life', 'cdr', 'crit', 'armor'], pal: 'u_gold',
@@ -318,9 +321,9 @@ D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ul
 
 /* cube orbs: each one changes an item's affixes at random when transmuted with it */
 D.ORBS = {
-  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most.' },
+  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater.' },
   remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes an affix', desc: 'Removes one affix of the type you choose. If there are several of that type, which one goes is random.' },
-  chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Rerolls all affixes', desc: 'Melts every affix and rolls the same number of new ones.' },
+  chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Rerolls all affixes', desc: 'Melts every affix and rolls the same number of new ones. None of them come out Greater.' },
   divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Rerolls the numbers', desc: 'Rerolls the numbers on every affix. The affixes themselves stay, and each ordinary one has a chance to crit and come back Greater.' },
 };
 D.ORB_IDS = Object.keys(D.ORBS);
@@ -421,6 +424,7 @@ D.TIER_DMG = [1, 1.4, 1.9, 2.6, 3.5];
 /* level of an area at a difficulty tier */
 D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 30 + area * 2;
 D.MAP_W = 7; D.MAP_H = 5;
+D.TRAVEL_STEP = 0.6;    // seconds to walk one tile, before Movement Speed
 D.SHRINES = {
   fury:  { name: 'Shrine of Fury',  desc: '+40% damage', color: '#ff5a3a' },
   stone: { name: 'Shrine of Stone', desc: '35% less damage taken', color: '#a9a393' },

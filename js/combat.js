@@ -393,7 +393,7 @@ class Battle {
   }
   addBarrier(pct, dur) {
     const h = this.h;
-    const v = h.max * pct / 100 * (1 + (this.mods.barrierPower || 0) / 100);
+    const v = h.max * pct / 100 * (1 + ((this.mods.barrierPower || 0) + (this.st.barrier || 0)) / 100);
     h.barrier = Math.max(h.barrier, v); h.barrierT = dur;
     this.emit({ e: 'barrier', amt: v });
   }

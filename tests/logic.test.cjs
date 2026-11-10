@@ -165,23 +165,37 @@ test('The cube: Quenching removes one affix and keeps the bookkeeping straight',
   G.cube(it.id, 'remove'); G.cube(it.id, 'remove'); G.cube(it.id, 'remove'); assert.equal(it.affixes.length, 0);
   assert.equal(G.cube(it.id, 'remove'), null); assert.equal(S.orbs.remove, 5);
 });
-test('Affix pools: premium offence is slot-limited, and every slot spans at least two types', (SW, G, D, I) => {
+test('Affix pools: slot-limited like Diablo, and any type a slot has offers at least three affixes', (SW, G, D, I) => {
   const keys = ['weapon', 'shield', 'lantern', 'helm', 'chest', 'gloves', 'pants', 'boots', 'amulet', 'ring'];
   const pool = k => Object.values(D.AFFIX).filter(a => a.slots.includes(k));
   for (const k of keys) {
-    const cats = new Set(pool(k).map(a => a.cat));
-    assert.ok(cats.size >= 2, k + ' only rolls ' + [...cats]); assert.ok(pool(k).length >= D.MAX_AFFIXES + 2, k + ' pool is too small');
+    const n = {}; for (const a of pool(k)) n[a.cat] = (n[a.cat] || 0) + 1;
+    assert.ok(Object.keys(n).length >= 2, k + ' only rolls ' + Object.keys(n));
+    for (const c in n) assert.ok(n[c] >= 3, `${k} has only ${n[c]} ${c} affix(es)`);
   }
   for (const a of Object.values(D.AFFIX)) for (const sl of a.slots) assert.ok(keys.includes(sl), a.id + ' lists an unknown slot ' + sl);
   const on = (id, k) => D.AFFIX[id].slots.includes(k);
-  for (const k of ['helm', 'chest', 'pants', 'shield']) for (const id of ['crit', 'critDmg', 'vuln']) assert.ok(!on(id, k), id + ' must not roll on ' + k);
-  assert.ok(!on('crit', 'weapon') && !on('aspd', 'weapon'), 'weapons roll neither crit chance nor attack speed');
+  for (const k of ['helm', 'chest', 'pants', 'shield', 'boots']) for (const id of ['crit', 'critDmg', 'aspd', 'vuln']) assert.ok(!on(id, k), id + ' must not roll on ' + k);
+  assert.ok(on('crit', 'weapon') && on('aspd', 'weapon'), 'weapons roll crit chance and attack speed');
+  assert.ok(on('vuln', 'gloves') && !on('vuln', 'weapon'), 'Vulnerable is on gloves, not weapons');
+  assert.equal(D.AFFIX.move.slots.join(), 'boots', 'Movement Speed is boots only');
+  assert.ok(!pool('boots').some(a => a.cat === 'off'), 'boots carry no offence');
   assert.ok(!on('armor', 'ring') && !on('armor', 'amulet') && !on('dr', 'gloves'));
   // shields and lanterns draw from different pools
   for (let i = 0; i < 300; i++) {
     const sh = I.roll(30, { slot: 'offhand', base: 'shield', rar: 2 }), la = I.roll(30, { slot: 'offhand', base: 'lantern', rar: 2 });
     for (const a of sh.affixes) assert.ok(on(a.k, 'shield'), a.k + ' on a shield'); for (const a of la.affixes) assert.ok(on(a.k, 'lantern'), a.k + ' on a lantern');
   }
+});
+test('Movement Speed on boots shortens the walk between tiles', (SW, G, D, I) => {
+  const S = G.S, base = G.stepTime(); assert.equal(base, D.TRAVEL_STEP);
+  const boots = I.roll(10, { rar: 2, slot: 'boots' }); boots.affixes = [{ k: 'move', r: 0.99, g: 0 }]; S.gear.boots = boots; G.recompute();
+  assert.ok(G.C.st.move >= 29); assert.ok(G.stepTime() < base * 0.8, 'at least a fifth faster');
+  // walking three tiles really does take less game time
+  const walk = () => { G.startExpedition(0, 0); const m = S.world.map; for (const c of m.cells) if (c.y === 2 && c.x <= 3) { c.type = c.x ? 'fight' : 'start'; c.state = c.x < 3 ? 'done' : 'seen'; }
+    G.phaseT = 0; assert.ok(G.enterCell(G.cell(3, 2))); let t = 0; while (G.phase === 'travel' && t < 20) { G.update(0.01); t += 0.01; } return t; };
+  const fast = walk(); S.gear.boots = null; G.recompute(); const slow = walk();
+  assert.ok(fast < slow * 0.82, `${fast.toFixed(2)}s with boots against ${slow.toFixed(2)}s without`);
 });
 test('The comparison counts stats only: an aspect never outweighs real damage', (SW, G, D, I, H) => {
   const S = G.S, plain = I.roll(20, { rar: 2, slot: 'amulet' }), leg = I.roll(20, { rar: 3, slot: 'amulet', aspect: 'exec' });
@@ -220,7 +234,7 @@ test('The cube can be aimed at an affix type, for adding and for removing', (SW,
   assert.ok(G.cube(it.id, 'remove', 'def')); assert.equal(it.affixes.length, 1);
   for (const k in D.AFFIX) assert.ok(D.AFFIX_CAT[D.AFFIX[k].cat], k + ' has no type');
 });
-test('Affixes can crit into Greater affixes: on drops, in the cube and at the forge', (SW, G, D, I) => {
+test('Affixes can crit into Greater affixes on drops, Tempering and enchanting, never from Kindling or Slag', (SW, G, D, I) => {
   const S = G.S; let n = 0, g = 0;
   for (let i = 0; i < 4000; i++) { const it = I.roll(20, { rar: 2 }); n += it.affixes.length; g += I.greaterCount(it); }
   assert.ok(g / n > 0.02 && g / n < 0.07, 'about 4% in Normal, got ' + (g / n * 100).toFixed(1) + '%');
@@ -228,28 +242,32 @@ test('Affixes can crit into Greater affixes: on drops, in the cube and at the fo
   const it = I.roll(20, { rar: 1, slot: 'ring' }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }];
   const plain = I.affixValue(it, it.affixes[0], 0); it.affixes[0].g = 1;
   assert.ok(Math.abs(I.affixValue(it, it.affixes[0], 0) / plain - 1.5) < 0.02, 'Greater is half again as strong');
-  // crafting: always-crit dice
+  // crafting with dice that always crit
   S.bag[0] = it; S.orbs = { add: 9, remove: 9, chaos: 9, divine: 9 }; it.affixes[0].g = 0;
   const real = SW.util.rng; SW.util.rng = () => 0.001;
-  const res = G.cube(it.id, 'add'); assert.ok(res.crit && it.affixes[1].g, 'a Kindling roll can crit');
+  const res = G.cube(it.id, 'add'); assert.ok(!res.crit && !it.affixes[1].g, 'Kindling never rolls Greater');
+  G.cube(it.id, 'chaos'); assert.equal(I.greaterCount(it), 0, 'nor does Slag');
   assert.ok(G.cube(it.id, 'divine').crit >= 1); assert.ok(it.affixes.every(a => a.g), 'Tempering can crit the ordinary ones');
   SW.util.rng = () => 0.999; G.cube(it.id, 'divine'); assert.ok(it.affixes.every(a => a.g), 'and never takes Greater away');
   S.gold = 1e9; S.mats.dust = 99; G.enchant(it.id, 0); assert.ok(it.affixes[0].g, 'an enchanted Greater affix stays Greater');
+  SW.util.rng = () => 0.001; it.affixes[0].g = 0; G.enchant(it.id, 0); assert.ok(it.affixes[0].g, 'and an ordinary one can crit at the forge');
   SW.util.rng = real;
 });
-test('Legendaries are finished: no adding, removing or rerolling affixes, only their numbers', (SW, G, D, I) => {
+test('Legendaries cannot be cubed, but can be enchanted and Tempered', (SW, G, D, I) => {
   const S = G.S, leg = I.roll(30, { rar: 3, slot: 'gloves' }), rare = I.roll(30, { rar: 2, slot: 'gloves' });
   S.bag[0] = leg; S.bag[1] = rare; S.orbs = { add: 5, remove: 5, chaos: 5, divine: 5 }; S.gold = 1e9; S.mats = { scrap: 99, dust: 99, soul: 99 };
   const keys = leg.affixes.map(a => a.k).join();
   for (const orb of ['add', 'remove', 'chaos']) for (const cat of [null, 'off', 'def']) assert.equal(G.cube(leg.id, orb, cat), null, orb);
-  for (let i = 0; i < leg.affixes.length; i++) assert.equal(G.enchant(leg.id, i), null, 'enchant');
   assert.equal(leg.affixes.map(a => a.k).join(), keys); assert.equal(S.orbs.add + S.orbs.remove + S.orbs.chaos, 15, 'nothing was spent');
-  assert.ok(G.cube(leg.id, 'divine'), 'Tempering still works'); assert.equal(leg.affixes.map(a => a.k).join(), keys);
-  assert.ok(G.upgrade(leg.id), 'and so do forge upgrades');
-  // a Rare can be crafted freely until an imprint makes it Legendary
-  assert.ok(G.cube(rare.id, 'remove')); assert.ok(G.cube(rare.id, 'add')); assert.ok(G.enchant(rare.id, 0));
+  assert.ok(G.cube(leg.id, 'divine'), 'Tempering rerolls its numbers'); assert.equal(leg.affixes.map(a => a.k).join(), keys);
+  assert.ok(G.enchant(leg.id, 1), 'the forge can enchant one affix'); assert.notEqual(leg.affixes.map(a => a.k).join(), keys);
+  assert.equal(G.enchant(leg.id, 0), null, 'and only that one'); assert.ok(leg.aspect, 'the aspect is untouched');
+  assert.ok(G.upgrade(leg.id), 'upgrades work too');
+  // a Rare can be cubed freely until an imprint makes it Legendary
+  assert.ok(G.cube(rare.id, 'remove')); assert.ok(G.cube(rare.id, 'add'));
   S.codex.twin = 0.5; assert.ok(G.imprint(rare.id, 'twin')); assert.equal(rare.rar, 3);
-  assert.equal(G.cube(rare.id, 'add'), null); assert.equal(G.cube(rare.id, 'remove'), null); assert.equal(G.enchant(rare.id, 0), null);
+  assert.equal(G.cube(rare.id, 'add'), null); assert.equal(G.cube(rare.id, 'remove'), null); assert.ok(G.enchant(rare.id, 0));
+  const u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' }); S.bag[2] = u; assert.equal(G.enchant(u.id, 0), null, 'Uniques stay fixed');
 });
 test('The cube: Slag rerolls every affix, Tempering only the numbers, and Uniques resist', (SW, G, D, I) => {
   const S = G.S, it = I.roll(30, { rar: 2, slot: 'ring' }), u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' });

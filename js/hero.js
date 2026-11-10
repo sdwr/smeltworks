@@ -38,7 +38,7 @@ H.skillNums = function (sk, rank) {
 H.compute = function (S, gearOverride) {
   const gear = gearOverride || S.gear, lvl = H.gearLevel(gear);
   const st = { dmg: 0, aps: 1, dmgPct: 0, physPct: 0, firePct: 0, lightPct: 0, dot: 0, crit: 5, critDmg: 50, aspd: 0, vuln: 0, elite: 0,
-    life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0, flask: 0,
+    life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0, flask: 0, move: 0, orbFind: 0, barrier: 0,
     skHammer: 0, skEmber: 0, skStorm: 0, skAll: 0 };
   const mods = {};
   let hasWeapon = false;
@@ -66,7 +66,7 @@ H.compute = function (S, gearOverride) {
   st.armor = Math.round(st.armor * (1 + st.armorPct / 100));
   if (mods.armorThorns) st.thorns += Math.round(st.armor * mods.armorThorns / 100);
   st.crit = Math.min(75, st.crit); st.dodge = Math.min(60, st.dodge); st.dr = Math.min(50, st.dr);
-  st.cdr = Math.min(60, st.cdr); st.aspd = Math.min(200, st.aspd);
+  st.cdr = Math.min(60, st.cdr); st.aspd = Math.min(200, st.aspd); st.move = Math.min(100, st.move);
   const bar = S.hero.bar.filter(id => id && ranks[id]);
   // armor is judged against the monsters of the area you are in, so swapping one piece never moves the yardstick
   const ref = S.world ? D.areaLevel(S.world.area, S.world.tier) + 2 : lvl;
@@ -105,7 +105,7 @@ H.rating = function (C) {
   const dr = H.armorDR(st.armor, C.ref);
   let def = st.maxLife / ((1 - dr) * (1 - st.dr / 100) * (1 - st.dodge / 100));
   def += (st.regen + st.loh * st.aps * (1 + st.aspd / 100) * 1.2) * 9;
-  def *= 1 + st.flask / 100 * 0.06;
-  return { off, def, power: Math.round(Math.sqrt(off * def) * 1.2) };
+  def *= (1 + st.flask / 100 * 0.06) * (1 + (C.bar.includes('ironskin') ? st.barrier / 100 * 0.06 : 0));
+  return { off, def, power: Math.round(Math.sqrt(off * def) * 1.2 * (1 + st.move / 100 * 0.04)) };   // a nod to Movement Speed, which is neither
 };
 })();

@@ -256,6 +256,7 @@ function moveToken(snap) {
   const t = $('token'); if (!t) return;
   const p = G.S.world.pos, map = G.S.world.map;
   if (snap) t.classList.add('snap'); else t.classList.remove('snap');
+  t.style.transitionDuration = (G.stepTime() / Math.max(1, G.S.opts.speed)).toFixed(3) + 's';     // glide for exactly one step
   t.style.left = (p.x + 0.5) / map.w * 100 + '%'; t.style.top = (p.y + 0.5) / map.h * 100 + '%';
 }
 const emptySlots = () => G.S.hero.bar.concat(G.S.hero.passives).filter(x => !x).length;
@@ -301,8 +302,9 @@ function renderGear() {
   if (st.loh) h += row('Life on hit', U.fmt(st.loh));
   if (st.regen) h += row('Life / sec', U.fmt(st.regen));
   if (st.thorns) h += row('Thorns', U.fmt(st.thorns), 'Damage dealt back to anything that hits you.');
+  if (st.barrier) h += row('Barrier', '+' + pct(st.barrier), 'Makes every Barrier you gain stronger.');
   h += '</div><div class="scol"><h4>Utility</h4>';
-  h += row('Cooldowns', '−' + pct(st.cdr)) + row('Heat gain', '+' + pct(st.heat)) + row('Gold find', '+' + pct(st.gold)) + row('Magic find', '+' + pct(st.mf), 'Raises the odds of Rare, Legendary and Unique drops.') + (st.flask ? row('Flask healing', '+' + pct(st.flask)) : '');
+  h += row('Cooldowns', '−' + pct(st.cdr)) + row('Heat gain', '+' + pct(st.heat)) + row('Gold find', '+' + pct(st.gold)) + row('Magic find', '+' + pct(st.mf), 'Raises the odds of Rare, Legendary and Unique drops.') + (st.flask ? row('Flask healing', '+' + pct(st.flask)) : '') + row('Movement', '+' + pct(st.move), 'How fast you walk between tiles. Only boots roll it.') + (st.orbFind ? row('Orb find', '+' + pct(st.orbFind)) : '');
   h += '</div></div>';
   $('gear-stats').innerHTML = h;
 }
@@ -364,7 +366,7 @@ function renderForge() {
     else { const c = I.upgradeCost(it); h += `<div class="op-a">${costHtml(c)}<button data-act="upgrade" ${G.canPay(c) ? '' : 'disabled'}>Upgrade to +${up + 1}<small>${up}/${max}</small></button></div>`; }
     h += '</div>';
     // enchant
-    if (I.fixed(it)) h += `<div class="op"><div class="op-t"><b>Enchant</b><span>${it.uniq ? 'Unique' : 'Legendary'} affixes are fixed and cannot be rerolled.</span></div></div>`;
+    if (it.uniq) h += '<div class="op"><div class="op-t"><b>Enchant</b><span>A Unique\'s affixes are fixed and cannot be rerolled.</span></div></div>';
     else if (it.affixes.length) {
       const c = I.enchantCost(it);
       h += `<div class="op"><div class="op-t"><b>Enchant</b><span>Reroll one affix into something else. Once you pick an affix, only that one can be rerolled on this item.</span></div><div class="op-a">${costHtml(c)}</div><ul class="aff-list">`;
@@ -373,7 +375,7 @@ function renderForge() {
     }
     // imprint
     if (!it.uniq) {
-      h += '<div class="op"><div class="op-t"><b>Imprint</b><span>Stamp an aspect from your Codex onto Rare or Legendary gear. It replaces any aspect already there. A Rare becomes Legendary, which locks its affixes, so finish crafting them first.</span></div>';
+      h += '<div class="op"><div class="op-t"><b>Imprint</b><span>Stamp an aspect from your Codex onto Rare or Legendary gear. It replaces any aspect already there. A Rare becomes Legendary, and a Legendary cannot be cubed, so add and remove affixes first. Enchanting still works afterwards.</span></div>';
       if (it.rar < 2) h += '<div class="op-a"><i>Only Rare and Legendary gear can hold an aspect.</i></div>';
       else {
         const list = D.ASPECTS.filter(a => S.codex[a.id] != null && I.canImprint(it, a.id));

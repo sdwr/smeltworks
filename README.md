@@ -34,20 +34,21 @@ and stash, onto the paper doll to equip, or off it to unequip. In Skills, click 
 - **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
   for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,
   3-4 on Rare, 4 on Legendary. Skill ranks come from "+ to skills" affixes.
-- **Loot.** Ten gear slots, five rarities, 27 affixes, 30 legendary aspects and 12 uniques. Item level follows
+- **Loot.** Ten gear slots, five rarities, 30 affixes, 30 legendary aspects and 12 uniques. Item level follows
   monster level, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
 - **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
   and it is what the Cube tab offers you alongside what you are wearing.
 - **Greater affixes.** Any affix has a small chance to crit when it is rolled, on a drop or at the cube or forge,
-  and come out Greater: half again as strong, marked with a gold star. The chance rises in Torment.
+  and come out Greater: half again as strong, marked with a gold star. The chance rises in Torment. It applies to
+  drops, forge enchants and Tempering Orbs; Kindling and Slag rolls never crit.
 - **The forge.** Upgrade (+5% per step, a masterwork every fourth), enchant (reroll one affix), imprint (stamp an
   aspect from the Codex onto a Rare), commission (pay gold for a random piece in a slot you choose), salvage.
 - **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
   affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
   reroll them all, Tempering Orbs reroll the numbers. Kindling and Quenching can be aimed at a type (Offence,
-  Defence, Utility or Skills); the affix within the type is still random. Legendaries and Uniques are
-  finished pieces: only Tempering works on them, so craft a Rare's affixes before imprinting an aspect. Orbs drop from elites, bosses, chests and full clears.
+  Defence, Utility or Skills); the affix within the type is still random. Legendaries and Uniques cannot
+  be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on a Legendary. Orbs drop from elites, bosses, chests and full clears.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
   available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
   moment.
@@ -61,16 +62,19 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 
 | Slot | Offence | Defence | Utility | Skills |
 | --- | --- | --- | --- | --- |
-| Weapon | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit damage, Vulnerable, Elites | Life, Life on hit | | |
-| Shield | Thorns, Damage, Elites | Life, Armor, % Armor, Damage reduction | Cooldown | |
-| Lantern | Damage, Physical, Fire, Lightning, Crit chance, Elites | Life | Cooldown, Heat | |
-| Helm | Thorns, Elites | Life, Armor, Life per second | Cooldown, Magic find | yes |
-| Chest | Thorns, Burn/Bleed | Life, % Life, Armor, Damage reduction, Life per second | Flask healing | |
-| Gloves | Crit chance, Crit damage, Attack speed | Armor, Life on hit | Heat | yes |
-| Pants | Thorns, Elites | Life, Armor, Dodge, Damage reduction, Life per second | Flask healing | |
-| Boots | Attack speed | Life, Armor, Dodge | Gold find, Magic find | |
-| Amulet | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge | Cooldown, Heat, Gold find, Magic find | yes |
-| Ring | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit | Heat, Magic find | |
+| Weapon | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Elites | Life, Life on hit, Life per second | | |
+| Shield | Thorns, Damage, Elites | Life, Armor, % Armor, Damage reduction, Barrier | Cooldown, Flask healing, Gold find | |
+| Lantern | Damage, Physical, Fire, Lightning, Crit chance, Elites | | Cooldown, Heat, Magic find, Orb find | |
+| Helm | Thorns, Elites, Burn/Bleed | Life, Armor, Life per second, Barrier | Cooldown, Magic find, Orb find | yes |
+| Chest | Thorns, Elites, Burn/Bleed | Life, % Life, Armor, Damage reduction, Life per second, Barrier | Flask healing, Heat, Gold find | |
+| Gloves | Crit chance, Crit damage, Attack speed, Vulnerable | Life, Armor, Life on hit | Heat, Gold find, Orb find | yes |
+| Pants | Thorns, Elites, Burn/Bleed | Life, Armor, Dodge, Damage reduction, Life per second, Barrier | Flask healing, Gold find, Magic find | |
+| Boots | | Life, Armor, Dodge | Movement speed, Gold find, Magic find, Orb find | |
+| Amulet | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat, Gold find, Magic find, Orb find | yes |
+| Ring | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat, Magic find, Orb find | |
+
+A slot does not have every type, but any type it has offers at least three affixes. Movement Speed (boots only)
+shortens the walk between tiles.
 
 The reasoning is in the comment above `D.AFFIX` in `js/data.js`. Uniques ignore these pools.
 

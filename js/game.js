@@ -233,7 +233,8 @@ G.dropsFor = function (m) {
   } else if (m.champ) out.mats = { dust: 2 };
   else if (m.elite && U.chance(0.4)) out.mats = { dust: 1 };
   // cube orbs come from anything worth the name
-  const orbs = m.boss ? 2 + (tier > 0 ? 1 : 0) : m.def.flee ? 1 : m.champ ? (U.chance(0.5) ? 1 : 0) : m.elite ? (U.chance(0.15) ? 1 : 0) : m.minion ? 0 : (U.chance(0.005) ? 1 : 0);
+  const of = 1 + st.orbFind / 100;
+  const orbs = m.boss ? 2 + (tier > 0 ? 1 : 0) : m.def.flee ? 1 : m.champ ? (U.chance(0.5 * of) ? 1 : 0) : m.elite ? (U.chance(0.15 * of) ? 1 : 0) : m.minion ? 0 : (U.chance(0.005 * of) ? 1 : 0);
   for (let i = 0; i < orbs; i++) out.orbs.push(G.rollOrb());
   return out;
 };
@@ -254,10 +255,12 @@ G.openChest = function (c) {
   S.gold += gold;
   const fate = items.map(it => G.addItem(it));
   G.emit('chest', { c, items, gold, fate });
-  if (U.chance(0.15)) G.gainOrbs([G.rollOrb()]);
+  if (U.chance(0.15 * (1 + st.orbFind / 100))) G.gainOrbs([G.rollOrb()]);
 };
 
 /* -------------------------------------------------------------- game loop */
+/* seconds to walk one tile: Movement Speed (boots) shortens it */
+G.stepTime = () => D.TRAVEL_STEP / (1 + G.C.st.move / 100);
 G.enterCell = function (c) {
   if (G.phase !== 'idle' || !G.canEnter(c)) return false;
   const path = G.findPath(c);
@@ -304,7 +307,7 @@ G.update = function (dt) {
   }
   if (G.phase === 'travel') {
     G.phaseT += dt;
-    const step = 0.2;
+    const step = G.stepTime();
     while (G.path.length > 1 && G.phaseT >= step) { G.phaseT -= step; const c = G.path.shift(); W.pos = { x: c.x, y: c.y }; G.emit('moved'); }
     if (G.path.length <= 1 && G.phaseT >= step) { G.arrive(G.target); }
     return;
