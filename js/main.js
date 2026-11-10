@@ -42,7 +42,7 @@ function boot() {
   requestAnimationFrame(frame);
 
   // keep playing while the tab is in the background (no drawing, same rules)
-  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = performance.now(); else { last = performance.now(); UI.fresh(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = performance.now(); else { last = performance.now(); FX.sync(G.battle); UI.redraw(); } });      // the fight went on undrawn: put its monsters back on screen. (Not UI.fresh: that empties the arena and the bench.)
   setInterval(() => {
     if (!document.hidden) return;
     const now = performance.now(), el = Math.min(30, (now - hiddenAt) / 1000); hiddenAt = now;

@@ -107,6 +107,16 @@ const heroMid = () => ({ x: hero.x, y: hero.y - 9 * (S + 1) });
 
 FX.battleStart = function () { ents.clear(); drops = drops.filter(d => d.fly); hero.dead = 0; hero.bubble = 0; projs = []; pillars = []; };
 FX.clear = function () { ents.clear(); hero.dead = 0; projs = []; };
+const newEnt = m => ({ m, sc: mobScale(m), flash: 0, lunge: 0, die: 0, spawn: 0, wind: 0, windDur: 1, hpLag: m.hp / m.max, shk: 0, ph: Math.random() * 6 });
+/* Rebuild the arena from the battle as it stands. The game keeps playing while the tab is in the background, but
+   nothing is drawn then, so monsters that arrived meanwhile would have no sprite when you come back. */
+FX.sync = function (B) {
+  ents.clear(); projs = []; pillars = []; bolts = []; rings = []; slashes = [];
+  if (!B) { hero.dead = 0; return; }
+  if (B.h.hp > 0) hero.dead = 0;
+  for (const m of B.mobs) if (!m.dead && m.hp > 0) { const e = newEnt(m); place(e, true); ents.set(m.uid, e); }
+};
+FX.entCount = () => ents.size;
 
 /* ------------------------------------------------------------ emitters */
 function spark(x, y, col, n, sp, life, size, grav) {
@@ -139,7 +149,7 @@ FX.handle = function (ev, B) {
   const A = SW.audio;
   switch (ev.e) {
     case 'spawn': {
-      const e = { m: ev.m, sc: mobScale(ev.m), flash: 0, lunge: 0, die: 0, spawn: 0.3, wind: 0, windDur: 1, hpLag: 1, shk: 0, ph: Math.random() * 6 };
+      const e = newEnt(ev.m); e.spawn = 0.3; e.hpLag = 1;
       place(e, true); ents.set(ev.m.uid, e);
       spark(e.x, e.y - 20, '#3a3340', 8, 120, 0.4, 5, 0);
       if (ev.m.boss) { quake(10); A.play('boss'); }

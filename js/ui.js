@@ -815,6 +815,8 @@ UI.bind = function () {
   window.addEventListener('resize', () => SW.fx.resize());
 };
 /* full repaint, used at boot and after loading a save */
+/* redraw every panel from the current state, without resetting anything (the bench, the arena) */
+UI.redraw = function () { mark('top', 'hud', 'map', 'gear', 'bag', 'skills', 'forge', 'codex'); };
 UI.fresh = function () {
   const S = G.S;
   A.on = S.opts.sound; A.setVol(S.opts.vol);
