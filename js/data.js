@@ -326,12 +326,16 @@ D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ul
 
 /* cube orbs: each one changes an item's affixes at random when transmuted with it */
 D.ORBS = {
-  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater.' },
-  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes a random affix', desc: 'Removes one random affix of the type you choose. Hover a type to see which affixes on the piece it could take.' },
-  chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Rerolls all affixes', desc: 'Melts every affix and rolls the same number of new ones. None of them come out Greater.' },
-  divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Rerolls the numbers', desc: 'Rerolls the numbers on every affix. The affixes themselves stay, and each ordinary one has a chance to crit and come back Greater.' },
+  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater. Drops from ordinary monsters.' },
+  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes a random affix', desc: 'Removes one random affix of the type you choose. Hover a type to see which affixes on the piece it could take. Drops from ordinary monsters.' },
+  chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Rerolls all affixes', desc: 'Melts every affix and rolls the same number of new ones. None of them come out Greater. Drops from elites, bosses and chests.' },
+  divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Rerolls the numbers', desc: 'Rerolls the numbers on every affix. The affixes themselves stay, and each ordinary one has a chance to crit and come back Greater. Drops from elites, bosses and chests.' },
 };
 D.ORB_IDS = Object.keys(D.ORBS);
+/* Kindling and Quenching are the everyday crafting materials: ordinary monsters drop them. Slag and Tempering stay
+   with elites, bosses, chests and full clears. */
+D.ORB_BASIC = ['add', 'remove'];
+D.ORB_COMMON = 0.05;     // chance for an ordinary monster to drop a Kindling or Quenching Orb
 D.MAX_AFFIXES = 4;
 /* Masterworking: 25 ranks, +1% to everything on the piece per rank, and each strike at the forge adds 1 to 3 ranks.
    At rank 25 one more strike masterworks a single affix (+25%, or +1 on a "+ to skills" affix); striking again moves it. */
@@ -435,6 +439,7 @@ D.TIER_DMG = [1, 1.4, 1.5, 1.6, 1.7];
 D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 10 + Math.floor(area * 2 / 3);
 D.MAP_W = 7; D.MAP_H = 5;
 D.TRAVEL_STEP = 3;      // seconds to walk from one room to the next, before Movement Speed
+D.DOOR = 0.5;           // how far towards a room the smith stands while fighting for it: the doorway. The rest is walked after the win
 D.SHRINES = {
   fury:  { name: 'Shrine of Fury',  desc: '+40% damage', color: '#ff5a3a' },
   stone: { name: 'Shrine of Stone', desc: '35% less damage taken', color: '#a9a393' },

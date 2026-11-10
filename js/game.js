@@ -224,6 +224,7 @@ G.rollLoot = function (ilvl, o) {
   return I.roll(ilvl, o);
 };
 G.rollOrb = () => U.wpick(D.ORB_IDS, k => D.ORBS[k].w);
+G.rollBasicOrb = () => U.wpick(D.ORB_BASIC, k => D.ORBS[k].w);      // Kindling or Quenching
 G.gainOrbs = function (list) { for (const k of list) G.S.orbs[k]++; if (list.length) G.emit('orbs', { list }); };
 G.dropsFor = function (m) {
   const S = G.S, st = G.C.st, tier = S.world.tier, greed = G.battle && G.battle.shrine === 'greed';
@@ -247,9 +248,12 @@ G.dropsFor = function (m) {
     out.mats = { soul: 1 + tier, dust: 3 };
   } else if (m.champ) out.mats = { dust: 2 };
   else if (m.elite && U.chance(0.4)) out.mats = { dust: 1 };
-  // cube orbs come from anything worth the name
+  // Kindling and Quenching Orbs (add and remove an affix) are everyday materials: ordinary monsters drop them, and
+  // anything bigger always carries some. Orbs of any kind, Slag and Tempering included, come from the bigger kills.
   const of = 1 + st.orbFind / 100;
-  const orbs = m.boss ? 2 + (tier > 0 ? 1 : 0) : m.def.flee ? 1 : m.champ ? (U.chance(0.5 * of) ? 1 : 0) : m.elite ? (U.chance(0.15 * of) ? 1 : 0) : m.minion ? 0 : (U.chance(0.005 * of) ? 1 : 0);
+  const basic = m.boss ? 3 : m.champ ? 2 : m.elite || m.def.flee ? 1 : m.minion ? 0 : (U.chance(D.ORB_COMMON * of) ? 1 : 0);
+  for (let i = 0; i < basic; i++) out.orbs.push(G.rollBasicOrb());
+  const orbs = m.boss ? 2 + (tier > 0 ? 1 : 0) : m.def.flee ? 1 : m.champ ? (U.chance(0.5 * of) ? 1 : 0) : m.elite ? (U.chance(0.15 * of) ? 1 : 0) : 0;
   for (let i = 0; i < orbs; i++) out.orbs.push(G.rollOrb());
   return out;
 };
@@ -276,6 +280,17 @@ G.openChest = function (c) {
 /* -------------------------------------------------------------- game loop */
 /* seconds to walk one tile: Movement Speed (boots) shortens it */
 G.stepTime = () => D.TRAVEL_STEP / (1 + G.C.st.move / 100);
+G.isFight = c => !!c && c.type !== 'chest' && c.type !== 'shrine';
+/* Where the smith stands on the map right now, in tile units. Walking: part-way to the next tile. Fighting: in the
+   doorway of the room being fought for. After a win: walking the rest of the way in. After a fall: back where they came from. */
+G.tokenPos = function () {
+  const p = G.S.world.pos, t = G.target; let to = null, f = 0;
+  if (G.phase === 'travel' && G.path.length) { to = G.path[0]; f = U.clamp(G.phaseT / G.stepTime(), 0, G.path.length === 1 && G.isFight(t) ? D.DOOR : 1); }
+  else if (G.phase === 'battle' && t) { to = t; f = D.DOOR; }
+  else if (G.phase === 'won' && t) { to = t; f = D.DOOR + (1 - D.DOOR) * U.clamp(1 - G.phaseT / (G.wonT || 0.9), 0, 1); }
+  else if (G.phase === 'dead' && t) { to = t; f = D.DOOR * U.clamp(G.phaseT / 0.6, 0, 1); }      // steps back in the last moments
+  return to ? { x: p.x + (to.x - p.x) * f, y: p.y + (to.y - p.y) * f } : { x: p.x, y: p.y };
+};
 G.enterCell = function (c) {
   if (G.phase !== 'idle' || !G.canEnter(c)) return false;
   const path = G.findPath(c);
@@ -324,13 +339,16 @@ G.update = function (dt) {
     G.phaseT += dt;
     const step = G.stepTime();
     while (G.path.length > 1 && G.phaseT >= step) { G.phaseT -= step; const c = G.path.shift(); W.pos = { x: c.x, y: c.y }; G.emit('moved'); }
-    if (!G.path.length || (G.path.length === 1 && G.phaseT >= step)) { G.arrive(G.target); }     // nothing to walk when you are already standing there
+    // a room that has to be fought for is approached only as far as its doorway; chests and shrines are walked straight into
+    const last = G.isFight(G.target) ? step * D.DOOR : step;
+    if (!G.path.length || (G.path.length === 1 && G.phaseT >= last)) { G.arrive(G.target); }     // nothing to walk when you are already standing there
     return;
   }
   if (G.phase === 'battle') {
     let left = dt;
     while (left > 1e-6 && !G.battle.over) { const s = Math.min(0.05, left); G.battle.step(s); left -= s; }
-    if (G.battle.over) { G.phase = G.battle.over === 'win' ? 'won' : 'dead'; G.phaseT = G.battle.over === 'win' ? 0.9 : 2.4; if (G.phase === 'dead') { S.stats.deaths++; G.target.deaths++; G.deathStreak++; G.emit('death'); } }
+    // after a win the smith walks the rest of the way in, at walking pace (never less than the 0.9s victory beat)
+    if (G.battle.over) { G.phase = G.battle.over === 'win' ? 'won' : 'dead'; G.phaseT = G.wonT = G.battle.over === 'win' ? Math.max(0.9, G.stepTime() * (1 - D.DOOR)) : 2.4; if (G.phase === 'dead') { S.stats.deaths++; G.target.deaths++; G.deathStreak++; G.emit('death'); } }
     return;
   }
   if (G.phase === 'won') {

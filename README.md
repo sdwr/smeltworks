@@ -70,7 +70,7 @@ the skill bar to drink it.
   affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
   reroll them all, Tempering Orbs reroll the numbers. Kindling and Quenching can be aimed at a type (Offence,
   Defence, Utility or Skills); the affix within the type is still random. Legendaries and Uniques cannot
-  be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on a Legendary. Orbs drop from elites, bosses, chests and full clears.
+  be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on a Legendary. Kindling and Quenching Orbs are everyday materials: ordinary monsters drop them (5% a kill), and every elite and boss carries some. Slag and Tempering Orbs come from elites, bosses, chests and full clears.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
   available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
   moment.
@@ -96,7 +96,8 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 | Ring | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat, Magic find, Orb find | |
 
 A slot does not have every type, but any type it has offers at least three affixes. Walking from one room to the
-next takes three seconds; Movement Speed (boots only) shortens it.
+next takes three seconds; Movement Speed (boots only) shortens it. A room that has to be fought for is approached
+as far as its doorway, fought from there, and walked into once it is won.
 
 The reasoning is in the comment above `D.AFFIX` in `js/data.js`. Uniques ignore these pools.
 

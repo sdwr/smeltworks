@@ -121,6 +121,27 @@ test('Old saves: gear above item level 50 comes down to the cap and a Torment ma
   assert.equal(a.ilvl, 50); assert.equal(b.ilvl, 30); assert.equal(old.ilvl, 55, 'an Ancestral piece saved at 60 becomes 55'); assert.equal(S.capv, 1); assert.ok(!S.world.map.stale && S.world.map.cells.length === 35);
   assert.ok(S.world.map.cells.every(c => c.lvl >= 60 && c.lvl <= 70), 'Torment II levels');
 });
+test('On the map the smith fights from the doorway and walks in after the win', (SW, G, D, I) => {
+  const S = G.S, W = S.world, c = W.map.cells.find(x => G.canEnter(x) && G.isFight(x)), from = { x: W.pos.x, y: W.pos.y }, step = G.stepTime();
+  const near = (a, b) => Math.abs(a - b) < 1e-6, at = f => { const p = G.tokenPos(); return near(p.x, from.x + (c.x - from.x) * f) && near(p.y, from.y + (c.y - from.y) * f); };
+  G.phase = 'idle'; assert.ok(G.enterCell(c)); assert.ok(at(0));
+  G.phaseT = step * D.DOOR * 0.5; assert.ok(at(D.DOOR * 0.5), 'walking up to it');
+  G.phaseT = step * D.DOOR + 0.001; G.update(0); assert.equal(G.phase, 'battle'); assert.ok(at(D.DOOR), 'fights from the doorway');
+  assert.equal(W.pos.x, from.x, 'not in the room yet');
+  for (const m of G.battle.mobs) m.hp = 1; G.S.gear.weapon = I.roll(50, { slot: 'weapon', rar: 2 }); G.recompute();
+  for (let i = 0; i < 4000 && G.phase === 'battle'; i++) { G.battle.h.hp = G.battle.h.max; for (const m of G.battle.mobs) m.hp = Math.min(m.hp, 1); G.update(0.05); }
+  assert.equal(G.phase, 'won'); assert.ok(at(D.DOOR), 'the walk in starts at the doorway'); assert.ok(G.wonT >= step * (1 - D.DOOR) - 1e-9);
+  G.phaseT = G.wonT / 2; assert.ok(at(D.DOOR + (1 - D.DOOR) / 2), 'half-way in');
+  G.phaseT = 0.0001; G.update(0.01); assert.equal(G.phase, 'idle'); assert.equal(W.pos.x, c.x); assert.equal(W.pos.y, c.y); assert.ok(near(G.tokenPos().x, c.x));
+});
+test('Ordinary monsters drop Kindling and Quenching Orbs, and only those', (SW, G, D, I) => {
+  const def = Object.values(D.MOB).find(m => !m.flee), n = { add: 0, remove: 0, chaos: 0, divine: 0 }; let kills = 6000;
+  for (let i = 0; i < kills; i++) for (const k of G.dropsFor({ def, id: def.id, lvl: 20 }).orbs) n[k]++;
+  assert.equal(n.chaos + n.divine, 0, 'Slag and Tempering never come from ordinary monsters');
+  const rate = (n.add + n.remove) / kills; assert.ok(Math.abs(rate - D.ORB_COMMON) < 0.015, 'about 5% a kill: ' + rate); assert.ok(n.add > 50 && n.remove > 50);
+  assert.equal(G.dropsFor({ def, id: def.id, lvl: 20, minion: 1 }).orbs.length, 0, 'summoned minions carry none');
+  const el = G.dropsFor({ def, id: def.id, lvl: 20, elite: ['fast'] }).orbs; assert.ok(el.length >= 1 && D.ORB_BASIC.includes(el[0]), 'an elite always carries one');
+});
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
   let prev = first;

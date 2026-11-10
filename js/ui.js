@@ -257,16 +257,15 @@ function renderMap() {
   $('map-sub').textContent = map.bossDone ? (map.allDone ? 'Cleared out. Nothing left here.' : `Boss down. ${left} tile${left === 1 ? '' : 's'} left.`) : `${D.ACTS[area.act].name}${S.world.tier ? ' · ' + D.TIERS[S.world.tier].name : ''}`;
   renderHint();
 }
-/* The token is placed from the game state every frame: while travelling it sits part-way between the tile it left and the
-   next one on the path. So it glides at any game speed, holds still when paused, and a redraw of the map never makes it jump. */
+/* The token is placed from the game state every frame (G.tokenPos): while travelling it sits part-way between the tile it left and the
+   next one on the path, it fights from the doorway of a room, and walks in once the room is won. So it glides at any game speed, holds still when paused, and a redraw of the map never makes it jump. */
 function moveToken() {
   const t = $('token'); if (!t) return;
-  const W = G.S.world, map = W.map; let x = W.pos.x, y = W.pos.y;
-  if (G.phase === 'travel' && G.path.length) { const n = G.path[0], f = U.clamp(G.phaseT / G.stepTime(), 0, 1); x += (n.x - x) * f; y += (n.y - y) * f; }
-  const l = ((x + 0.5) / map.w * 100).toFixed(2) + '%', tp = ((y + 0.5) / map.h * 100).toFixed(2) + '%';
+  const map = G.S.world.map, p = G.tokenPos();
+  const l = ((p.x + 0.5) / map.w * 100).toFixed(2) + '%', tp = ((p.y + 0.5) / map.h * 100).toFixed(2) + '%';
   if (t.style.left !== l) t.style.left = l;
   if (t.style.top !== tp) t.style.top = tp;
-  t.classList.toggle('walk', G.phase === 'travel' && G.S.opts.speed > 0);
+  t.classList.toggle('walk', (G.phase === 'travel' || G.phase === 'won') && G.S.opts.speed > 0);
 }
 const emptySlots = () => G.S.hero.bar.concat(G.S.hero.passives).filter(x => !x).length;
 function renderHint() {
@@ -386,7 +385,7 @@ function renderCraft() {
   }
   // ---- the cube
   const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
-  const why = !f ? 'Bring a piece of gear to the bench first.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb, cat);
+  const why = !f ? 'Bring a piece of gear to the bench first.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from ${D.ORB_BASIC.includes(orb) ? 'ordinary monsters, and always from elites and bosses' : 'elites, bosses and chests'}.` : I.cubeCheck(f.it, orb, cat);
   h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
   if (aims) {
     // tooltips: a Kindling Orb lists what could roll on this slot, a Quenching Orb lists what is on the piece and could go
