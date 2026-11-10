@@ -257,9 +257,12 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 
 /* ------------------------------------------------------------------- cube
    Orbs change affixes at random. Returns a reason string when the recipe cannot run. */
+/* the affixes a Tempering Orb will touch: not the Greater ones (already at their maximum), and not the one affix
+   rerolled at the forge, whose number you chose to keep working on there */
+I.temperable = it => it.affixes.map((a, i) => i).filter(i => !it.affixes[i].g && i !== it.ench);
 I.cubeCheck = function (it, orb, cat) {
   const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
-  if (orb === 'divine') return n ? null : 'It has no affixes to reroll.';
+  if (orb === 'divine') return !n ? 'It has no affixes to reroll.' : I.temperable(it).length ? null : 'Nothing here for it to reroll: Greater affixes and the affix you rerolled at the forge are left alone.';
   if (I.fixed(it)) return it.uniq ? 'A Unique is fixed. Only a Tempering Orb works on it.' : 'A Legendary cannot be cubed. A Tempering Orb can reroll its numbers, and the forge can enchant one affix.';
   if (C && I.affixPool(I.poolKey(it), [], cat).length < 2) return `A ${D.BASES[it.base].name.toLowerCase()} cannot be aimed at ${C.name}.`;
   if (orb === 'add') {
@@ -291,7 +294,8 @@ I.cube = function (it, orb, tier, cat) {
     for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, null, true));
     it.ench = -1;
   } else if (orb === 'divine') {
-    for (const a of it.affixes) a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();      // new numbers only: what is Greater stays Greater (and so stays at its maximum), and nothing becomes Greater
+    res.idxs = I.temperable(it);                           // new numbers only, and only on ordinary affixes that were not rerolled at the forge
+    for (const i of res.idxs) it.affixes[i].r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();
   }
   if (!it.uniq && it.rar < 3) it.name = I.makeName(it);
   return res;

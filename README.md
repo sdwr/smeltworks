@@ -73,7 +73,7 @@ the skill bar to drink it.
   itself below 35% Life, so Auto can run unattended; Settings turns that off.
 - **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
   affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
-  reroll them all, Tempering Orbs reroll the numbers. Kindling and Quenching can be aimed at an affix type (see
+  reroll them all, Tempering Orbs reroll the numbers (but not on Greater affixes, nor on the affix rerolled at the forge). Kindling and Quenching can be aimed at an affix type (see
   "Cube types" below); the affix within the type is still random. Legendaries and Uniques cannot
   be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on either. Kindling and Quenching Orbs are everyday materials: ordinary monsters drop them (5% a kill), and every elite and boss carries some. Slag and Tempering Orbs come from elites, bosses, chests and full clears.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is

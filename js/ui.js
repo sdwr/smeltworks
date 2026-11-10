@@ -397,7 +397,7 @@ function renderCraft() {
     h += `<div class="main-stat">${imp.dmg ? `<b>${U.fmt(imp.dmg)}</b> damage per hit, ${imp.aps.toFixed(2)} attacks per second` : imp.armor ? `<b>${U.fmt(imp.armor)}</b> armor` : imp.life ? `<b>${U.fmt(imp.life)}</b> life` : `<b>+${imp.dmgPct}%</b> damage`}</div>`;
     h += '<ul class="aff-list">';
     it.affixes.forEach((a, i) => {
-      const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine', ok = I.canEnchant(it, i);
+      const fresh = last.idx === i || last.orb === 'chaos' || (last.orb === 'divine' && (last.idxs || []).includes(i)), ok = I.canEnchant(it, i);
       h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
         (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });

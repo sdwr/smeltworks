@@ -410,7 +410,7 @@ D.ORBS = {
   add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Add an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater. Drops from ordinary monsters.' },
   remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Remove an affix', desc: 'Removes one random affix of the type you choose. Hover a type to see which affixes on the piece it could take. Drops from ordinary monsters.' },
   chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Reroll all affixes', desc: 'Melts every affix and rolls the same number of new ones. None of them come out Greater. Drops from elites, bosses and chests.' },
-  divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Reroll the numbers', desc: 'Rerolls the numbers on every affix. The affixes themselves stay. A Greater affix stays Greater and is already at its maximum, so only ordinary affixes change. It never makes one. Drops from elites, bosses and chests.' },
+  divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Reroll the numbers', desc: 'Rerolls the numbers on the ordinary affixes. The affixes themselves stay. It leaves Greater affixes alone, and the one affix you rerolled at the forge. It never makes a Greater affix. Drops from elites, bosses and chests.' },
 };
 D.ORB_IDS = Object.keys(D.ORBS);
 /* Kindling and Quenching are the everyday crafting materials: ordinary monsters drop them. Slag and Tempering stay

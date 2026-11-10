@@ -583,7 +583,8 @@ test('Greater affixes come from drops only: no cube orb and no forge reroll can 
   S.gold = 1e12; S.mats.dust = 9999; for (let k = 0; k < 20; k++) { G.enchant(it.id, 0); assert.equal(I.greaterCount(it), 0, 'nor does the forge reroll'); }
   // what is already Greater: Tempering keeps it, a forge reroll gives it up
   for (const a of it.affixes) a.g = 1; const was = it.affixes.map(a => a.k).join();
-  G.cube(it.id, 'divine'); assert.ok(it.affixes.every(a => a.g) && it.affixes.map(a => a.k).join() === was, 'Tempering only changes the numbers');
+  const orbsBefore = S.orbs.divine; assert.equal(G.cube(it.id, 'divine'), null, 'with every affix Greater there is nothing for Tempering to do'); assert.equal(S.orbs.divine, orbsBefore, 'and the orb is not spent');
+  assert.ok(it.affixes.every(a => a.g) && it.affixes.map(a => a.k).join() === was);
   G.enchant(it.id, 0); assert.equal(it.affixes[0].g, 0, 'the rerolled affix is ordinary'); assert.equal(it.affixes[1].g, 1, 'the others are untouched');
   for (let k = 0; k < 2000; k++) { const c = G.commission('ring'); if (c && I.greaterCount(c)) { g = -1; break; } S.bag.fill(null); S.bag[0] = it; }
   assert.equal(g, -1, 'a commissioned piece is a fresh roll, so it can still come with one');
@@ -604,6 +605,15 @@ test('Legendaries cannot be cubed, but can be enchanted and Tempered', (SW, G, D
   S.codex.twin = 0.5; assert.ok(G.imprint(rare.id, 'twin')); assert.equal(rare.rar, 3);
   assert.equal(G.cube(rare.id, 'add'), null); assert.equal(G.cube(rare.id, 'remove'), null); assert.ok(G.enchant(rare.id, 0));
   const u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' }); S.bag[2] = u; assert.ok(G.enchant(u.id, 0), 'a Unique can have one affix rerolled too');
+});
+test('Tempering leaves Greater affixes and the forge-rerolled affix alone', (SW, G, D, I) => {
+  const S = G.S; S.orbs = { add: 0, remove: 0, chaos: 0, divine: 999 };
+  const it = I.roll(40, { rar: 2, slot: 'ring' }); it.affixes = [{ k: 'life', r: 0.11, g: 0 }, { k: 'crit', r: 0.22, g: 1 }, { k: 'firePct', r: 0.33, g: 0 }, { k: 'heat', r: 0.44, g: 0 }]; it.ench = 2; S.bag[0] = it;
+  assert.equal(I.temperable(it).join(), '0,3');
+  for (let i = 0; i < 50; i++) { const res = G.cube(it.id, 'divine'); assert.ok(res); assert.equal(res.idxs.join(), '0,3'); assert.equal(it.affixes[1].r, 0.22, 'the Greater affix is untouched'); assert.equal(it.affixes[2].r, 0.33, 'so is the affix rerolled at the forge'); }
+  assert.ok(it.affixes[0].r !== 0.11 && it.affixes[3].r !== 0.44, 'the others did change');
+  assert.equal(it.affixes.map(a => a.k).join(), 'life,crit,firePct,heat'); assert.equal(it.ench, 2);
+  it.affixes = [{ k: 'crit', r: 0.5, g: 1 }, { k: 'firePct', r: 0.5, g: 0 }]; it.ench = 1; assert.ok(/left alone/.test(I.cubeCheck(it, 'divine'))); assert.equal(G.cube(it.id, 'divine'), null);
 });
 test('The cube: Slag rerolls every affix, Tempering only the numbers, and Uniques resist', (SW, G, D, I) => {
   const S = G.S, it = I.roll(30, { rar: 2, slot: 'ring' }), u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' });
