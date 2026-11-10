@@ -4,6 +4,9 @@
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero, G = SW.game, SP = SW.sprites, A = SW.audio;
 const UI = SW.ui = { tab: 'skills', dirty: {}, forgeId: null, forgeAspect: null, cubeOrb: 'add', cubeCat: null, cubeLast: null, dragId: null, lastGold: -1 };
 const $ = id => document.getElementById(id);
+/* colour for a monster level against your gear level. In Torment gear is capped while monsters keep rising,
+   so the comparison says nothing there and the level is left uncoloured. */
+const lvlCls = (lvl, tier, good) => { if (tier > 0) return ''; const dl = lvl - Hr.gearLevel(G.S.gear); return dl >= 3 ? 'neg' : dl >= 1 ? 'warn' : good ? 'pos' : ''; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const RC = i => D.RARITY[i].color;
 const mark = (...keys) => { for (const k of keys) UI.dirty[k] = 1; };
@@ -15,7 +18,7 @@ function itemCell(it, extra, idx, box) {
   const bag = idx == null ? '' : ` data-${box || 'bag'}="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.anc ? 'anc' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
     (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl${it.up >= D.MW_MAX ? ' max' : ''}">${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
@@ -48,6 +51,7 @@ function itemTooltip(it, o) {
   if (o.label) h += `<div class="tt-label">${o.label}</div>`;
   h += `<div class="tt-name">${esc(it.name)}</div>`;
   h += `<div class="tt-type">${I.typeLine(it)}<span>${I.itemPower(it)} Item Power</span></div>`;
+  if (it.anc) h += `<div class="tt-anc">Ancestral<span>item level ${it.ilvl}, above the cap of ${D.GEAR_CAP}</span></div>`;
   if (it.up) h += `<div class="tt-mw">Masterwork rank ${it.up}/${D.MW_MAX}<span>+${it.up}% to everything on it</span></div>`;
   if (imp.dmg) h += `<div class="tt-base"><b>${U.fmt(imp.dmg)}</b> damage per hit<span>${imp.aps.toFixed(2)} attacks per second</span></div>`;
   else if (imp.armor) h += `<div class="tt-base"><b>${U.fmt(imp.armor)}</b> armor</div>`;
@@ -132,8 +136,7 @@ function tileTip(c) {
     boss: G.S.world.map.name ? `${G.S.world.map.name} guards the way on. Beat it to open the next area.` : 'The master of this act. Bring your best gear.',
     chest: 'Free loot. No fight.', shrine: `A blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
   if (c.state === 'hidden') return '<div class="tt plain"><b>Unexplored</b><br>Clear a neighbouring tile to see what is here.</div>';
-  const dl = c.lvl - Hr.gearLevel(G.S.gear);
-  let h = `<div class="tt plain"><b>${names[c.type]}</b>` + (c.type !== 'start' && c.type !== 'wall' && c.type !== 'shrine' ? ` <span class="${dl >= 3 ? 'neg' : dl >= 1 ? 'warn' : 'pos'}">Level ${c.lvl}</span>` : '') + `<br>${desc[c.type]}`;
+  let h = `<div class="tt plain"><b>${names[c.type]}</b>` + (c.type !== 'start' && c.type !== 'wall' && c.type !== 'shrine' ? ` <span class="${lvlCls(c.lvl, G.S.world.tier, true)}">Level ${c.lvl}</span>` : '') + `<br>${desc[c.type]}`;
   if (c.state === 'done') h += '<br><i>Cleared.</i>';
   else if (!G.canEnter(c) && c.type !== 'wall') h += '<br><i>Clear a path to it first.</i>';
   if (c.deaths) h += `<br><span class="neg">You have fallen here ${c.deaths === 1 ? 'once' : c.deaths + ' times'}.</span>`;
@@ -233,16 +236,16 @@ function renderMeter() {
 /* ----------------------------------------------------------------- map */
 const TILE_ICON = { fight: ['i_fight', 'icon'], elite: ['i_elite', 'icon'], boss: ['i_boss', 'boss'], chest: ['i_chest', 'icon'], shrine: ['i_shrine', 'shrine'], start: ['i_start', 'icon'] };
 function renderMap() {
-  const S = G.S, map = S.world.map, area = D.AREAS[map.area], gl = Hr.gearLevel(S.gear);
+  const S = G.S, map = S.world.map, area = D.AREAS[map.area];
   let h = '';
   for (const c of map.cells) {
-    const can = G.canEnter(c), dl = c.lvl - gl;
+    const can = G.canEnter(c);
     let cls = `tile t-${c.type} s-${c.state}${can ? ' can' : ''}${c.deaths ? ' died' : ''}${G.target === c && G.phase !== 'idle' ? ' now' : ''}`;
     let inner = '';
     if (c.type !== 'wall' && c.state !== 'hidden') {
       const ic = TILE_ICON[c.type];
       inner = `<img src="${SP.url(ic[0], ic[1], 3)}" alt="">`;
-      if (c.state !== 'done' && c.type !== 'chest' && c.type !== 'shrine') inner += `<span class="lv ${dl >= 3 ? 'neg' : dl >= 1 ? 'warn' : ''}">${c.lvl}</span>`;
+      if (c.state !== 'done' && c.type !== 'chest' && c.type !== 'shrine') inner += `<span class="lv ${lvlCls(c.lvl, map.tier)}">${c.lvl}</span>`;
     }
     h += `<div class="${cls}" data-tile="${c.x},${c.y}" style="grid-column:${c.x + 1};grid-row:${c.y + 1}">${inner}</div>`;
   }
@@ -437,8 +440,8 @@ function renderCraft() {
   $('tab-craft').innerHTML = h;
 }
 function renderCommission() {
-  const S = G.S, lvl = G.areaLevel(), cc = { gold: I.commissionCost(lvl) };
-  let h = `<div class="cx-head"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice. It comes at this area's level (${lvl}) and is never Common. It lands in your bag.</span></div>`;
+  const S = G.S, lvl = G.areaLevel(), cc = { gold: I.commissionCost(lvl) }, anc = D.ANC_CHANCE[S.world.tier] || 0;
+  let h = `<div class="cx-head"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice. It comes at item level ${Math.min(lvl, D.GEAR_CAP)}${lvl > D.GEAR_CAP ? ', the cap' : ", this area's level"}, and is never Common.${anc ? ` In ${D.TIERS[S.world.tier].name} it has a ${Math.round(anc * 100)}% chance to be Ancestral (item level ${D.ANC_LEVEL}).` : ''} It lands in your bag.</span></div>`;
   h += `<div class="op-a" style="justify-content:flex-start">${costHtml(cc)}<span class="note">each. You have ${U.fmt(S.gold)} gold${G.bagCount() >= D.BAG_SIZE ? ', but your bag is full' : ''}.</span></div><div class="com-row">` +
     D.ITEM_SLOTS.map(s => { const worn = (s === 'ring' ? [S.gear.ring1, S.gear.ring2] : [S.gear[s]]).map(x => (x ? x.ilvl : '–')).join(' / ');
       return `<button class="com" data-act="commission" data-slot="${s}" ${G.canPay(cc) ? '' : 'disabled'} data-tip="Cast a ${D.SLOT_NAME[s].toLowerCase()}. You are wearing item level ${worn}."><img src="${SP.url(D.BASES[D.BASES_BY_SLOT[s][0]].spr, D.material(lvl).pal, 3)}" alt=""><b>${D.SLOT_NAME[s]}</b><span>wearing ${worn}</span></button>`; }).join('') + '</div>';
@@ -506,9 +509,9 @@ UI.feed = function (html, cls) {
 UI.feedItem = function (it, fate) {
   UI.shown = UI.shown || {}; UI.shown[it.id] = it;
   UI.shownIds = UI.shownIds || []; UI.shownIds.push(it.id); if (UI.shownIds.length > 40) delete UI.shown[UI.shownIds.shift()];
-  if (fate === 'salvaged') { if (it.rar >= 2) UI.feed(`<span class="dim">Salvaged</span> <b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b>`, 'sal'); return; }
+  if (fate === 'salvaged') { if (it.rar >= 2 || it.anc) UI.feed(`<span class="dim">Salvaged</span> <b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b>${it.anc ? ' <span class="anc-t">Ancestral</span>' : ''}`, 'sal'); return; }
   if (it.rar === 0 && !it.upg) return;
-  UI.feed(`${it.upg ? '<i class="pos">▲</i> ' : ''}${I.greaterCount(it) ? '<i class="hot">' + '★'.repeat(I.greaterCount(it)) + '</i> ' : ''}<b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b> <span class="dim">${I.typeLine(it)}</span>`, 'r' + it.rar);
+  UI.feed(`${it.upg ? '<i class="pos">▲</i> ' : ''}${I.greaterCount(it) ? '<i class="hot">' + '★'.repeat(I.greaterCount(it)) + '</i> ' : ''}<b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b> <span class="${it.anc ? 'anc-t' : 'dim'}">${I.typeLine(it)}</span>`, 'r' + it.rar + (it.anc ? ' anc' : ''));
 };
 UI.toast = function (msg, cls) {
   const t = $('toasts'), d = document.createElement('div');
@@ -522,7 +525,7 @@ const deny = msg => { UI.toast(msg, 'bad'); A.play('deny'); };
 UI.modal = function (html, cls) { $('modal-box').className = cls || ''; $('modal-box').innerHTML = html; $('modal').classList.remove('hidden'); hideTip(); };
 UI.closeModal = function () { $('modal').classList.add('hidden'); };
 UI.travel = function (tier) {
-  const S = G.S, W = S.world, gl = Hr.gearLevel(S.gear); tier = tier == null ? W.tier : tier;
+  const S = G.S, W = S.world; tier = tier == null ? W.tier : tier;
   let h = '<h2>Travel</h2><p class="sub">Go back to farm, or press on. A new map is drawn each time you arrive.</p><div class="tiers">';
   D.TIERS.forEach((t, i) => { const open = W.cleared[i] != null; h += `<button class="tier ${i === tier ? 'on' : ''}" ${open ? '' : 'disabled'} data-tier="${i}" style="--c:${t.color}">${t.name}${open ? '' : ' <small>locked</small>'}</button>`; });
   h += '</div><div class="acts">';
@@ -530,12 +533,11 @@ UI.travel = function (tier) {
     h += `<div class="act"><h3>${act.name}</h3>`;
     for (const a of D.AREAS.filter(x => x.act === ai)) {
       const open = G.isUnlocked(a.idx, tier), done = W.cleared[tier] > a.idx, lvl = D.areaLevel(a.idx, tier), here = W.area === a.idx && W.tier === tier;
-      const dl = lvl - gl;
-      h += `<button class="area ${done ? 'done' : ''} ${here ? 'here' : ''}" ${open ? '' : 'disabled'} data-go="${a.idx}" data-gotier="${tier}"><b>${a.name}</b><span class="${dl >= 3 ? 'neg' : dl >= 1 ? 'warn' : ''}">Level ${lvl}–${lvl + 3}</span><i>${here ? 'You are here' : done ? 'Cleared' : open ? (a.final ? 'Act boss' : 'New') : 'Locked'}</i></button>`;
+      h += `<button class="area ${done ? 'done' : ''} ${here ? 'here' : ''}" ${open ? '' : 'disabled'} data-go="${a.idx}" data-gotier="${tier}"><b>${a.name}</b><span class="${lvlCls(lvl, tier)}">Level ${lvl}–${lvl + 3}</span><i>${here ? 'You are here' : done ? 'Cleared' : open ? (a.final ? 'Act boss' : 'New') : 'Locked'}</i></button>`;
     }
     h += '</div>';
   });
-  h += `</div><div class="mfoot"><span class="note">${tier ? 'Torment drops no Common gear, more Legendaries and Uniques, and items can roll greater affixes.' : 'Beat The Crucible to unlock Torment.'}</span><button data-close="1">Close</button></div>`;
+  h += `</div><div class="mfoot"><span class="note">${tier ? `Gear stops at item level ${D.GEAR_CAP}, but in ${D.TIERS[tier].name} ${Math.round(D.ANC_CHANCE[tier] * 100)}% of drops are Ancestral: item level ${D.ANC_LEVEL}. More Legendaries, Uniques and greater affixes too.` : `Gear stops at item level ${D.GEAR_CAP}. Beat The Crucible to unlock Torment, where Ancestral gear drops.`}</span><button data-close="1">Close</button></div>`;
   UI.modal(h, 'travel');
 };
 UI.settings = function () {
@@ -595,7 +597,7 @@ UI.onGame = function (type, d) {
       else if (!S.opts.auto) setTimeout(() => { if (!S.opts.auto && $('modal').classList.contains('hidden')) UI.areaDone(d); }, 1500);
       mark('top', 'map');
       break;
-    case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', 'Open Travel to begin', 'boss', 3200), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
+    case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', `Ancestral gear drops there: ${Math.round(D.ANC_CHANCE[d.tier] * 100)}% of all drops`, 'boss', 3600), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
     case 'chest': A.play('chest'); SW.fx.spill(d.items, d.fate); UI.feed(`Chest: <b class="gold">${U.fmt(d.gold)} gold</b>`, ''); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag', 'map'); break;
     case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b> and a bonus piece`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
     case 'shrine': { const s = D.SHRINES[d.id]; A.play('shrine'); SW.fx.heroGlow(s.color); UI.banner(s.name, `${s.desc} for ${D.SHRINE_FIGHTS} battles`, 'shrine', 1800); break; }
@@ -732,7 +734,7 @@ UI.bind = function () {
       const act = el.dataset.act;
       if (act === 'drink') drink();
       else if (act === 'sort') { G.sortBag(); A.play('click'); }
-      else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity.'); }
+      else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity. Upgrades, locked and Ancestral pieces are kept.'); }
       else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
       else if (act === 'transmute') { if (!G.cube(UI.forgeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
       else if (act === 'equip-one') G.equip(UI.forgeId);

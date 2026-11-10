@@ -177,6 +177,11 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 .it .ga { position: absolute; left: 0; top: 0; padding: 0 3px 1px 2px; font: 700 12px/15px var(--sans); color: #2a1a00; background: linear-gradient(#fff0a8, #ffb347); border-bottom-right-radius: 5px; box-shadow: 0 0 8px rgba(255,200,90,.8); }
 .it.has-ga.new::before { display: none; }
 .aff-list .gst { color: var(--hot); margin-right: 4px; } .worn .it .ga { font-size: 9px; line-height: 11px; padding: 0 2px; }
+/* Ancestral gear: a bright inner frame, and its item level in gold */
+.it.anc { box-shadow: inset 0 0 0 1px #fff3c4, inset 0 0 10px rgba(255,230,150,.55); } .it.anc.upg { box-shadow: 0 0 0 1px #0a0810, 0 0 10px 1px rgba(61,255,122,.75), inset 0 0 0 1px #fff3c4, inset 0 0 10px rgba(255,230,150,.55); }
+.it.anc .il { color: #1a0f00; background: linear-gradient(#fff3c4, #ffc94a); }
+.tt-anc { display: flex; justify-content: space-between; gap: 10px; margin: -4px 0 7px; font-size: 12px; font-weight: 700; color: #ffe08a; letter-spacing: .04em; } .tt-anc span { color: var(--dim); font-weight: 400; letter-spacing: 0; }
+.anc-t { color: #ffe08a; } .fd.anc { border-left: 3px solid #ffe08a; }
 /* masterwork rank, bottom left */
 .it .pl { position: absolute; left: 0; bottom: 0; padding: 0 2px; font: 700 10px/14px var(--sans); color: var(--hot); background: rgba(6,5,9,.86); border-top-right-radius: 4px; font-variant-numeric: tabular-nums; } .it .pl.max { color: #1a0f00; background: linear-gradient(#ffd27a, #ff8a2a); }
 .it.new::before { content: ''; position: absolute; left: 0; top: 0; border: 6px solid transparent; border-left-color: #fff; border-top-color: #fff; opacity: .95; }

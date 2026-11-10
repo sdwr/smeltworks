@@ -37,9 +37,16 @@ const D = SW.data = {};
 D.FLAT_G = 1.085;      // growth of flat gear stats per item level
 D.MOB_HP_G = 1.084;    // monster life per level
 D.MOB_DMG_G = 1.075;   // monster damage per level
-D.MOB_HP_G2 = 1.096;   // ...and past level 50
-D.MOB_DMG_G2 = 1.091;
+/* Gear stops at item level 50. Torment monsters keep rising (levels 50 to 89), but only gently, because from there
+   the player grows by Ancestral gear (item level 60, Torment only), masterworking, greater affixes and better rolls. */
+D.GEAR_CAP = 50;
+D.ANC_LEVEL = 60;
+D.ANC_CHANCE = [0, 0.03, 0.06, 0.10, 0.15];   // chance for a Torment drop to be Ancestral, by tier
+D.MOB_HP_G2 = 1.055;   // ...and past level 50
+D.MOB_DMG_G2 = 1.062;
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
+/* gold from monsters and the price of forge work: 8% a level to 50, then 3% a level, since gear no longer grows with it */
+D.goldScale = l => Math.pow(1.08, Math.min(l, D.GEAR_CAP) - 1) * Math.pow(1.03, Math.max(0, l - D.GEAR_CAP));
 D.pct = l => 1 + l / 70;
 D.BAG_SIZE = 24;        // three rows of eight
 D.STASH_SIZE = 16;      // two rows kept safe from salvage, for crafting
@@ -88,9 +95,7 @@ D.MATERIALS = [
   { to: 29,   name: 'Steel',       pal: 'steel' },
   { to: 39,   name: 'Darksteel',   pal: 'dark' },
   { to: 54,   name: 'Runed',       pal: 'rune' },
-  { to: 84,   name: 'Emberforged', pal: 'ember' },
-  { to: 119,  name: 'Starmetal',   pal: 'star' },
-  { to: 9999, name: 'Voidforged',  pal: 'void' },
+  { to: 9999, name: 'Starmetal',   pal: 'star' },      // Ancestral gear
 ];
 D.material = l => D.MATERIALS.find(m => l <= m.to);
 
@@ -424,10 +429,10 @@ D.TIERS = [
   { name: 'Torment IV',  short: 'T4', color: '#c04bff' },
 ];
 /* Torment multiplies monster life and damage on top of their level */
-D.TIER_HP = [1, 1.7, 2.8, 4.6, 7.5];
-D.TIER_DMG = [1, 1.4, 1.9, 2.6, 3.5];
-/* level of an area at a difficulty tier */
-D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 30 + area * 2;
+D.TIER_HP = [1, 1.7, 1.9, 2.1, 2.3];
+D.TIER_DMG = [1, 1.4, 1.5, 1.6, 1.7];
+/* level of an area at a difficulty tier. Each Torment tier covers ten monster levels: 50-59, 60-69, 70-79, 80-89 */
+D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 10 + Math.floor(area * 2 / 3);
 D.MAP_W = 7; D.MAP_H = 5;
 D.TRAVEL_STEP = 3;      // seconds to walk from one room to the next, before Movement Speed
 D.SHRINES = {

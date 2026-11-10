@@ -36,12 +36,18 @@ the skill bar to drink it.
 - **The map.** Each area is a 7×5 grid under fog: monster packs, elites with modifiers, chests, shrines and a boss.
   Clear a tile to reveal its neighbours. Beat the boss to open the next area.
 - **Fifteen areas in five acts**, each act with its own monsters and a scripted boss, then four Torment tiers that
-  replay the descent at higher levels with better drops.
+  replay the descent against tougher monsters with better drops.
+- **Gear caps at item level 50.** Torment monsters keep climbing (levels 50-59 in Torment I up to 80-89 in
+  Torment IV), but gear does not. From there you grow through Ancestral gear, masterworking, greater affixes and
+  better rolls.
+- **Ancestral gear.** In Torment any drop, chest piece or commission can come out Ancestral: item level 60, about
+  2.3 times the main stat of a level 50 piece. The chance is 3% in Torment I, then 6%, 10% and 15%. Ancestral gear
+  has a bright frame and a gold item level, and is never auto-salvaged or caught by the bulk salvage buttons.
 - **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
   for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,
   3-4 on Rare, 4 on Legendary. Skill ranks come from "+ to skills" affixes.
 - **Loot.** Ten gear slots, five rarities, 30 affixes, 30 legendary aspects and 12 uniques. Item level follows
-  monster level, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
+  monster level up to 50, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
 - **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
   so it is where you park pieces between trips to the crafting bench.
@@ -121,6 +127,7 @@ node tests/balance.cjs hammer 5400 1    # one bot run: build, seconds of game ti
 node tests/sweep.cjs 6000 3             # pacing across builds and seeds
 node tests/sweep.cjs 6000 3 casual      # a player who never uses the forge
 node tests/sweep.cjs 6000 3 casual-rush # ...and heads straight for every boss
+node tests/torment.cjs 50000 2          # when each Torment tier falls, and in what gear
 node tests/deaths.cjs                   # what kills the bot, and where
 ```
 

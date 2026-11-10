@@ -9,7 +9,7 @@ const H = SW.hero = {};
 const grow = (g, g2, l) => Math.pow(g, Math.min(l, 50) - 1) * Math.pow(g2, Math.max(0, l - 50));
 D.mobHp = l => 32 * grow(D.MOB_HP_G, D.MOB_HP_G2, l) * (1 + Math.min(l, 50) * 0.055) * Math.min(1, 0.5 + l / 24);
 D.mobDmg = l => 12 * grow(D.MOB_DMG_G, D.MOB_DMG_G2, l) * (1 + Math.min(l, 50) * 0.022) * Math.min(1, 0.62 + l / 32);
-D.mobGold = l => 2.2 * Math.pow(1.08, l - 1);
+D.mobGold = l => 2.2 * D.goldScale(l);
 
 /* There are no character levels: everything the smith is comes from what the smith wears. */
 H.BASE_LIFE = 100;
@@ -74,7 +74,8 @@ H.compute = function (S, gearOverride) {
   C.rating = H.rating(C);
   return C;
 };
-H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * D.flat(attackerLvl)));
+/* armor is measured against the attacker's level, up to the gear cap: past it monsters hit harder instead of piercing more */
+H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * D.flat(Math.min(attackerLvl, D.GEAR_CAP))));
 
 /* A rough offence × defence estimate from the stat sheet, used for the upgrade arrow and the tooltip comparison.
    It counts stats only. Aspect and unique powers are left out on purpose: most are conditional, and a guess at

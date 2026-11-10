@@ -17,7 +17,7 @@ function botTurn(SW, build, casual) {
   const G = SW.game, S = G.S, D = SW.data, I = SW.items, H = SW.hero;
   if (S.hero.bar.join() !== build.bar.join()) { S.hero.bar = build.bar.slice(); S.hero.passives = build.passives.slice(); G.recompute(); }
   for (let pass = 0; pass < 3; pass++) for (const it of S.bag.slice()) if (it && G.isUpgrade(it)) G.equip(it.id);
-  G.salvageAll(4);
+  G.salvageAll(4, true);
   if (casual) return;            // a casual player never touches the forge or the cube
   const gl = H.gearLevel(S.gear);
   for (const slot of ['weapon', 'chest', 'ring1', 'amulet', 'gloves', 'helm', 'pants', 'ring2', 'boots', 'offhand']) {
@@ -36,7 +36,7 @@ function botTurn(SW, build, casual) {
 function play(SW, o) {
   const G = SW.game, D = SW.data;
   SW.util.seed(o.seed || 1);
-  G.listeners.length = 0;
+  G.listeners.length = 0; for (const f of o.keep || []) G.listeners.push(f);     // o.keep: listeners a test wants to survive the reset
   G.init(null);
   const S = G.S; S.opts.auto = true; S.opts.full = o.full !== false; S.opts.onClear = 'advance';
   const build = BUILDS[o.build || 'hammer'], log = [], setTimeout0 = [];

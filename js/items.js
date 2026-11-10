@@ -56,11 +56,12 @@ function rollAffix(slot, have, tier, cat, plain) {
 /* opts: slot, base, rar, minRar, mf, tier, boost, unique (id) */
 I.roll = function (ilvl, o) {
   o = o || {};
-  ilvl = Math.max(1, Math.round(ilvl));
+  ilvl = U.clamp(Math.round(ilvl), 1, D.GEAR_CAP);         // gear stops at the cap; only Ancestral gear is above it
   const slot = o.slot || U.wpick(D.ITEM_SLOTS, s => D.SLOT_WEIGHT[s]);
   let rar = o.rar != null ? o.rar : I.rollRarity(ilvl, o.mf, o.tier, o.boost, o.minRar);
   let base = o.base || U.pick(D.BASES_BY_SLOT[slot]);
-  const it = { id: uid++, slot, base, rar, ilvl, affixes: [], aspect: null, uniq: null, up: 0, mw: [], ench: -1, enchN: 0, lock: 0, isNew: 1 };
+  if (o.anc) ilvl = D.ANC_LEVEL;
+  const it = { id: uid++, slot, base, rar, ilvl, anc: o.anc ? 1 : 0, affixes: [], aspect: null, uniq: null, up: 0, mw: [], ench: -1, enchN: 0, lock: 0, isNew: 1 };
   if (rar === 4) {
     const pool = D.UNIQUES.filter(u => (o.unique ? u.id === o.unique : D.BASES[u.base].slot === slot && u.minLvl <= ilvl));
     if (!pool.length) rar = it.rar = 3;
@@ -158,7 +159,7 @@ I.aspectRange = function (a, slot) {
 I.itemPower = it => it.ilvl * 10 + (it.up || 0) * 2;
 I.typeLine = function (it) {
   const b = D.BASES[it.base];
-  return D.RARITY[it.rar].name + ' ' + (b.slot === 'weapon' || b.slot === 'offhand' ? b.name : D.SLOT_NAME[it.slot]);
+  return (it.anc ? 'Ancestral ' : '') + D.RARITY[it.rar].name + ' ' + (b.slot === 'weapon' || b.slot === 'offhand' ? b.name : D.SLOT_NAME[it.slot]);
 };
 I.spriteKey = function (it) {
   return { spr: D.BASES[it.base].spr, pal: it.uniq ? D.UNIQUE[it.uniq].pal : D.material(it.ilvl).pal };
@@ -173,7 +174,7 @@ I.salvageYield = function (it) {
   if (it.rar === 3) return { dust: 4 + Math.floor(up / 3), soul: 1 };
   return { dust: 4, soul: 3 };
 };
-I.goldScale = l => Math.pow(1.08, l - 1);
+I.goldScale = D.goldScale;
 /* One strike of masterworking. Below rank 25 the price follows the rank you are at; at 25 it is the price of
    masterworking an affix, and of moving that masterwork to another one. */
 I.upgradeCost = function (it) {
