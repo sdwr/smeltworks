@@ -177,7 +177,8 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 .it .ga { position: absolute; left: 0; top: 0; padding: 0 3px 1px 2px; font: 700 12px/15px var(--sans); color: #2a1a00; background: linear-gradient(#fff0a8, #ffb347); border-bottom-right-radius: 5px; box-shadow: 0 0 8px rgba(255,200,90,.8); }
 .it.has-ga.new::before { display: none; }
 .aff-list .gst { color: var(--hot); margin-right: 4px; } .worn .it .ga { font-size: 9px; line-height: 11px; padding: 0 2px; }
-.it .pl { position: absolute; left: 0; bottom: 0; padding: 0 3px; font: 700 11px/15px var(--sans); color: var(--hot); background: rgba(6,5,9,.86); border-top-right-radius: 4px; }
+/* masterwork rank, bottom left */
+.it .pl { position: absolute; left: 0; bottom: 0; padding: 0 2px; font: 700 10px/14px var(--sans); color: var(--hot); background: rgba(6,5,9,.86); border-top-right-radius: 4px; font-variant-numeric: tabular-nums; } .it .pl.max { color: #1a0f00; background: linear-gradient(#ffd27a, #ff8a2a); }
 .it.new::before { content: ''; position: absolute; left: 0; top: 0; border: 6px solid transparent; border-left-color: #fff; border-top-color: #fff; opacity: .95; }
 .it.big { width: 50px; } .it .ph { font-size: 9.5px; color: #3a3542; }
 
@@ -296,6 +297,13 @@ input[type=range] { accent-color: var(--ember); width: 220px; }
 .aff-list li > span { min-width: 0; } .aff-list li button { flex: none; margin-left: 8px; padding: 1px 8px; } .aff-list li.ench > span { color: #b9a4ff; }
 .an-asp { margin-top: 6px; padding: 5px 8px; font-size: 13px; line-height: 1.35; color: var(--r3); background: rgba(255,138,42,.07); border-left: 2px solid var(--r3); }
 .an-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--dim); }
+.mw-bar { position: relative; height: 20px; margin-top: 7px; background: #0c0a10; border: 1px solid var(--line2); border-radius: 3px; overflow: hidden; }
+.mw-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#b4521a, #7c3210); transition: width .25s; } .mw-bar.full i { background: linear-gradient(#ffb347, #c96a14); }
+.mw-bar b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 12px var(--sans); text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+.mw-bar em { position: absolute; right: 8px; top: 0; font: 700 12px/20px var(--sans); font-style: normal; color: var(--good); text-shadow: 0 1px 2px #000; animation: fdin .3s; }
+.mw-aff { margin-top: 5px; font-size: 13px; color: #9be3ff; }
+.aff-list li.mw > span { color: #9be3ff; } .aff-list li em.mwt { color: #9be3ff; white-space: nowrap; }
+.tt-mw { display: flex; justify-content: space-between; gap: 10px; margin: -4px 0 7px; font-size: 12px; color: var(--hot); } .tt-mw span { color: var(--dim); }
 .cx.has { cursor: pointer; } .cx.has:hover { background: rgba(255,138,42,.08); }
 .slot.flask { cursor: pointer; } .slot kbd { position: absolute; right: 1px; bottom: 0; padding: 0 3px; font: 700 10px/13px var(--sans); color: #ffd9d9; background: rgba(0,0,0,.72); border-radius: 2px; pointer-events: none; }
 /* the fight pane is the narrowest of the three: compact orbs and skill slots, and the boss bar sits beside the meter */

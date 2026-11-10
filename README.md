@@ -49,8 +49,11 @@ the skill bar to drink it.
   and come out Greater: half again as strong, marked with a gold star. The chance rises in Torment. It applies to
   drops, forge enchants and Tempering Orbs; Kindling and Slag rolls never crit.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
-- **The forge.** Upgrade (+5% per step, a masterwork every fourth), enchant (the Reroll button beside an affix),
-  imprint and salvage.
+- **The forge.** Masterwork, enchant (the Reroll button beside an affix), imprint and salvage. Rerolling costs a
+  little more each time on the same piece and levels off at five times the first price.
+- **Masterworking.** 25 ranks, each +1% to everything on the piece. A strike at the forge adds 1 to 3 ranks. At
+  rank 25, one more strike masterworks a single random affix (+25%, or +1 on a skills affix); striking again moves
+  the masterwork to a different affix. Saves from the old system convert each upgrade to five ranks.
 - **Legendary aspects.** Salvaging a Legendary teaches its aspect to the Codex. To put one on gear, open a Rare or
   Legendary piece on the bench and use Imprint, or click the aspect in the Codex and then the piece. A Rare
   becomes Legendary.

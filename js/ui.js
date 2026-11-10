@@ -17,7 +17,7 @@ function itemCell(it, extra, idx, box) {
   const k = I.spriteKey(it);
   return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
-    (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl">+${it.up}</b>` : '') +
+    (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl${it.up >= D.MW_MAX ? ' max' : ''}">${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
 }
 function skillIcon(id, cls) {
@@ -46,16 +46,17 @@ function itemTooltip(it, o) {
   const imp = I.implicit(it);
   let h = `<div class="tt r${it.rar}">`;
   if (o.label) h += `<div class="tt-label">${o.label}</div>`;
-  h += `<div class="tt-name">${esc(it.name)}${it.up ? ' <span>+' + it.up + '</span>' : ''}</div>`;
+  h += `<div class="tt-name">${esc(it.name)}</div>`;
   h += `<div class="tt-type">${I.typeLine(it)}<span>${I.itemPower(it)} Item Power</span></div>`;
+  if (it.up) h += `<div class="tt-mw">Masterwork rank ${it.up}/${D.MW_MAX}<span>+${it.up}% to everything on it</span></div>`;
   if (imp.dmg) h += `<div class="tt-base"><b>${U.fmt(imp.dmg)}</b> damage per hit<span>${imp.aps.toFixed(2)} attacks per second</span></div>`;
   else if (imp.armor) h += `<div class="tt-base"><b>${U.fmt(imp.armor)}</b> armor</div>`;
   else if (imp.life) h += `<div class="tt-base"><b>${U.fmt(imp.life)}</b> life</div>`;
   else if (imp.dmgPct) h += `<div class="tt-base"><b>+${imp.dmgPct}%</b> damage</div>`;
   if (it.affixes.length) {
     h += '<ul class="tt-aff">' + it.affixes.map((a, i) => {
-      const mw = (it.mw || []).filter(x => x === i).length;
-      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked' + (mw > 1 ? ' ×' + mw : '') + '</i>' : ''}</li>`;
+      const mw = I.masterworked(it, i);
+      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked</i>' : ''}</li>`;
     }).join('') + '</ul>';
   }
   if (it.aspect) { const a = D.ASPECT[it.aspect.id], r = I.aspectRange(a, it.slot); h += `<div class="tt-asp">${I.powerText(it)} <span>[${r[0]}–${r[1]}]</span></div>`; }
@@ -371,8 +372,8 @@ function renderCraft() {
     h += '<ul class="aff-list">';
     it.affixes.forEach((a, i) => {
       const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine', ok = I.canEnchant(it, i);
-      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
-        (last.idx === i ? '<em>new</em>' : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled.">Reroll</button>` : '') + '</li>';
+      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
+        (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
@@ -409,10 +410,12 @@ function renderCraft() {
   h += '<h4 class="sect">The forge</h4>';
   if (!f) h += '<p class="note">Upgrades, legendary aspects and salvage appear here once a piece is on the bench.</p>';
   else {
-    const it = f.it, max = I.maxUp(it), up = it.up || 0;
-    h += '<div class="op first"><div class="op-t"><b>Upgrade</b><span>+5% to everything on the piece each time. Every fourth upgrade masterworks one affix for +25%.</span></div>';
-    if (up >= max) h += `<div class="op-a"><i>Fully upgraded (${up}/${max})</i></div>`;
-    else { const c = I.upgradeCost(it); h += `<div class="op-a">${costHtml(c)}<button data-act="upgrade" ${G.canPay(c) ? '' : 'disabled'}>Upgrade to +${up + 1}<small>${up}/${max}</small></button></div>`; }
+    const it = f.it, max = D.MW_MAX, up = it.up || 0, c = I.upgradeCost(it), no = I.upgradeCheck(it);
+    const gain = UI.mwLast && UI.mwLast.id === it.id && UI.mwLast.ranks ? UI.mwLast.ranks : 0, has = it.mw && it.mw.length ? it.mw[0] : -1;
+    h += `<div class="op first"><div class="op-t"><b>Masterwork</b><span>Each strike adds 1 to 3 ranks, and every rank is +1% to everything on the piece. At rank ${max}, strike once more to masterwork one random affix for +25%. Striking again moves it to a different affix.</span></div>`;
+    h += `<div class="mw-bar ${up >= max ? 'full' : ''}"><i style="width:${up / max * 100}%"></i><b>Rank ${up}/${max}</b>${gain ? `<em>+${gain}</em>` : ''}</div>`;
+    if (up >= max) h += `<div class="mw-aff">${has >= 0 && it.affixes[has] ? '◆ Masterworked: ' + I.affixText(it, it.affixes[has], has) : it.affixes.length ? 'No affix is masterworked yet.' : ''}</div>`;
+    h += `<div class="op-a">${no ? `<i>${no}</i>` : costHtml(c) + `<button data-act="upgrade" ${G.canPay(c) ? '' : 'disabled'}>${up < max ? 'Masterwork<small>+1 to 3 ranks</small>' : has >= 0 ? 'Masterwork a different affix' : 'Masterwork an affix'}</button>`}</div>`;
     h += '</div>';
     if (!it.uniq) {
       h += '<div class="op"><div class="op-t"><b>Imprint a legendary aspect</b><span>Stamp an aspect you have learned onto a Rare or Legendary piece. It replaces any aspect already there. A Rare becomes Legendary, and a Legendary cannot be cubed, so add and remove affixes first.</span></div>';
@@ -481,7 +484,7 @@ UI.setTab = function (t) {
 };
 /* bring a piece of gear to the crafting bench */
 UI.craft = function (id) {
-  UI.forgeId = id; UI.forgeAspect = UI.pendingAspect || null; UI.pendingAspect = null; UI.cubeLast = null;
+  UI.forgeId = id; UI.forgeAspect = UI.pendingAspect || null; UI.pendingAspect = null; UI.cubeLast = null; UI.mwLast = null;
   UI.setTab('craft'); mark('forge', 'bag', 'gear');
   // when the panes are stacked (narrow windows), the bench is further down the page: go to it
   if (matchMedia('(max-width: 1240px)').matches) $('craft').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -611,7 +614,7 @@ UI.onGame = function (type, d) {
       S.seen.orb = 1; A.play('shrine', 0.3); mark('cube', 'top'); break; }
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind === 'enchant' && d.a && d.a.g && !d.was) UI.toast('It crit: a Greater affix!', 'good');
-      if (d.kind === 'upgrade' && d.mw >= 0) UI.toast('Masterwork! ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good');
+      if (d.kind === 'upgrade') { UI.mwLast = { id: d.it.id, ranks: d.ranks, t: performance.now() }; if (d.mw >= 0) UI.toast('Masterworked: ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good'); }
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
       break;
     case 'skills': mark('skills', 'hud', 'top', 'hint'); break;
@@ -734,7 +737,7 @@ UI.bind = function () {
       else if (act === 'transmute') { if (!G.cube(UI.forgeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
       else if (act === 'equip-one') G.equip(UI.forgeId);
       else if (act === 'bench-clear') { UI.forgeId = null; UI.forgeAspect = null; UI.cubeLast = null; hideTip(); mark('forge', 'bag', 'gear'); A.play('click'); }
-      else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that upgrade.'); }
+      else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that.'); }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }
       else if (act === 'imprint') { if (!G.imprint(UI.forgeId, UI.forgeAspect)) deny('You cannot afford that imprint.'); else UI.forgeAspect = null; }
       else if (act === 'salvage-one') { const id = UI.forgeId; UI.forgeId = null; G.salvage(id); }

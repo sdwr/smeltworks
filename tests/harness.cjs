@@ -24,7 +24,7 @@ function botTurn(SW, build, casual) {
     const it = S.gear[slot]; if (!it) continue;
     if (it.ilvl >= gl - 2) while (S.orbs.add > 0 && G.cube(it.id, 'add'));       // finish the affixes before an imprint locks them
     if (it.rar === 2) for (const a of D.ASPECTS) if (S.codex[a.id] != null && a.cat !== 'util' && I.canImprint(it, a.id) && !D.SLOTS.some(s => S.gear[s] && S.gear[s].aspect && S.gear[s].aspect.id === a.id) && G.imprint(it.id, a.id)) break;
-    if (it.rar >= 2 && it.ilvl >= gl - 4) while ((it.up || 0) < Math.min(4, I.maxUp(it)) && G.upgrade(it.id));
+    if (it.rar >= 2 && it.ilvl >= gl - 4) while ((it.up || 0) < 20 && G.upgrade(it.id));
   }
   if (S.gold > I.commissionCost(G.areaLevel()) * 6) {
     let worst = null;

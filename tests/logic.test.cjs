@@ -42,7 +42,7 @@ test('Each piece has one main stat, identical on every piece of its type and lev
 });
 test('Every affix value sits inside the range shown for it', (SW, G, D, I) => {
   for (let i = 0; i < 800; i++) {
-    const it = I.roll(1 + (i % 150), { rar: 1 + (i % 4), tier: i % 5 }); it.up = i % 9; if (it.up >= 4 && it.affixes.length) it.mw = [0];
+    const it = I.roll(1 + (i % 150), { rar: 1 + (i % 4), tier: i % 5 }); it.up = i % 26; if (it.up >= 25 && it.affixes.length) it.mw = [0];
     it.affixes.forEach((a, k) => {
       const m = I.affixRange(it, a, k).match(/^\[(.+)–(.+)\]$/); assert.ok(m, I.affixRange(it, a, k));
       const v = I.affixValue(it, a, k), lo = I.affixValue(it, { k: a.k, r: 0, g: a.g }, k), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g }, k);
@@ -56,12 +56,39 @@ test('Affix counts: none on Common, 1-2 Magic, 3-4 Rare, 4 Legendary and Unique'
   const show = s => [...s].sort().join();
   assert.equal(show(counts[0]), '0'); assert.equal(show(counts[1]), '1,2'); assert.equal(show(counts[2]), '3,4'); assert.equal(show(counts[3]), '4'); assert.equal(show(counts[4]), '4');
 });
-test('Upgrades add 5% each and masterwork every fourth', (SW, G, D, I) => {
-  const it = I.roll(30, { slot: 'chest', rar: 3 }), base = I.implicit(it).armor;
-  G.S.bag[0] = it; G.S.gold = 1e9; G.S.mats = { scrap: 999, dust: 999, soul: 999 };
-  for (let i = 0; i < 8; i++) assert.ok(G.upgrade(it.id));
-  assert.equal(it.up, 8); assert.equal(it.mw.length, 2); assert.equal(G.upgrade(it.id), null, 'capped at 8');
-  assert.ok(Math.abs(I.implicit(it).armor / base - 1.4) < 0.02);
+test('Masterworking: 25 ranks of +1%, 1 to 3 ranks a strike, then one affix that later strikes move', (SW, G, D, I) => {
+  const gains = new Set();
+  for (let n = 0; n < 40; n++) {
+    const it = I.roll(30, { slot: 'chest', rar: 3 }), base = I.implicit(it).armor;
+    G.S.bag[0] = it; G.S.gold = 1e12; G.S.mats = { scrap: 9999, dust: 9999, soul: 9999 };
+    let strikes = 0;
+    while (it.up < 25) { const was = it.up || 0, r = G.upgrade(it.id); assert.ok(r); assert.equal(r.mw, -1); assert.equal(it.up - was, r.ranks); assert.ok(r.ranks >= 1 && r.ranks <= 3); if (it.up < 25) gains.add(r.ranks); strikes++; assert.ok(!it.mw || !it.mw.length, 'no affix is masterworked before rank 25'); }
+    assert.equal(it.up, 25); assert.ok(strikes >= 9 && strikes <= 25, 'strikes ' + strikes);
+    assert.ok(Math.abs(I.implicit(it).armor / base - 1.25) < 0.02, '25 ranks are +25%');
+    const before = it.affixes.map((a, i) => I.affixValue(it, a, i));
+    const r = G.upgrade(it.id); assert.equal(it.up, 25, 'rank stays at 25'); assert.equal(r.ranks, 0); assert.equal(it.mw.length, 1); assert.equal(it.mw[0], r.mw);
+    const a = it.affixes[r.mw], v = I.affixValue(it, a, r.mw);
+    if (D.AFFIX[a.k].int) assert.equal(v, before[r.mw] + 1); else assert.ok(v >= before[r.mw] && Math.abs(v - before[r.mw] * 1.25) <= Math.max(1, before[r.mw] * 0.08), `${a.k} ${before[r.mw]} -> ${v}`);
+    for (let k = 0; k < 6; k++) { const was = it.mw[0], r2 = G.upgrade(it.id); assert.equal(it.mw.length, 1, 'only ever one'); assert.notEqual(it.mw[0], was, 'a strike always moves it'); assert.equal(r2.mw, it.mw[0]); }
+    it.affixes.forEach((x, i) => { if (i !== it.mw[0]) assert.equal(I.affixValue(it, x, i), before[i], 'the others go back to normal'); });
+  }
+  assert.equal([...gains].sort().join(), '1,2,3');
+  const plain = I.roll(30, { slot: 'chest', rar: 0 }); plain.up = 25; G.S.bag[1] = plain; assert.equal(G.upgrade(plain.id), null, 'nothing to masterwork on a Common');
+  const one = I.roll(30, { slot: 'chest', rar: 1 }); one.affixes = one.affixes.slice(0, 1); one.up = 25; G.S.bag[2] = one;
+  assert.ok(G.upgrade(one.id)); assert.equal(G.upgrade(one.id), null, 'a single affix cannot be moved');
+});
+test('Old saves: an upgrade becomes five masterwork ranks, and one masterworked affix is kept', (SW, G, D, I) => {
+  const S = G.fresh(); delete S.mwv;
+  const a = I.roll(30, { slot: 'chest', rar: 3 }); a.up = 3; const b = I.roll(30, { slot: 'ring', rar: 3 }); b.up = 8; b.mw = [2, 0];
+  S.gear.chest = a; S.bag[0] = b; G.init(S);
+  assert.equal(a.up, 15); assert.equal(b.up, 25); assert.equal(b.mw.join(), '2'); assert.equal(S.mwv, 1);
+  G.init(S); assert.equal(a.up, 15, 'only converted once');
+});
+test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
+  const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
+  let prev = first;
+  for (let n = 1; n <= 30; n++) { it.enchN = n; const c = I.enchantCost(it).gold; assert.ok(c >= prev && c <= prev * 1.45, `step ${n}: ${prev} -> ${c}`); prev = c; }
+  assert.ok(prev <= first * 5.05, 'never more than five times the first price'); assert.ok(I.enchantCost(it).dust <= 5);
 });
 test('Upgrades and imprints cannot be bought without the materials', (SW, G, D, I) => {
   const it = I.roll(20, { slot: 'ring', rar: 2 }); G.S.bag[0] = it; G.S.gold = 0;
@@ -123,7 +150,7 @@ test('Skill ranks come only from gear', (SW, G, D, I) => {
 });
 test('Stat caps hold', (SW, G, D, I) => {
   const S = G.S;
-  for (const s of D.SLOTS) { const it = I.roll(200, { rar: 2, slot: s.replace(/\d/, '') }); it.affixes = [{ k: 'crit', r: 1, g: 1 }, { k: 'dodge', r: 1, g: 1 }, { k: 'dr', r: 1, g: 1 }, { k: 'cdr', r: 1, g: 1 }]; it.up = 8; S.gear[s] = it; }
+  for (const s of D.SLOTS) { const it = I.roll(200, { rar: 2, slot: s.replace(/\d/, '') }); it.affixes = [{ k: 'crit', r: 1, g: 1 }, { k: 'dodge', r: 1, g: 1 }, { k: 'dr', r: 1, g: 1 }, { k: 'cdr', r: 1, g: 1 }]; it.up = 25; S.gear[s] = it; }
   G.recompute(); const st = G.C.st;
   assert.ok(st.crit <= 75 && st.dodge <= 60 && st.dr <= 50 && st.cdr <= 60);
 });
@@ -156,7 +183,7 @@ test('The cube: Kindling adds an affix and lifts rarity, up to four', (SW, G, D,
 test('The cube: Quenching removes one affix and keeps the bookkeeping straight', (SW, G, D, I) => {
   let it; do { it = I.roll(50, { rar: 2, slot: 'chest' }); } while (it.affixes.length < 4);
   const S = G.S; S.bag[0] = it; S.orbs.remove = 9; S.orbs.add = 0;
-  it.ench = 3; it.mw = [3, 0]; const keys = it.affixes.map(a => a.k);
+  it.ench = 3; it.mw = [3]; const keys = it.affixes.map(a => a.k);
   SW.util.rng = () => 0;                                   // always removes the first affix
   const res = G.cube(it.id, 'remove');
   assert.ok(res.removed.length > 3); assert.equal(it.affixes.length, 3); assert.equal(it.affixes[0].k, keys[1]);

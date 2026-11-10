@@ -30,6 +30,11 @@ G.init = function (saved) {
   const S = G.S;
   S.bag = S.bag.filter(Boolean); while (S.bag.length < D.BAG_SIZE) S.bag.push(null);   // fixed slots, so items can be arranged
   S.orbs = Object.assign({ add: 0, remove: 0, chaos: 0, divine: 0 }, S.orbs || {});
+  if (!S.mwv) {
+    // saves from before masterwork ranks: an old upgrade was +5%, so it becomes five ranks (25 at most), and a piece keeps one masterworked affix
+    for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it) { it.up = Math.min(D.MW_MAX, (it.up || 0) * 5); if (it.mw && it.mw.length > 1) it.mw = [it.mw[0]]; }
+    S.mwv = 1;
+  }
   let mx = 1;
   for (const s of D.SLOTS) if (S.gear[s]) mx = Math.max(mx, S.gear[s].id);
   S.stash = (S.stash || []).slice(0, Math.max(D.STASH_SIZE, (S.stash || []).length)); while (S.stash.length < D.STASH_SIZE) S.stash.push(null);
@@ -477,10 +482,10 @@ G.pay = function (c) { if (!G.canPay(c)) return false; for (const k in c) { if (
 G.upgrade = function (id) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
-  if ((it.up || 0) >= I.maxUp(it) || !G.pay(I.upgradeCost(it))) return null;
-  const mw = I.upgrade(it);
-  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'upgrade', it, mw }); G.save();
-  return { mw };
+  if (I.upgradeCheck(it) || !G.pay(I.upgradeCost(it))) return null;
+  const r = I.upgrade(it);
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'upgrade', it, mw: r.mw, ranks: r.ranks }); G.save();
+  return r;
 };
 G.enchant = function (id, idx) {
   const f = G.findItem(id); if (!f) return null;

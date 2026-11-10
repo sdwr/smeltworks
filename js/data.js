@@ -328,6 +328,11 @@ D.ORBS = {
 };
 D.ORB_IDS = Object.keys(D.ORBS);
 D.MAX_AFFIXES = 4;
+/* Masterworking: 25 ranks, +1% to everything on the piece per rank, and each strike at the forge adds 1 to 3 ranks.
+   At rank 25 one more strike masterworks a single affix (+25%, or +1 on a "+ to skills" affix); striking again moves it. */
+D.MW_MAX = 25;
+D.MW_STEP = 0.01;
+D.MW_BONUS = 1.25;
 
 /* ------------------------------------------------------------ monsters
    hp/dmg are multipliers on the level curve; int = seconds between attacks. */

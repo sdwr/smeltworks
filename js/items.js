@@ -93,16 +93,17 @@ I.makeName = function (it) {
 };
 
 /* ------------------------------------------------------------------ stats */
-I.upMult = it => 1 + 0.05 * (it.up || 0);
-I.maxUp = it => it.rar >= 3 ? 8 : it.rar === 2 ? 5 : 3;
+I.upMult = it => 1 + D.MW_STEP * (it.up || 0);        // it.up is the masterwork rank, 0 to 25
+I.maxUp = () => D.MW_MAX;
+I.masterworked = (it, idx) => !!it.mw && it.mw.includes(idx);   // it.mw holds the index of the one masterworked affix
 I.affixValue = function (it, a, idx) {
   const def = D.AFFIX[a.k];
   let v = U.lerp(def.lo, def.hi, a.r);
-  if (def.int) return Math.floor(v) + (a.g ? 1 : 0);
+  if (def.int) return Math.floor(v) + (a.g ? 1 : 0) + (idx != null && I.masterworked(it, idx) ? 1 : 0);
   if (def.sc === 'flat') v *= D.flat(it.ilvl); else if (def.sc === 'pct') v *= D.pct(it.ilvl);
   if (a.g) v *= 1.5;
   v *= I.upMult(it);
-  if (idx != null && it.mw) for (const m of it.mw) if (m === idx) v *= 1.25;
+  if (idx != null && I.masterworked(it, idx)) v *= D.MW_BONUS;
   if (def.dp) return Math.round(v * 10) / 10;
   return Math.max(1, Math.round(v));
 };
@@ -154,7 +155,7 @@ I.aspectRange = function (a, slot) {
   const m = slot === 'amulet' ? 1.5 : 1, f = v => a.hi < 5 ? Math.round(v * m * 100) / 100 : Math.round(v * m);
   return [f(a.lo), f(a.hi)];
 };
-I.itemPower = it => it.ilvl * 10 + (it.up || 0) * 5;
+I.itemPower = it => it.ilvl * 10 + (it.up || 0) * 2;
 I.typeLine = function (it) {
   const b = D.BASES[it.base];
   return D.RARITY[it.rar].name + ' ' + (b.slot === 'weapon' || b.slot === 'offhand' ? b.name : D.SLOT_NAME[it.slot]);
@@ -168,23 +169,39 @@ I.salvageYield = function (it) {
   const up = it.up || 0;
   if (it.rar === 0) return { scrap: 1 + (it.ilvl > 20 ? 1 : 0) };
   if (it.rar === 1) return { scrap: 3 };
-  if (it.rar === 2) return { scrap: 2, dust: 2 + Math.floor(up / 2) };
-  if (it.rar === 3) return { dust: 4 + up, soul: 1 };
+  if (it.rar === 2) return { scrap: 2, dust: 2 + Math.floor(up / 6) };
+  if (it.rar === 3) return { dust: 4 + Math.floor(up / 3), soul: 1 };
   return { dust: 4, soul: 3 };
 };
 I.goldScale = l => Math.pow(1.08, l - 1);
+/* One strike of masterworking. Below rank 25 the price follows the rank you are at; at 25 it is the price of
+   masterworking an affix, and of moving that masterwork to another one. */
 I.upgradeCost = function (it) {
-  const n = it.up || 0;
-  const c = { gold: Math.round(30 * I.goldScale(it.ilvl) * Math.pow(n + 1, 1.4)) };
-  if (n < 2) c.scrap = 4 + n * 4; else if (n < 5) { c.scrap = 6; c.dust = 2 + (n - 2) * 2; } else { c.dust = 8 + (n - 5) * 3; c.soul = 1 + (n - 5); }
+  const n = it.up || 0, gs = I.goldScale(it.ilvl);
+  if (n >= D.MW_MAX) return { gold: Math.round(180 * gs), dust: 6, soul: 2 };
+  const c = { gold: Math.round(14 * gs * Math.pow(1 + n / 5, 1.3)) };
+  if (n < 8) c.scrap = 3; else if (n < 16) { c.scrap = 4; c.dust = 1; } else { c.dust = 3; if (n >= 20) c.soul = 1; }
   return c;
 };
-I.upgrade = function (it) {
-  it.up = (it.up || 0) + 1;
-  if (it.up % 4 === 0 && it.affixes.length) { it.mw = it.mw || []; it.mw.push(Math.floor(U.rng() * it.affixes.length)); return it.mw[it.mw.length - 1]; }
-  return -1;
+/* null when a strike would do something, otherwise the reason it would not */
+I.upgradeCheck = function (it) {
+  if ((it.up || 0) < D.MW_MAX) return null;
+  if (!it.affixes.length) return 'It has no affixes to masterwork.';
+  if (it.affixes.length === 1 && I.masterworked(it, 0)) return 'Its only affix is already masterworked.';
+  return null;
 };
-I.enchantCost = it => ({ gold: Math.round(45 * I.goldScale(it.ilvl) * Math.pow(1.6, Math.min(8, it.enchN || 0))), dust: 2 });
+/* Returns { ranks, mw }: ranks gained (1-3, 0 at the cap) and the index of the affix masterworked, or -1. */
+I.upgrade = function (it) {
+  const n = it.up || 0;
+  if (n < D.MW_MAX) { const g = Math.min(D.MW_MAX - n, 1 + Math.floor(U.rng() * 3)); it.up = n + g; return { ranks: g, mw: -1 }; }
+  const pool = it.affixes.map((a, i) => i).filter(i => !I.masterworked(it, i));    // always a different affix from the current one
+  if (!pool.length) return null;
+  const i = pool[Math.floor(U.rng() * pool.length)];
+  it.mw = [i];
+  return { ranks: 0, mw: i };
+};
+/* Rerolling an affix costs more each time on the same piece, but gently: +40% of the first price per reroll, levelling off at five times it. */
+I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Math.round(45 * I.goldScale(it.ilvl) * (1 + 0.4 * n)), dust: 2 + Math.min(3, Math.floor(n / 3)) }; };
 /* Legendaries and Uniques cannot be cubed (no adding, removing or rerolling affixes), though a Tempering Orb can
    reroll their numbers. The forge can still enchant one affix on a Legendary; a Unique's affixes are fixed. */
 I.fixed = it => !!it.uniq || it.rar >= 3;
