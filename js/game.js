@@ -15,7 +15,7 @@ G.fresh = function () {
     hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null] },
     gear: {}, bag: [], stash: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 }, codex: {},
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
-    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false, false], sound: true, vol: 0.6 },
+    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false, false], sound: true, vol: 0.6, autoFlask: true },
     stats: { kills: 0, deaths: 0, leg: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
     seen: {}, uid: 1,
   };
@@ -309,7 +309,7 @@ G.update = function (dt) {
     G.phaseT += dt;
     const step = G.stepTime();
     while (G.path.length > 1 && G.phaseT >= step) { G.phaseT -= step; const c = G.path.shift(); W.pos = { x: c.x, y: c.y }; G.emit('moved'); }
-    if (G.path.length <= 1 && G.phaseT >= step) { G.arrive(G.target); }
+    if (!G.path.length || (G.path.length === 1 && G.phaseT >= step)) { G.arrive(G.target); }     // nothing to walk when you are already standing there
     return;
   }
   if (G.phase === 'battle') {
@@ -350,7 +350,7 @@ G.arrive = function (c) {
     G.emit('shrine', { id, c }); G.completeCell(c); G.phase = 'idle'; G.phaseT = 0.7; return;
   }
   const spec = G.makeSpec(c);
-  G.battle = new SW.Battle(G.C, G.persist, spec, { onKill: G.onKill }, !SW.headless);
+  G.battle = new SW.Battle(G.C, G.persist, spec, { onKill: G.onKill, autoFlask: G.S.opts.autoFlask !== false }, !SW.headless);
   G.phase = 'battle';
   G.emit('battleStart', { c, spec });
 };
@@ -522,6 +522,14 @@ G.cube = function (id, orb, cat) {
 
 /* Skills: no points and no levels. Pick up to five for the bar and three passives; gear supplies the ranks. */
 G.skillOn = id => Hr.selected(G.S).includes(id);
+/* drink the flask by hand. Returns null, or a line saying why not */
+G.drink = function () {
+  const B = G.battle;
+  if (!B || B.over) return 'Your Life refills between battles. Save the flask for a fight.';
+  const r = B.drink();
+  return r === 'cooldown' ? `The flask is still refilling (${Math.ceil(B.h.potCd)}s).` : r === 'full' ? 'You are at full Life.' : r ? 'Too late for that.' : null;
+};
+G.setAutoFlask = function (on) { G.S.opts.autoFlask = !!on; if (G.battle) G.battle.autoFlask = !!on; G.save(); };
 G.toggleSkill = function (id) {
   const S = G.S, sk = D.SKILL[id], h = S.hero;
   if (!sk) return 'No such skill.';

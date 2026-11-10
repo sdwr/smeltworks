@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero, G = SW.game, SP = SW.sprites, A = SW.audio;
-const UI = SW.ui = { tab: 'gear', dirty: {}, forgeId: null, forgeAspect: null, cubeId: null, cubeOrb: 'add', cubeCat: null, cubeLast: null, dragId: null, lastGold: -1 };
+const UI = SW.ui = { tab: 'skills', dirty: {}, forgeId: null, forgeAspect: null, cubeOrb: 'add', cubeCat: null, cubeLast: null, dragId: null, lastGold: -1 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const RC = i => D.RARITY[i].color;
@@ -107,19 +107,19 @@ function tipFor(el, x, y) {
     if (!f) return hideTip();
     const it = f.it;
     if (f.where === 'bag' || f.where === 'stash') {
-      const forge = UI.tab === 'forge', cube = UI.tab === 'cube', move = f.where === 'bag' ? 'Ctrl-click to stash it' : 'Ctrl-click to move it to the bag';
-      const hint = (cube ? 'Click to put it in the cube' : forge ? 'Click to put it on the anvil' : f.where === 'stash' ? 'Click to equip' : `Click to equip · Right-click to salvage${it.rar >= 3 ? ' (hold Shift)' : ''} · Alt-click to ${it.lock ? 'unlock' : 'lock'}`) + ' · ' + move;
+      const hint = f.where === 'stash' ? 'Click to craft · Right-click to equip · Ctrl-click to move it to the bag'
+        : `Click to craft · Right-click to equip · Shift-right-click to salvage · Ctrl-click to stash · Alt-click to ${it.lock ? 'unlock' : 'lock'}`;
       let cmp = null;
       if (it.slot === 'ring') { cmp = S.gear.ring1 && S.gear.ring2 ? (Hr.compute(S, Object.assign({}, S.gear, { ring1: null })).rating.power > Hr.compute(S, Object.assign({}, S.gear, { ring2: null })).rating.power ? S.gear.ring1 : S.gear.ring2) : null; }
       else cmp = S.gear[it.slot];
       showTip(itemTooltip(it, { compare: 1, hint }), x, y, cmp ? itemTooltip(cmp, { label: 'Equipped' }) : null);
       if (it.isNew) { it.isNew = 0; el.classList.remove('new'); }
-    } else showTip(itemTooltip(it, { label: f.where === 'gear' ? 'Equipped' : null, hint: f.where === 'gear' ? (UI.tab === 'cube' ? 'Click to put it in the cube' : UI.tab === 'forge' ? 'Click to put it on the anvil' : 'Click to take it off') : null }), x, y);
+    } else showTip(itemTooltip(it, { label: f.where === 'gear' ? 'Equipped' : null, hint: f.where === 'gear' ? 'Click to craft · Right-click to take it off' : null }), x, y);
   } else if (el.dataset.skill) showTip(skillTooltip(el.dataset.skill, { tree: el.dataset.tree }), x, y);
   else if (el.dataset.aspect) {
     const a = D.ASPECT[el.dataset.aspect], r = G.S.codex[a.id];
     const v = r == null ? null : (a.hi < 5 ? Math.round(U.lerp(a.lo, a.hi, r) * 100) / 100 : Math.round(U.lerp(a.lo, a.hi, r)));
-    showTip(`<div class="tt r3"><div class="tt-name">${a.name.startsWith('of ') ? 'Aspect ' + a.name : a.name + ' Aspect'}</div><div class="tt-type">${D.ASPECT_CAT_NAME[a.cat]}<span>${D.ASPECT_SLOTS[a.cat].map(s => D.SLOT_NAME[s]).join(', ')}</span></div><div class="tt-asp">${a.desc.replace('{v}', v == null ? a.lo + '–' + a.hi : v)} <span>[${a.lo}–${a.hi}]</span></div>${r == null ? '<div class="tt-hint warn">Salvage a Legendary carrying this aspect to learn it.</div>' : '<div class="tt-hint">Imprint it onto Rare or Legendary gear at the Forge. Amulets get 50% more.</div>'}</div>`, x, y);
+    showTip(`<div class="tt r3"><div class="tt-name">${a.name.startsWith('of ') ? 'Aspect ' + a.name : a.name + ' Aspect'}</div><div class="tt-type">${D.ASPECT_CAT_NAME[a.cat]}<span>${D.ASPECT_SLOTS[a.cat].map(s => D.SLOT_NAME[s]).join(', ')}</span></div><div class="tt-asp">${a.desc.replace('{v}', v == null ? a.lo + '–' + a.hi : v)} <span>[${a.lo}–${a.hi}]</span></div>${r == null ? '<div class="tt-hint warn">Salvage a Legendary carrying this aspect to learn it.</div>' : '<div class="tt-hint">Imprint it onto Rare or Legendary gear in Crafting. Amulets get 50% more.</div>'}</div>`, x, y);
   } else if (el.dataset.tile) {
     const [tx, ty] = el.dataset.tile.split(',').map(Number), c = G.cell(tx, ty);
     showTip(tileTip(c), x, y);
@@ -160,11 +160,12 @@ function renderHudBar() {
     const id = S.hero.bar[i];
     h += id ? `<div class="slot" data-skill="${id}" data-bar="${i}">${skillIcon(id)}<i class="cd"></i><em></em></div>` : '<div class="slot none" data-tip="Empty skill slot. Learn skills in the Skills tab."></div>';
   }
-  h += `<div class="slot flask" data-tip="Flask. Drinks itself when you fall below 35% Life and restores 35%. Refills over 22 seconds."><img src="${SP.url('i_flask', 'icon', 3)}" alt=""><i class="cd"></i><em></em></div>`;
+  h += `<div class="slot flask" data-act="drink" data-tip="Flask (Q). Drink it to restore 35% of your Life. Refills over 22 seconds.${S.opts.autoFlask !== false ? ' It also drinks itself if you fall below 35% Life; you can turn that off in Settings.' : ' It will not drink itself: that is turned off in Settings.'}"><img src="${SP.url('i_flask', 'icon', 3)}" alt=""><i class="cd"></i><em></em><kbd>Q</kbd></div>`;
   $('bar').innerHTML = h;
 }
 /* per-frame: orbs, cooldowns, xp, purse, boss bar */
 UI.frame = function () {
+  moveToken();
   const S = G.S, B = G.battle, h = B ? B.h : null, st = G.C.st;
   const hp = h ? h.hp / h.max : 1, heat = (h ? h.heat : G.persist.heat == null ? 30 : G.persist.heat) / D.HEAT_MAX;
   const oh = $('orb-hp'); oh.firstElementChild.style.height = Math.max(0, hp * 100) + '%';
@@ -187,7 +188,7 @@ UI.frame = function () {
     if (el.children[2].textContent !== String(txt)) el.children[2].textContent = txt;
     el.classList.toggle('dim', dim);
   });
-  if (UI.lastGold !== S.gold) { if (UI.lastGold >= 0 && S.gold > UI.lastGold) { const e = $('cur-gold').parentElement; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); } UI.lastGold = S.gold; $('cur-gold').textContent = U.fmt(S.gold); if (UI.tab === 'forge') mark('forge'); }
+  if (UI.lastGold !== S.gold) { if (UI.lastGold >= 0 && S.gold > UI.lastGold) { const e = $('cur-gold').parentElement; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); } UI.lastGold = S.gold; $('cur-gold').textContent = U.fmt(S.gold); mark('forge'); }
   for (const k of ['scrap', 'dust', 'soul']) { const e = $('cur-' + k), v = U.fmt(S.mats[k] || 0); if (e.textContent !== v) e.textContent = v; }
   if (performance.now() - meterT > 250) { meterT = performance.now(); renderMeter(); }
   // boss bar
@@ -246,18 +247,22 @@ function renderMap() {
   }
   h += `<div id="token"><img src="${SP.url('hero', 'hero', 3)}" alt=""></div>`;
   $('map').innerHTML = h;
-  moveToken(true);
+  moveToken();
   $('map-name').textContent = area.name;
   const left = map.cells.filter(c => c.type !== 'wall' && c.state !== 'done').length;
   $('map-sub').textContent = map.bossDone ? (map.allDone ? 'Cleared out. Nothing left here.' : `Boss down. ${left} tile${left === 1 ? '' : 's'} left.`) : `${D.ACTS[area.act].name}${S.world.tier ? ' · ' + D.TIERS[S.world.tier].name : ''}`;
   renderHint();
 }
-function moveToken(snap) {
+/* The token is placed from the game state every frame: while travelling it sits part-way between the tile it left and the
+   next one on the path. So it glides at any game speed, holds still when paused, and a redraw of the map never makes it jump. */
+function moveToken() {
   const t = $('token'); if (!t) return;
-  const p = G.S.world.pos, map = G.S.world.map;
-  if (snap) t.classList.add('snap'); else t.classList.remove('snap');
-  t.style.transitionDuration = (G.stepTime() / Math.max(1, G.S.opts.speed)).toFixed(3) + 's';     // glide for exactly one step
-  t.style.left = (p.x + 0.5) / map.w * 100 + '%'; t.style.top = (p.y + 0.5) / map.h * 100 + '%';
+  const W = G.S.world, map = W.map; let x = W.pos.x, y = W.pos.y;
+  if (G.phase === 'travel' && G.path.length) { const n = G.path[0], f = U.clamp(G.phaseT / G.stepTime(), 0, 1); x += (n.x - x) * f; y += (n.y - y) * f; }
+  const l = ((x + 0.5) / map.w * 100).toFixed(2) + '%', tp = ((y + 0.5) / map.h * 100).toFixed(2) + '%';
+  if (t.style.left !== l) t.style.left = l;
+  if (t.style.top !== tp) t.style.top = tp;
+  t.classList.toggle('walk', G.phase === 'travel' && G.S.opts.speed > 0);
 }
 const emptySlots = () => G.S.hero.bar.concat(G.S.hero.passives).filter(x => !x).length;
 function renderHint() {
@@ -268,7 +273,7 @@ function renderHint() {
   else if (S.bag.some(b => b && b.upg)) t = 'Something in your bag is better than what you are wearing. Look for the green arrow.';
   else if (!S.opts.auto && S.stats.kills > 12 && !S.seen.auto) t = 'Tired of clicking tiles? Turn on Auto and the smith explores alone.';
   else if (map.bossDone && !S.opts.auto) t = 'This area is beaten. Use the area name at the top to travel on.';
-  else if (!Object.keys(S.codex).length && S.stats.leg > 0) t = 'Salvage a Legendary to keep its aspect in the Codex, then imprint it on better gear at the Forge.';
+  else if (!Object.keys(S.codex).length && S.stats.leg > 0) t = 'Salvage a Legendary to keep its aspect in the Codex, then imprint it on better gear in Crafting.';
   $('hint').textContent = t;
 }
 
@@ -276,7 +281,7 @@ function renderHint() {
 const DOLL_L = ['helm', 'chest', 'gloves', 'pants', 'boots'], DOLL_R = ['weapon', 'offhand', 'amulet', 'ring1', 'ring2'];
 function dollSlot(slot) {
   const it = G.S.gear[slot];
-  return `<div class="dslot" data-slot="${slot}">${it ? itemCell(it, 'big') : `<div class="it empty big" data-tip="${D.SLOT_NAME[slot]}: nothing equipped"><span class="ph">${D.SLOT_NAME[slot]}</span></div>`}</div>`;
+  return `<div class="dslot" data-slot="${slot}">${it ? itemCell(it, 'big' + (it.id === UI.forgeId ? ' sel' : '')) : `<div class="it empty big" data-tip="${D.SLOT_NAME[slot]}: nothing equipped"><span class="ph">${D.SLOT_NAME[slot]}</span></div>`}</div>`;
 }
 function renderGear() {
   const S = G.S, C = G.C, st = C.st, w = S.gear.weapon, wk = w ? I.spriteKey(w) : null;
@@ -317,18 +322,15 @@ function renderBag() {
   h += '<span class="lbl" style="margin-left:8px" data-tip="Tick a rarity to salvage those drops the moment you pick them up. Upgrades are always kept.">Auto</span>';
   h += ['C', 'M', 'R', 'L'].map((nm, i) => `<label class="chk mini r${i}" data-tip="Auto-salvage ${D.RARITY[i].name} drops${i === 3 ? '. Their aspects still go to your Codex.' : ''}"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('');
   $('baghead').innerHTML = h;
-  const sel = it => it && ((UI.tab === 'forge' && it.id === UI.forgeId) || (UI.tab === 'cube' && it.id === UI.cubeId)) ? 'sel' : '';
+  const sel = it => (it && it.id === UI.forgeId ? 'sel' : '');
   let b = '';
   for (let i = 0; i < S.bag.length; i++) b += itemCell(S.bag[i] || null, sel(S.bag[i]), i, 'bag');
   $('bag').innerHTML = b;
   const m = G.stashCount();
-  $('stashhead').innerHTML = `<span class="bcount ${m >= D.STASH_SIZE ? 'full' : ''}">Stash <b>${m}</b>/${D.STASH_SIZE}</span><span class="note">Gear kept for crafting. Never salvaged. Drag it here, or Ctrl-click.</span>`;
+  $('stashhead').innerHTML = `<span class="bcount ${m >= D.STASH_SIZE ? 'full' : ''}">Stash <b>${m}</b>/${D.STASH_SIZE}</span><span class="note">Never salvaged. Drag here or Ctrl-click.</span>`;
   b = '';
   for (let i = 0; i < S.stash.length; i++) b += itemCell(S.stash[i] || null, sel(S.stash[i]), i, 'stash');
   $('stash').innerHTML = b;
-  // what you are wearing, as a pick-list for the forge and the cube
-  const pick = UI.tab === 'cube' ? UI.cubeId : UI.forgeId;
-  $('worn').innerHTML = '<span class="lbl">Wearing</span>' + D.SLOTS.map(sl => S.gear[sl] ? itemCell(S.gear[sl], pick === S.gear[sl].id ? 'sel' : '') : '<div class="it empty"></div>').join('');
 }
 
 /* -------------------------------------------------------------- skills */
@@ -336,7 +338,7 @@ function renderSkills() {
   const S = G.S, hero = S.hero;
   const slot = (id, kind) => id ? `<div class="node on has" data-skill="${id}" data-tree="1">${skillIcon(id)}</div>` : `<div class="node none ${kind}"></div>`;
   let h = '<div class="sk-head"><div>Every skill is yours from the start. <span class="note">Their ranks come from gear.</span></div><button class="small" data-act="clear-skills" data-tip="Empty the bar and the passive slots.">Clear</button></div>';
-  h += '<div class="sk-bar"><span class="lbl">Bar</span>' + hero.bar.map(id => slot(id, '')).join('') + '<span class="lbl" style="margin-left:10px">Passives</span>' + hero.passives.map(id => slot(id, 'round')).join('') + '</div>';
+  h += '<div class="sk-bar"><div><span class="lbl">Bar</span>' + hero.bar.map(id => slot(id, '')).join('') + '</div><div><span class="lbl">Passives</span>' + hero.passives.map(id => slot(id, 'round')).join('') + '</div></div>';
   h += '<p class="note">Five skills on the bar, one Basic and one Ultimate at most, and three passives. The smith picks the best Core skill for each moment.</p>';
   for (const d in D.DISC) {
     const disc = D.DISC[d], list = D.SKILLS.filter(s => s.disc === d), bonus = G.C.st.skAll + G.C.st['sk' + disc.name];
@@ -351,35 +353,59 @@ function renderSkills() {
 }
 
 /* --------------------------------------------------------------- forge */
-function renderForge() {
+const affName = k => D.AFFIX[k].t.replace(/\+?\{v\}%? ?(to )?/, '');
+/* One bench for everything done to a single piece: its affixes (with enchant rerolls), the cube, then the forge. */
+function renderCraft() {
   const S = G.S, f = UI.forgeId ? G.findItem(UI.forgeId) : null;
-  if (!f) UI.forgeId = null;
+  if (!f) { UI.forgeId = null; UI.cubeLast = null; }
   let h = '';
-  if (!f) {
-    h += '<div class="anvil empty"><b>The anvil is empty</b><p>Pick a piece you are wearing, or anything in your bag or stash, to upgrade it, reroll an affix or imprint a legendary aspect.</p></div>';
-  } else {
+  if (!f) h += '<div class="anvil empty"><b>The bench is empty</b><p>Click any piece of gear, worn or in your bag or stash, to bring it here. Then use the cube to add and remove affixes, or the forge to upgrade it, reroll an affix or imprint a legendary aspect.</p></div>';
+  else {
+    const it = f.it, last = UI.cubeLast || {}, ec = I.enchantCost(it);
+    h += `<div class="anvil"><div class="an-item">${itemCell(it, 'big')}<div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${I.itemPower(it)} Item Power · ${f.where === 'gear' ? 'worn' : f.where === 'stash' ? 'in stash' : 'in bag'}</span></div>` +
+      `<button class="small" data-act="${f.where === 'gear' ? 'unequip-one' : 'equip-one'}">${f.where === 'gear' ? 'Take off' : 'Equip'}</button></div>`;
+    const imp = I.implicit(it);
+    h += `<div class="main-stat">${imp.dmg ? `<b>${U.fmt(imp.dmg)}</b> damage per hit, ${imp.aps.toFixed(2)} attacks per second` : imp.armor ? `<b>${U.fmt(imp.armor)}</b> armor` : imp.life ? `<b>${U.fmt(imp.life)}</b> life` : `<b>+${imp.dmgPct}%</b> damage`}</div>`;
+    h += '<ul class="aff-list">';
+    it.affixes.forEach((a, i) => {
+      const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine', ok = I.canEnchant(it, i);
+      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
+        (last.idx === i ? '<em>new</em>' : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled.">Reroll</button>` : '') + '</li>';
+    });
+    if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
+    if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
+    h += '</ul>';
+    if (it.aspect || it.uniq) h += `<div class="an-asp">✦ ${I.powerText(it)}</div>`;
+    h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.uniq ? '<span>A Unique\'s affixes cannot be rerolled</span>' : it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
+  }
+  // ---- the cube
+  const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
+  const why = !f ? 'Bring a piece of gear to the bench first.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb, cat);
+  h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
+  if (aims) {
+    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null, ...Object.keys(D.AFFIX_CAT)].map(c => {
+      const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
+      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" ${c ? `data-tip="${f ? `On a ${D.BASES[f.it.base].name.toLowerCase()}: ` + (D.AFFIX_CAT[c].keys.filter(k => D.AFFIX[k].slots.includes(I.poolKey(f.it))).map(affName).join(', ') || 'nothing') : D.AFFIX_CAT[c].keys.map(affName).join(', ')}"` : ''}>${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
+    }).join('') + '</div>';
+  }
+  const say = why || (cat ? (orb === 'add' ? `Adds one random ${D.AFFIX_CAT[cat].name} affix.` : `Removes one ${D.AFFIX_CAT[cat].name} affix.`) : orb === 'add' ? 'Adds one random affix of any type.' : orb === 'remove' ? 'Removes one affix, chosen at random.' : O.desc);
+  h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p></div>`;
+  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].name}</b><span>${D.ORBS[k].short}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
+  // ---- the forge
+  h += '<h4 class="sect">The forge</h4>';
+  if (!f) h += '<p class="note">Upgrades, legendary aspects and salvage appear here once a piece is on the bench.</p>';
+  else {
     const it = f.it, max = I.maxUp(it), up = it.up || 0;
-    h += `<div class="anvil"><div class="an-item">${itemCell(it, 'big')}<div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${I.itemPower(it)} Item Power${f.where === 'gear' ? ' · equipped' : ''}</span></div></div>`;
-    // upgrade
-    h += '<div class="op"><div class="op-t"><b>Upgrade</b><span>+5% to everything on the item each time. Every fourth upgrade masterworks one affix for +25%.</span></div>';
+    h += '<div class="op first"><div class="op-t"><b>Upgrade</b><span>+5% to everything on the piece each time. Every fourth upgrade masterworks one affix for +25%.</span></div>';
     if (up >= max) h += `<div class="op-a"><i>Fully upgraded (${up}/${max})</i></div>`;
     else { const c = I.upgradeCost(it); h += `<div class="op-a">${costHtml(c)}<button data-act="upgrade" ${G.canPay(c) ? '' : 'disabled'}>Upgrade to +${up + 1}<small>${up}/${max}</small></button></div>`; }
     h += '</div>';
-    // enchant
-    if (it.uniq) h += '<div class="op"><div class="op-t"><b>Enchant</b><span>A Unique\'s affixes are fixed and cannot be rerolled.</span></div></div>';
-    else if (it.affixes.length) {
-      const c = I.enchantCost(it);
-      h += `<div class="op"><div class="op-t"><b>Enchant</b><span>Reroll one affix into something else. Once you pick an affix, only that one can be rerolled on this item.</span></div><div class="op-a">${costHtml(c)}</div><ul class="aff-list">`;
-      it.affixes.forEach((a, i) => { const ok = I.canEnchant(it, i); h += `<li class="${ok ? '' : 'no'} ${it.ench === i ? 'ench' : ''}"><span>${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>${ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(c) ? '' : 'disabled'}>Reroll</button>` : ''}</li>`; });
-      h += '</ul></div>';
-    }
-    // imprint
     if (!it.uniq) {
-      h += '<div class="op"><div class="op-t"><b>Imprint</b><span>Stamp an aspect from your Codex onto Rare or Legendary gear. It replaces any aspect already there. A Rare becomes Legendary, and a Legendary cannot be cubed, so add and remove affixes first. Enchanting still works afterwards.</span></div>';
+      h += '<div class="op"><div class="op-t"><b>Imprint a legendary aspect</b><span>Stamp an aspect you have learned onto a Rare or Legendary piece. It replaces any aspect already there. A Rare becomes Legendary, and a Legendary cannot be cubed, so add and remove affixes first.</span></div>';
       if (it.rar < 2) h += '<div class="op-a"><i>Only Rare and Legendary gear can hold an aspect.</i></div>';
       else {
         const list = D.ASPECTS.filter(a => S.codex[a.id] != null && I.canImprint(it, a.id));
-        if (!list.length) h += '<div class="op-a"><i>No aspect in your Codex fits this slot yet. Salvage Legendaries to learn more.</i></div>';
+        if (!list.length) h += `<div class="op-a"><i>${Object.keys(S.codex).length ? 'None of the aspects you know fit this slot.' : 'You know no aspects yet.'} Salvage a Legendary to learn its aspect.</i></div>`;
         else {
           if (!list.some(a => a.id === UI.forgeAspect)) UI.forgeAspect = null;
           const c = I.imprintCost(it);
@@ -390,53 +416,27 @@ function renderForge() {
       h += '</div>';
     }
     if (f.where === 'bag') { const y = I.salvageYield(it); h += `<div class="op slim"><div class="op-t"><b>Salvage</b><span>Break it down for ${Object.keys(y).map(k => y[k] + ' ' + MAT_NAME[k]).join(', ')}${it.aspect ? '. Its aspect goes into your Codex.' : '.'}</span></div><div class="op-a"><button class="danger" data-act="salvage-one">Salvage</button></div></div>`; }
-    h += '</div>';
   }
-  const cc = { gold: I.commissionCost(G.areaLevel()) };
-  h += `<div class="commission"><div class="op-t"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice, at this area's level. Never Common.</span></div><div class="op-a">${costHtml(cc)}<span class="note">each</span></div><div class="com-row">` +
-    D.ITEM_SLOTS.map(s => `<button class="com" data-act="commission" data-slot="${s}" ${G.canPay(cc) ? '' : 'disabled'} data-tip="Commission a ${D.SLOT_NAME[s].toLowerCase()}"><img src="${SP.url(D.BASES[D.BASES_BY_SLOT[s][0]].spr, 'iron', 2)}" alt=""><span>${D.SLOT_NAME[s]}</span></button>`).join('') + '</div></div>';
-  $('tab-forge').innerHTML = h;
+  $('tab-craft').innerHTML = h;
 }
-
-/* ---------------------------------------------------------------- cube */
-const affName = k => D.AFFIX[k].t.replace(/\+?\{v\}%? ?(to )?/, '');
-function renderCube() {
-  const S = G.S, f = UI.cubeId ? G.findItem(UI.cubeId) : null, orb = UI.cubeOrb, O = D.ORBS[orb];
-  if (!f) { UI.cubeId = null; UI.cubeLast = null; }
-  const aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
-  const why = !f ? 'Put a piece of gear in the cube: click one you are wearing, or one in your bag or stash below.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb, cat);
-  let h = '';
-  h += `<div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div></div>`;
-  if (aims) {
-    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null, ...Object.keys(D.AFFIX_CAT)].map(c => {
-      const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
-      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" ${c ? `data-tip="${f ? `On a ${D.BASES[f.it.base].name.toLowerCase()}: ` + (D.AFFIX_CAT[c].keys.filter(k => D.AFFIX[k].slots.includes(I.poolKey(f.it))).map(affName).join(', ') || 'nothing') : D.AFFIX_CAT[c].keys.map(affName).join(', ')}"` : ''}>${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
-    }).join('') + '</div>';
-  }
-  const say = why || (cat ? (orb === 'add' ? `Adds one random ${D.AFFIX_CAT[cat].name} affix.` : `Removes one ${D.AFFIX_CAT[cat].name} affix.`) : orb === 'add' ? 'Adds one random affix of any type.' : orb === 'remove' ? 'Removes one affix, chosen at random.' : O.desc);
-  h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
-  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].name}</b><span>${D.ORBS[k].short}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
-  if (f) {
-    const it = f.it, last = UI.cubeLast || {};
-    h += `<div class="cube-item"><div class="an-item"><div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span></div></div><ul class="aff-list">`;
-    it.affixes.forEach((a, i) => { const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine'; h += `<li class="${fresh ? 'fresh' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}</span>${last.idx === i ? '<em>new</em>' : ''}</li>`; });
-    if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
-    if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
-    h += '</ul></div>';
-  }
-  h += '<p class="note">Orbs drop from elites, champions, bosses, chests and Slag Hoarders, and one comes with every fully cleared map. You choose the type; the affix within it is random.</p>';
-  $('tab-cube').innerHTML = h;
+function renderCommission() {
+  const S = G.S, lvl = G.areaLevel(), cc = { gold: I.commissionCost(lvl) };
+  let h = `<div class="cx-head"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice. It comes at this area's level (${lvl}) and is never Common. It lands in your bag.</span></div>`;
+  h += `<div class="op-a" style="justify-content:flex-start">${costHtml(cc)}<span class="note">each. You have ${U.fmt(S.gold)} gold${G.bagCount() >= D.BAG_SIZE ? ', but your bag is full' : ''}.</span></div><div class="com-row">` +
+    D.ITEM_SLOTS.map(s => { const worn = (s === 'ring' ? [S.gear.ring1, S.gear.ring2] : [S.gear[s]]).map(x => (x ? x.ilvl : '–')).join(' / ');
+      return `<button class="com" data-act="commission" data-slot="${s}" ${G.canPay(cc) ? '' : 'disabled'} data-tip="Cast a ${D.SLOT_NAME[s].toLowerCase()}. You are wearing item level ${worn}."><img src="${SP.url(D.BASES[D.BASES_BY_SLOT[s][0]].spr, D.material(lvl).pal, 3)}" alt=""><b>${D.SLOT_NAME[s]}</b><span>wearing ${worn}</span></button>`; }).join('') + '</div>';
+  $('tab-commission').innerHTML = h;
 }
 
 /* --------------------------------------------------------------- codex */
 function renderCodex() {
   const S = G.S, have = Object.keys(S.codex).length;
-  let h = `<div class="cx-head"><b>${have}</b> of ${D.ASPECTS.length} aspects learned<span>Salvage a Legendary to keep its aspect here. A better roll replaces a worse one.</span></div>`;
+  let h = `<div class="cx-head"><b>${have}</b> of ${D.ASPECTS.length} aspects learned<span>Salvage a Legendary to learn its aspect; a better roll replaces a worse one. To put one on gear, click it here (or open a Rare or Legendary piece in Crafting) and use Imprint.</span></div>`;
   for (const cat of ['off', 'def', 'util']) {
     h += `<h4 class="c-${cat}">${D.ASPECT_CAT_NAME[cat]}<span>${D.ASPECT_SLOTS[cat].map(s => D.SLOT_NAME[s]).join(', ')}</span></h4><div class="cx-list">`;
     for (const a of D.ASPECTS.filter(x => x.cat === cat)) {
       const r = S.codex[a.id], v = r == null ? null : (a.hi < 5 ? Math.round(U.lerp(a.lo, a.hi, r) * 100) / 100 : Math.round(U.lerp(a.lo, a.hi, r)));
-      h += `<div class="cx ${r == null ? 'no' : ''}" data-aspect="${a.id}"><b>${a.name}</b><span>${r == null ? 'Not found yet' : a.desc.replace('{v}', '<em>' + v + '</em>')}</span>${r == null ? '' : `<i style="--p:${Math.round(r * 100)}%"></i>`}</div>`;
+      h += `<div class="cx ${r == null ? 'no' : 'has'}" data-aspect="${a.id}" ${r == null ? '' : `data-usecodex="${a.id}"`}><b>${a.name}</b><span>${r == null ? 'Not found yet' : a.desc.replace('{v}', '<em>' + v + '</em>')}</span>${r == null ? '' : `<i style="--p:${Math.round(r * 100)}%"></i>`}</div>`;
     }
     h += '</div>';
   }
@@ -451,23 +451,26 @@ UI.render = function () {
   if (d.top) renderTop();
   if (d.hud) renderHudBar();
   if (d.map) renderMap(); else if (d.hint) renderHint();
-  if (d.gear && UI.tab === 'gear') renderGear();
+  if (d.gear) renderGear();
   if (d.bag || d.gear || d.forge || d.cube) renderBag();
   if (d.skills && UI.tab === 'skills') renderSkills();
-  if (d.forge && UI.tab === 'forge') renderForge();
-  if ((d.cube || d.bag) && UI.tab === 'cube') renderCube();
+  if ((d.forge || d.cube || d.bag) && UI.tab === 'craft') renderCraft();
+  if ((d.forge || d.bag || d.map) && UI.tab === 'commission') renderCommission();
   if (d.codex && UI.tab === 'codex') renderCodex();
 };
 UI.setTab = function (t) {
   UI.tab = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  for (const k of ['gear', 'skills', 'forge', 'cube', 'codex']) $('tab-' + k).classList.toggle('hidden', k !== t);
-  $('bagwrap').classList.toggle('hidden', t !== 'gear' && t !== 'forge' && t !== 'cube');
-  $('stashwrap').classList.toggle('hidden', t !== 'gear' && t !== 'forge' && t !== 'cube');
-  $('worn').classList.toggle('hidden', t !== 'forge' && t !== 'cube');
-  $('gear-stats').classList.toggle('hidden', t !== 'gear');
-  $('right').dataset.tab = t;
-  mark(t, 'bag'); hideTip();
+  for (const k of ['skills', 'craft', 'commission', 'codex']) $('tab-' + k).classList.toggle('hidden', k !== t);
+  $('panel').scrollTop = 0;
+  mark(t === 'craft' || t === 'commission' ? 'forge' : t); hideTip();
+};
+/* bring a piece of gear to the crafting bench */
+UI.craft = function (id) {
+  UI.forgeId = id; UI.forgeAspect = UI.pendingAspect || null; UI.pendingAspect = null; UI.cubeLast = null;
+  UI.setTab('craft'); mark('forge', 'bag', 'gear');
+  // when the panes are stacked (narrow windows), the bench is further down the page: go to it
+  if (matchMedia('(max-width: 1240px)').matches) $('craft').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 /* ------------------------------------------------- banners, feed, toast */
@@ -522,7 +525,8 @@ UI.settings = function () {
   const S = G.S;
   UI.modal(`<h2>Settings</h2>
     <div class="set"><label>Volume</label><input type="range" id="set-vol" min="0" max="100" value="${Math.round(S.opts.vol * 100)}"></div>
-    <div class="set"><label>Keys</label><span class="note">Space pauses. A toggles Auto. 1, 2, 3 set the speed. G, S, F, C switch tabs.</span></div>
+    <div class="set"><label>Flask</label><label class="chk"><input type="checkbox" id="set-flask" ${S.opts.autoFlask !== false ? 'checked' : ''}><span>Drink it automatically below 35% Life. You can always drink it yourself with Q.</span></label></div>
+    <div class="set"><label>Keys</label><span class="note">Q drinks the flask. Space pauses. A toggles Auto. 1, 2, 3 set the speed. S, F, O, C open Skills, Crafting, Commission and the Codex. T travels.</span></div>
     <div class="set"><label>Save</label><div><button class="small" id="set-export">Copy save to clipboard</button> <button class="small" id="set-import">Load a save from text</button><textarea id="set-text" class="hidden" placeholder="Paste a save here, then press Load again"></textarea></div></div>
     <div class="set"><label>Start over</label><div><button class="small danger" id="set-wipe">Delete this save</button> <span class="note">There is no undo.</span></div></div>
     <div class="mfoot"><span class="note">Smeltworks saves in this browser after every battle.</span><button data-close="1">Close</button></div>`, 'settings');
@@ -531,7 +535,7 @@ UI.welcome = function () {
   UI.modal(`<h1>Smeltworks</h1>
     <p class="lead">The forges under the mountain have gone cold, and something down there is keeping them that way.</p>
     <p>You are the last smith. Fight your way down tile by tile. Battles play themselves: your part is the build. Pick skills, wear what drops, and remake the rest at the forge.</p>
-    <ul class="how"><li><b>Map</b>Click a glowing tile to fight there. Reach the boss to open the next area.</li><li><b>Gear</b>A green arrow marks an upgrade. Click to equip, right-click to salvage.</li><li><b>Skills</b>All open from the start. Pick five and three passives; gear raises their ranks.</li></ul>
+    <ul class="how"><li><b>Map</b>Click a glowing tile to fight there. Reach the boss to open the next area.</li><li><b>Gear</b>A green arrow marks an upgrade. Right-click to equip, click to craft.</li><li><b>Skills</b>All open from the start. Pick five and three passives; gear raises their ranks.</li></ul>
     <div class="mfoot"><span></span><button data-close="1" class="big">Go down</button></div>`, 'welcome');
 };
 UI.victory = function () {
@@ -558,7 +562,7 @@ UI.onGame = function (type, d) {
   switch (type) {
     case 'stats': mark('gear', 'top', 'hud', 'forge', 'cube', 'skills', 'map'); break;
     case 'map': mark('map', 'top'); break;
-    case 'moved': moveToken(); A.play('step', 0.1); break;
+    case 'moved': A.play('step', 0.1); break;
     case 'expedition': mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); UI.banner(D.AREAS[S.world.area].name, `${D.ACTS[D.AREAS[S.world.area].act].name} · Level ${G.areaLevel()}–${G.areaLevel() + 3}`, 'area', 1800); break;
     case 'battleStart':
       SW.fx.battleStart(); S.seen.fought = 1; mark('map');
@@ -589,7 +593,7 @@ UI.onGame = function (type, d) {
       if (d.res.crit) { A.play('master'); UI.toast(d.res.crit > 1 ? `${d.res.crit} Greater affixes!` : 'It crit: a Greater affix!', 'good'); }
       break;
     case 'orbs': { const n = {}; for (const k of d.list) n[k] = (n[k] || 0) + 1;
-      UI.feed('Orb: ' + Object.keys(n).map(k => `<b style="color:${D.ORBS[k].color}">${n[k] > 1 ? n[k] + ' × ' : ''}${D.ORBS[k].name}</b>`).join(', ') + (S.seen.orb ? '' : ' <span class="dim">Use it in the Cube tab</span>'), 'orb');
+      UI.feed('Orb: ' + Object.keys(n).map(k => `<b style="color:${D.ORBS[k].color}">${n[k] > 1 ? n[k] + ' × ' : ''}${D.ORBS[k].name}</b>`).join(', ') + (S.seen.orb ? '' : ' <span class="dim">Click a piece of gear and use it in Crafting</span>'), 'orb');
       S.seen.orb = 1; A.play('shrine', 0.3); mark('cube', 'top'); break; }
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind === 'enchant' && d.a && d.a.g && !d.was) UI.toast('It crit: a Greater affix!', 'good');
@@ -612,6 +616,7 @@ UI.onBattle = function (ev) {
 
 /* --------------------------------------------------------------- input */
 function setSpeed(v) { const S = G.S; if (v === 0) { if (S.opts.speed === 0) v = UI.prevSpeed || 1; else UI.prevSpeed = S.opts.speed; } S.opts.speed = v; mark('top'); }
+function drink() { const why = G.drink(); if (why) deny(why); }
 function toggleAuto() { const S = G.S; S.opts.auto = !S.opts.auto; S.seen.auto = 1; mark('top', 'hint'); A.play('click'); if (S.opts.auto && S.opts.speed === 0) setSpeed(1); }
 function go(area, tier) {
   if (!G.isUnlocked(area, tier)) return;
@@ -653,12 +658,18 @@ UI.bind = function () {
     e.preventDefault();
     if (el.dataset.item) {
       const f = G.findItem(+el.dataset.item);
-      if (f && f.where === 'stash') return deny('Stashed gear is safe. Move it to your bag to salvage it.');
-      if (!f || f.where !== 'bag') return;
+      if (!f) return;
+      hideTip();
+      if (!e.shiftKey) {                         // right-click wears it, or takes it off
+        if (f.where === 'gear') { if (!G.unequip(f.slot)) deny('Your bag is full.'); }
+        else G.equip(f.it.id);
+        return;
+      }
+      if (f.where === 'gear') return deny('Take it off before salvaging it.');
+      if (f.where === 'stash') return deny('Stashed gear is safe. Move it to your bag to salvage it.');
       if (f.it.lock) return deny('That piece is locked. Alt-click to unlock it.');
-      if (f.it.rar >= 3 && !e.shiftKey) return deny('Hold Shift and right-click to salvage a ' + D.RARITY[f.it.rar].name + '.');
-      if (UI.forgeId === f.it.id) UI.forgeId = null; if (UI.cubeId === f.it.id) UI.cubeId = null;
-      G.salvage(f.it.id); hideTip();
+      if (UI.forgeId === f.it.id) UI.forgeId = null;
+      G.salvage(f.it.id);
     }
   });
   document.addEventListener('click', e => {
@@ -684,6 +695,13 @@ UI.bind = function () {
       G.phaseT = 0; if (G.enterCell(c)) { A.play('click'); hideTip(); }
       return;
     }
+    if ((el = t.closest('[data-usecodex]'))) {
+      // from the Codex: carry the aspect over to the bench
+      const id = el.dataset.usecodex, f = UI.forgeId ? G.findItem(UI.forgeId) : null;
+      if (f && I.canImprint(f.it, id)) { UI.forgeAspect = id; UI.setTab('craft'); }
+      else { UI.pendingAspect = id; UI.setTab('craft'); UI.toast(`${D.ASPECT[id].name}: now click a Rare or Legendary ${D.ASPECT_SLOTS[D.ASPECT[id].cat].map(x => D.SLOT_NAME[x].toLowerCase()).join(', ')} to imprint it.`); }
+      A.play('click'); return;
+    }
     if ((el = t.closest('[data-pick]'))) { UI.forgeAspect = el.dataset.pick; mark('forge'); return; }
     if ((el = t.closest('[data-aim]'))) { UI.cubeCat = el.dataset.aim || null; mark('cube'); A.play('click'); return; }
     if ((el = t.closest('[data-orb]'))) { UI.cubeOrb = el.dataset.orb; mark('cube'); A.play('click'); return; }
@@ -695,10 +713,13 @@ UI.bind = function () {
     }
     if ((el = t.closest('[data-act]'))) {
       const act = el.dataset.act;
-      if (act === 'sort') { G.sortBag(); A.play('click'); }
+      if (act === 'drink') drink();
+      else if (act === 'sort') { G.sortBag(); A.play('click'); }
       else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity.'); }
       else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
-      else if (act === 'transmute') { if (!G.cube(UI.cubeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
+      else if (act === 'transmute') { if (!G.cube(UI.forgeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
+      else if (act === 'equip-one') G.equip(UI.forgeId);
+      else if (act === 'unequip-one') { const f = G.findItem(UI.forgeId); if (f && !G.unequip(f.slot)) deny('Your bag is full.'); }
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that upgrade.'); }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }
       else if (act === 'imprint') { if (!G.imprint(UI.forgeId, UI.forgeAspect)) deny('You cannot afford that imprint.'); else UI.forgeAspect = null; }
@@ -711,10 +732,7 @@ UI.bind = function () {
       if (!f) return;
       if (e.altKey) { G.toggleLock(f.it.id); hideTip(); return; }
       if ((e.ctrlKey || e.metaKey) && f.where !== 'gear') { if (!G.stashToggle(f.it.id)) deny(f.where === 'bag' ? 'Your stash is full.' : 'Your bag is full.'); else A.play('equip'); hideTip(); return; }
-      if (UI.tab === 'cube') { UI.cubeId = f.it.id; UI.cubeLast = null; mark('cube', 'bag'); A.play('click'); return; }
-      if (UI.tab === 'forge') { UI.forgeId = f.it.id; UI.forgeAspect = null; mark('forge', 'bag'); A.play('click'); return; }
-      if (f.where === 'bag' || f.where === 'stash') G.equip(f.it.id);
-      else if (f.where === 'gear' && el.closest('.doll')) { if (!G.unequip(f.slot)) deny('Your bag is full.'); }
+      UI.craft(f.it.id); A.play('click');
       return;
     }
   });
@@ -722,6 +740,7 @@ UI.bind = function () {
     const t = e.target, S = G.S;
     if (t.dataset.autosalv != null) { S.opts.salv[+t.dataset.autosalv] = t.checked; G.save(); }
     else if (t.id === 'opt-full') { S.opts.full = t.checked; G.save(); }
+    else if (t.id === 'set-flask') { G.setAutoFlask(t.checked); mark('hud'); }
     else if (t.id === 'opt-advance') { S.opts.onClear = t.checked ? 'advance' : 'repeat'; G.save(); }
   });
   document.addEventListener('input', e => { if (e.target.id === 'set-vol') { G.S.opts.vol = e.target.value / 100; A.setVol(G.S.opts.vol); } });
@@ -737,8 +756,9 @@ UI.bind = function () {
     if (k === 'escape') UI.closeModal();
     else if (k === ' ') { e.preventDefault(); setSpeed(0); }
     else if (k === 'a') toggleAuto();
+    else if (k === 'q') drink();
     else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(2); else if (k === '3') setSpeed(4);
-    else if (k === 'g') UI.setTab('gear'); else if (k === 's') UI.setTab('skills'); else if (k === 'f') UI.setTab('forge'); else if (k === 'c') UI.setTab('codex'); else if (k === 'u') UI.setTab('cube');
+    else if (k === 's') UI.setTab('skills'); else if (k === 'f') UI.setTab('craft'); else if (k === 'o') UI.setTab('commission'); else if (k === 'c') UI.setTab('codex');
     else if (k === 't') UI.travel();
   });
   window.addEventListener('resize', () => SW.fx.resize());
@@ -747,9 +767,9 @@ UI.bind = function () {
 UI.fresh = function () {
   const S = G.S;
   A.on = S.opts.sound; A.setVol(S.opts.vol);
-  UI.forgeId = null; UI.cubeId = null; UI.cubeLast = null; UI.lastGold = -1;
+  UI.forgeId = null; UI.cubeLast = null; UI.lastGold = -1;
   SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg);
-  mark('top', 'hud', 'map', 'gear', 'bag', 'skills', 'forge', 'cube', 'codex');
+  mark('top', 'hud', 'map', 'gear', 'bag', 'skills', 'forge', 'codex');
   UI.setTab(UI.tab);
 };
 })();

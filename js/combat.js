@@ -7,10 +7,11 @@ const MAX_MOBS = 6;
 
 class Battle {
   /* C: computed hero sheet. persist: {cds, heat, potCd} carried between battles.
-     spec: {waves:[[{id,lvl,elite,boss,champ,name}]], shrine}. hooks: {onKill(mob)} */
+     spec: {waves:[[{id,lvl,elite,boss,champ,name}]], shrine}. hooks: {onKill(mob), autoFlask} */
   constructor(C, persist, spec, hooks, rec) {
     this.C = C; this.st = C.st; this.mods = C.mods; this.spec = spec; this.hooks = hooks || {};
     this.rec = rec !== false; this.ev = [];
+    this.autoFlask = this.hooks.autoFlask !== false;      // drink the flask without being asked, below 35% Life
     this.t = 0; this.over = null; this.nextId = 1;
     this.mobs = []; this.wave = -1; this.waveDelay = 0.45; this.pending = [];
     this.killed = 0; this.dmgDone = 0; this.dmgTaken = 0; this.minFrac = 1; this.by = {}; this.ft = 0;
@@ -425,11 +426,19 @@ class Battle {
       if (mods.cheatDeath && !h.cheat) { h.cheat = true; h.hp = h.max * mods.cheatDeath / 100; this.emit({ e: 'phoenix' }); }
       else { h.hp = 0; this.over = 'lose'; this.emit({ e: 'end', win: false }); return; }
     }
-    if (h.hp < h.max * 0.35 && h.potCd <= 0) {
-      const plus = (mods.potionPlus || 0) + (st.flask || 0);
-      this.heal(h.max * 0.35 * (1 + plus / 100), true); h.potCd = 22 * (mods.potionPlus ? 0.8 : 1);
-      this.emit({ e: 'potion' });
-    }
+    if (this.autoFlask && h.hp < h.max * 0.35) this.drink();
+  }
+  /* The flask: 35% of Life back, then 22 seconds to refill. The player can drink it at any time (Q);
+     with autoFlask on it also drinks itself the moment Life falls under 35%. Returns null, or why not. */
+  drink() {
+    const h = this.h, mods = this.mods, st = this.st;
+    if (this.over || h.hp <= 0) return 'dead';
+    if (h.potCd > 0) return 'cooldown';
+    if (h.hp >= h.max) return 'full';
+    const plus = (mods.potionPlus || 0) + (st.flask || 0);
+    this.heal(h.max * 0.35 * (1 + plus / 100), true); h.potCd = 22 * (mods.potionPlus ? 0.8 : 1);
+    this.emit({ e: 'potion' });
+    return null;
   }
 
   /* ------------------------------------------------------- monster side */

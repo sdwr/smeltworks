@@ -18,12 +18,18 @@ text, load one back in, or wipe it.
 | Space | Pause / resume |
 | A | Toggle Auto (explore and fight without waiting for you) |
 | 1 2 3 | Speed 1×, 2×, 4× |
-| G S F U C | Gear, Skills, Forge, Cube, Codex |
+| Q | Drink the flask |
+| S F O C | Skills, Crafting, Commission, Codex |
 | T | Travel |
 
-Mouse: click a glowing tile to fight there. Click a bag item to equip it, right-click to salvage it (Shift for
-Legendaries), Alt-click to lock it, Ctrl-click to send it to the stash (or back). Drag items to rearrange the bag
-and stash, onto the paper doll to equip, or off it to unequip. In Skills, click a skill to use it and click again to drop it.
+The screen is three panes. Left: Skills, Crafting, Commission and the Codex. Middle: your character, bag and
+stash. Right: the fight and the map. On a window narrower than 1240px they stack instead.
+
+Mouse: click a glowing tile to fight there. Click any piece of gear to put it on the crafting bench. Right-click
+a piece to equip it, or to take it off if you are wearing it. Shift-right-click salvages it, Alt-click locks it,
+Ctrl-click sends it to the stash (or back). Drag items to rearrange the bag and stash, onto the paper doll to
+equip, or off it to unequip. In Skills, click a skill to use it and click again to drop it. Click the flask on
+the skill bar to drink it.
 
 ## What is in it
 
@@ -38,12 +44,19 @@ and stash, onto the paper doll to equip, or off it to unequip. In Skills, click 
   monster level, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
 - **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
-  and it is what the Cube tab offers you alongside what you are wearing.
+  so it is where you park pieces between trips to the crafting bench.
 - **Greater affixes.** Any affix has a small chance to crit when it is rolled, on a drop or at the cube or forge,
   and come out Greater: half again as strong, marked with a gold star. The chance rises in Torment. It applies to
   drops, forge enchants and Tempering Orbs; Kindling and Slag rolls never crit.
-- **The forge.** Upgrade (+5% per step, a masterwork every fourth), enchant (reroll one affix), imprint (stamp an
-  aspect from the Codex onto a Rare), commission (pay gold for a random piece in a slot you choose), salvage.
+- **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
+- **The forge.** Upgrade (+5% per step, a masterwork every fourth), enchant (the Reroll button beside an affix),
+  imprint and salvage.
+- **Legendary aspects.** Salvaging a Legendary teaches its aspect to the Codex. To put one on gear, open a Rare or
+  Legendary piece on the bench and use Imprint, or click the aspect in the Codex and then the piece. A Rare
+  becomes Legendary.
+- **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the area's level.
+- **The flask.** Restores 35% of your Life and refills over 22 seconds. Drink it with Q. By default it also drinks
+  itself below 35% Life, so Auto can run unattended; Settings turns that off.
 - **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
   affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
   reroll them all, Tempering Orbs reroll the numbers. Kindling and Quenching can be aimed at a type (Offence,
@@ -74,7 +87,7 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 | Ring | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat, Magic find, Orb find | |
 
 A slot does not have every type, but any type it has offers at least three affixes. Walking from one room to the
-next takes five seconds; Movement Speed (boots only) shortens it.
+next takes three seconds; Movement Speed (boots only) shortens it.
 
 The reasoning is in the comment above `D.AFFIX` in `js/data.js`. Uniques ignore these pools.
 

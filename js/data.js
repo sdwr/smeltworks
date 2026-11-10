@@ -424,7 +424,7 @@ D.TIER_DMG = [1, 1.4, 1.9, 2.6, 3.5];
 /* level of an area at a difficulty tier */
 D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 30 + area * 2;
 D.MAP_W = 7; D.MAP_H = 5;
-D.TRAVEL_STEP = 5;      // seconds to walk from one room to the next, before Movement Speed
+D.TRAVEL_STEP = 3;      // seconds to walk from one room to the next, before Movement Speed
 D.SHRINES = {
   fury:  { name: 'Shrine of Fury',  desc: '+40% damage', color: '#ff5a3a' },
   stone: { name: 'Shrine of Stone', desc: '35% less damage taken', color: '#a9a393' },

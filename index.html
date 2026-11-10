@@ -37,7 +37,35 @@
   </header>
 
   <main id="main">
-    <section id="left">
+    <aside id="craft">
+      <nav id="tabs">
+        <button data-tab="skills" class="on">Skills<i id="pts-badge"></i></button>
+        <button data-tab="craft">Crafting</button>
+        <button data-tab="commission">Commission</button>
+        <button data-tab="codex">Codex</button>
+      </nav>
+      <div id="panel">
+        <div id="tab-skills" class="tab"></div>
+        <div id="tab-craft" class="tab hidden"></div>
+        <div id="tab-commission" class="tab hidden"></div>
+        <div id="tab-codex" class="tab hidden"></div>
+      </div>
+    </aside>
+
+    <section id="char">
+      <div id="tab-gear"></div>
+      <div id="bagwrap">
+        <div id="baghead"></div>
+        <div id="bag"></div>
+      </div>
+      <div id="stashwrap">
+        <div id="stashhead"></div>
+        <div id="stash"></div>
+      </div>
+      <div id="gear-stats"></div>
+    </section>
+
+    <section id="combat">
       <div id="arena">
         <canvas id="cv"></canvas>
         <div id="banner"></div>
@@ -64,33 +92,6 @@
         <div id="hint"></div>
       </div>
     </section>
-
-    <aside id="right">
-      <nav id="tabs">
-        <button data-tab="gear" class="on">Gear</button>
-        <button data-tab="skills">Skills<i id="pts-badge"></i></button>
-        <button data-tab="forge">Forge</button>
-        <button data-tab="cube">Cube</button>
-        <button data-tab="codex">Codex</button>
-      </nav>
-      <div id="worn" class="worn hidden"></div>
-      <div id="panel">
-        <div id="tab-gear" class="tab"></div>
-        <div id="tab-skills" class="tab hidden"></div>
-        <div id="tab-forge" class="tab hidden"></div>
-        <div id="tab-cube" class="tab hidden"></div>
-        <div id="tab-codex" class="tab hidden"></div>
-      </div>
-      <div id="bagwrap">
-        <div id="baghead"></div>
-        <div id="bag"></div>
-      </div>
-      <div id="stashwrap">
-        <div id="stashhead"></div>
-        <div id="stash"></div>
-      </div>
-      <div id="gear-stats"></div>
-    </aside>
   </main>
 </div>
 
