@@ -12,7 +12,7 @@ G.emit = (type, data) => { for (const fn of G.listeners) fn(type, data || {}); }
 G.fresh = function () {
   const S = {
     v: 2,
-    hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null] },
+    hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null], tech: {} },
     gear: {}, bag: [], stash: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 }, codex: {},
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
     opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false, false], sound: true, vol: 0.6, autoFlask: true },
@@ -30,6 +30,7 @@ G.init = function (saved) {
   const S = G.S;
   S.bag = S.bag.filter(Boolean); while (S.bag.length < D.BAG_SIZE) S.bag.push(null);   // fixed slots, so items can be arranged
   S.orbs = Object.assign({ add: 0, remove: 0, chaos: 0, divine: 0 }, S.orbs || {});
+  if (!S.hero.tech) S.hero.tech = {};
   if (!S.mwv) {
     // saves from before masterwork ranks: an old upgrade was +5%, so it becomes five ranks (25 at most), and a piece keeps one masterworked affix
     for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it) { it.up = Math.min(D.MW_MAX, (it.up || 0) * 5); if (it.mw && it.mw.length > 1) it.mw = [it.mw[0]]; }
@@ -182,8 +183,29 @@ G.makeSpec = function (c) {
 
 /* ------------------------------------------------------------------- loot */
 G.bagCount = () => G.S.bag.filter(Boolean).length;
+/* A legendary power can be worn once. The slot of a worn piece that carries the same aspect or is the same Unique as
+   `it`, or null. `except` is a slot to ignore: the one `it` would replace. */
+G.powerKey = it => (it ? (it.uniq ? 'u:' + it.uniq : it.aspect ? 'a:' + it.aspect.id : null) : null);
+G.twinOf = function (it, except) {
+  const k = G.powerKey(it); if (!k) return null;
+  for (const s of D.SLOTS) { const w = G.S.gear[s]; if (s !== except && w && w !== it && G.powerKey(w) === k) return s; }
+  return null;
+};
+/* the slots this piece may go in: its own, minus any that would leave the same power worn twice */
+G.equipSlots = function (it, slotHint) {
+  let slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
+  if (slotHint && slots.includes(slotHint)) slots = [slotHint];
+  return slots.filter(s => !G.twinOf(it, s));
+};
+/* why a piece cannot be equipped (there), or null */
+G.equipWhy = function (id, slotHint) {
+  const f = G.findItem(id); if (!f || f.where === 'gear') return null;
+  if (G.equipSlots(f.it, slotHint).length) return null;
+  const s = G.twinOf(f.it, slotHint && f.it.slot === 'ring' ? slotHint : null) || G.twinOf(f.it), w = G.S.gear[s];
+  return `You already wear ${f.it.uniq ? 'that Unique' : 'the ' + D.ASPECT[f.it.aspect.id].name + ' aspect'}${w ? ' (' + w.name + ')' : ''}. Each legendary power can only be worn once.`;
+};
 G.isUpgrade = function (it) {
-  const S = G.S, slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
+  const S = G.S, slots = G.equipSlots(it);
   for (const s of slots) {
     if (!S.gear[s]) return true;
     const g = Object.assign({}, S.gear); g[s] = it;
@@ -483,10 +505,11 @@ G.equip = function (id, slotHint) {
   const S = G.S, f = G.findItem(id);
   if (!f || f.where === 'gear') return false;
   const it = f.it;
-  let slot = it.slot;
-  if (slot === 'ring') {
-    if (slotHint === 'ring1' || slotHint === 'ring2') slot = slotHint;
-    else if (!S.gear.ring1) slot = 'ring1'; else if (!S.gear.ring2) slot = 'ring2';
+  const slots = G.equipSlots(it, slotHint);
+  if (!slots.length) return false;                         // the same legendary power is already worn elsewhere (G.equipWhy says where)
+  let slot = slots[0];
+  if (slots.length > 1) {
+    if (!S.gear.ring1) slot = 'ring1'; else if (!S.gear.ring2) slot = 'ring2';
     else {
       // replace whichever ring gains more
       const g1 = Object.assign({}, S.gear, { ring1: it }), g2 = Object.assign({}, S.gear, { ring2: it });
@@ -575,11 +598,15 @@ G.enchant = function (id, idx) {
 G.imprint = function (id, aspectId) {
   const f = G.findItem(id); if (!f) return false;
   const it = f.it, r = G.S.codex[aspectId];
-  if (r == null || !I.canImprint(it, aspectId) || !G.pay(I.imprintCost(it))) return false;
+  if (r == null || !I.canImprint(it, aspectId)) return false;
+  if (f.where === 'gear' && G.wornAspect(aspectId, f.slot)) return false;      // it is already on another piece you are wearing
+  if (!G.pay(I.imprintCost(it))) return false;
   I.imprint(it, aspectId, r);
   G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'imprint', it }); G.save();
   return true;
 };
+/* the slot of a worn piece carrying this aspect, other than `except` */
+G.wornAspect = function (aspectId, except) { for (const s of D.SLOTS) { const w = G.S.gear[s]; if (s !== except && w && w.aspect && w.aspect.id === aspectId) return s; } return null; };
 G.commission = function (slot) {
   const S = G.S, ilvl = G.areaLevel(), cost = { gold: I.commissionCost(ilvl) };
   if (G.bagCount() >= D.BAG_SIZE || !G.pay(cost)) return null;
@@ -626,6 +653,15 @@ G.toggleSkill = function (id) {
   }
   if (!msg) { G.recompute(); G.emit('skills'); G.save(); }
   return msg;
+};
+/* choose a technique for a skill, or pass the one already chosen to take it off again */
+G.setTech = function (skill, id) {
+  const h = G.S.hero, list = D.TECH[skill];
+  if (!list || !list.some(t => t.id === id)) return false;
+  if (!h.tech) h.tech = {};
+  if (h.tech[skill] === id) delete h.tech[skill]; else h.tech[skill] = id;
+  G.recompute(); G.emit('skills'); G.save();
+  return true;
 };
 G.clearSkills = function () { const h = G.S.hero; h.bar = h.bar.map(() => null); h.passives = h.passives.map(() => null); G.recompute(); G.emit('skills'); G.save(); };
 })();

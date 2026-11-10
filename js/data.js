@@ -345,6 +345,59 @@ D.SKILLS = [
   { id: 'quicken', disc: 'storm', type: 'passive', name: 'Quickening', max: 3, val: 0.15, dp: 2,
     desc: s => `Critical strikes take ${s.val} seconds off your cooldowns.` },
 ];
+/* Techniques: every skill on the bar can take one of two. Each bends the skill toward a stat, so the same skill wants
+   different gear depending on how it is used: Strike with Tempo wants Attack Speed, Strike with Expose wants Vulnerable
+   Damage. They mostly work by making a condition happen more often (enemies Vulnerable, hits critical) and leave the
+   size of the payoff to gear, which is what makes that stat worth chasing.
+     stat   the affix the technique rewards, shown on its button
+     rate   [key, weight]: how much the gear comparison leans toward that stat while the technique is chosen (H.rating) */
+D.TECH = {
+  strike: [
+    { id: 'tempo',  name: 'Tempo',  stat: 'Attack Speed', rate: ['aspd', 0.4], desc: 'Strike deals +1% damage for every 1% Attack Speed you have.' },
+    { id: 'expose', name: 'Expose', stat: 'Vulnerable Damage', rate: ['vulnUp', 0.4], desc: 'Every Strike makes its target Vulnerable, not just every third.' } ],
+  sunder: [
+    { id: 'rend',   name: 'Rend',   stat: 'Burn/Bleed Damage', rate: ['dot', 0.5], desc: "Sunder's Bleed is three times as strong and opens on the main target too." },
+    { id: 'brutal', name: 'Brutal', stat: 'Critical Strike Damage', rate: ['critDmg', 0.3], desc: 'Your Critical Strike Damage bonus counts double for Sunder.' } ],
+  quake: [
+    { id: 'spikes',  name: 'Spiked Ground', stat: 'Thorns', rate: ['thorns', 1.2], desc: 'Earthshaker also deals 250% of your Thorns to every enemy.' },
+    { id: 'shatter', name: 'Shatter', stat: 'Vulnerable Damage', rate: ['vulnUp', 0.25], desc: 'The Stun lasts twice as long, and the Stunned are Vulnerable for 3 seconds.' } ],
+  ironskin: [
+    { id: 'bulwark', name: 'Bulwark', stat: 'Barrier Strength', rate: ['barrier', 0.25], desc: 'Iron Skin goes up below 90% Life instead of 60%, and comes back 5 seconds sooner.' },
+    { id: 'barbs',   name: 'Barbs',   stat: 'Thorns', rate: ['thorns', 0.8], desc: 'While the Barrier holds, your Thorns are tripled.' } ],
+  meteor: [
+    { id: 'aftermath',  name: 'Aftermath',  stat: 'Vulnerable Damage', rate: ['vulnUp', 0.15], desc: 'Everything Meteor Hammer hits is Vulnerable for 6 seconds.' },
+    { id: 'relentless', name: 'Relentless', stat: 'Cooldown Reduction', rate: ['cdr', 0.3], desc: 'Your Cooldown Reduction counts double for Meteor Hammer.' } ],
+  cinder: [
+    { id: 'bellows',  name: 'Bellows',  stat: 'Heat Generation', rate: ['heat', 0.6], desc: 'Cinder Slash deals +2% damage for every 1% Heat Generation you have.' },
+    { id: 'smoulder', name: 'Smoulder', stat: 'Burn/Bleed Damage', rate: ['dot', 0.4], desc: "Cinder Slash's Burn is twice as strong." } ],
+  wave: [
+    { id: 'flashfire', name: 'Flashfire', stat: 'Critical Strike Damage', rate: ['critDmg', 0.3], desc: 'Flame Wave always critically strikes enemies that are already Burning.' },
+    { id: 'scorch',    name: 'Scorch',    stat: 'Vulnerable Damage', rate: ['vulnUp', 0.3], desc: 'Flame Wave leaves every enemy it hits Vulnerable for 3 seconds.' } ],
+  brand: [
+    { id: 'deep',     name: 'Deep Brand', stat: 'Burn/Bleed Damage', rate: ['dot', 0.5], desc: "Your Burn/Bleed Damage bonus counts double for Searing Brand's Burn." },
+    { id: 'detonate', name: 'Detonate',   stat: 'Critical Strike Damage', rate: ['critDmg', 0.4], desc: "Against an enemy that is already Burning, Searing Brand's hit is doubled and always a critical strike." } ],
+  forgeheart: [
+    { id: 'stoked',    name: 'Stoked',     stat: 'Heat Generation', rate: ['heat', 0.4], desc: "Every Core skill you cast takes 1.5 seconds off Forge Heart's cooldown." },
+    { id: 'whiteheat', name: 'White Heat', stat: 'Critical Strike Damage', rate: ['critDmg', 0.25], desc: 'While Forge Heart burns, +15% Critical Strike Chance.' } ],
+  eruption: [
+    { id: 'pyroclasm', name: 'Pyroclasm', stat: 'Critical Strike Damage', rate: ['critDmg', 0.2], desc: 'Eruption always critically strikes enemies that are already Burning.' },
+    { id: 'magma',     name: 'Magma',     stat: 'Burn/Bleed Damage', rate: ['dot', 0.3], desc: 'The Burns Eruption leaves are three times as strong.' } ],
+  jab: [
+    { id: 'flurry', name: 'Flurry', stat: 'Critical Strike Chance', rate: ['crit', 0.8], desc: 'A third jab whenever one of the first two critically strikes.' },
+    { id: 'static', name: 'Static', stat: 'Vulnerable Damage', rate: ['vulnUp', 0.3], desc: 'A jab that critically strikes makes its target Vulnerable for 3 seconds.' } ],
+  chain: [
+    { id: 'fork',  name: 'Fork',  stat: 'Critical Strike Chance', rate: ['crit', 0.8], desc: 'Each arc that critically strikes adds another arc, up to three more.' },
+    { id: 'surge', name: 'Surge', stat: 'Attack Speed', rate: ['aspd', 0.3], desc: 'Chain Lightning deals +1% damage for every 1% Attack Speed you have.' } ],
+  lance: [
+    { id: 'skewer',   name: 'Skewer',   stat: 'Critical Strike Damage', rate: ['critDmg', 0.3], desc: 'Your Critical Strike Damage bonus counts double for Thunder Lance.' },
+    { id: 'piercing', name: 'Piercing', stat: 'Vulnerable Damage', rate: ['vulnUp', 0.3], desc: 'Thunder Lance leaves its target Vulnerable for 4 seconds, and your Vulnerable Damage bonus counts triple for it.' } ],
+  overcharge: [
+    { id: 'capacitor', name: 'Capacitor', stat: 'Attack Speed', rate: ['aspd', 0.25], desc: 'While Overcharged, gain Critical Strike Damage equal to your Attack Speed bonus.' },
+    { id: 'livewire',  name: 'Live Wire', stat: 'Critical Strike Chance', rate: ['crit', 0.6], desc: 'Each critical strike extends Overcharge by 0.3 seconds, up to 6 seconds more.' } ],
+  tempest: [
+    { id: 'gale',        name: 'Gale',        stat: 'Attack Speed', rate: ['aspd', 0.2], desc: 'Tempest throws one more bolt for every 8% Attack Speed you have, up to 12 more.' },
+    { id: 'thunderhead', name: 'Thunderhead', stat: 'Critical Strike Chance', rate: ['crit', 0.5], desc: "Each bolt that critically strikes takes 1 second off Tempest's cooldown." } ],
+};
 D.SKILL = {};
 D.SKILLS.forEach(s => { D.SKILL[s.id] = s; s.el = D.DISC[s.disc].el; if (!s.max) s.max = 5; });
 D.SKILL_RANK = 0.12;         // each rank past the first adds 12% of the base

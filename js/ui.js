@@ -33,7 +33,8 @@ function costHtml(c) {
 /* How wearing this piece would change the estimate. A ring is compared against each ring you are wearing, since
    it could replace either: both lines are shown, the better swap first (that is the one right-click makes). */
 function compareHtml(it) {
-  const S = G.S, slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
+  const S = G.S, slots = G.equipSlots(it);
+  if (!slots.length) { const w = S.gear[G.twinOf(it)]; return `<div class="tt-cmp"><b class="neg">✕ Cannot be worn</b><span class="neg">with ${w ? esc(w.name) : 'what you wear'}</span></div><div class="tt-note">${it.uniq ? 'You are already wearing this Unique.' : 'You are already wearing this aspect.'} Each legendary power can only be worn once.</div>`; }
   const cur = G.C.rating, d = (a, b) => (b ? (a / b - 1) * 100 : 100);
   const line = (label, v) => `<span class="${v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'zero'}">${label} ${v > 0 ? '+' : ''}${v.toFixed(Math.abs(v) < 10 ? 1 : 0)}%</span>`;
   let rows = slots.map(s => { const g = Object.assign({}, S.gear); g[s] = it; const r = Hr.compute(S, g).rating; return { s, r, dp: d(r.power, cur.power), worn: S.gear[s] }; });
@@ -81,6 +82,7 @@ function skillTooltip(id, o) {
   if (facts.length) h += `<div class="tt-facts">${facts.join(' · ')}</div>`;
   h += `<div class="tt-desc">${sk.desc(Hr.skillNums(sk, rank))}</div>`;
   h += `<div class="tt-next"><b>With one more rank from gear</b> ${sk.desc(Hr.skillNums(sk, rank + 1))}</div>`;
+  if (D.TECH[id]) { const cur = (G.S.hero.tech || {})[id]; h += '<div class="tt-tech">' + D.TECH[id].map(t => `<div class="${cur === t.id ? 'on' : ''}"><b>${cur === t.id ? '◆ ' : ''}${t.name}</b> <i>${t.stat}</i><br>${t.desc}</div>`).join('') + '</div>'; }
   if (o && o.tree) h += `<div class="tt-hint">${on ? 'Click to take it off' : 'Click to use it'} · Gear with "+ to ${disc.name} Skills" raises its rank</div>`;
   return h + '</div>';
 }
@@ -353,6 +355,18 @@ function renderSkills() {
   let h = '<div class="sk-head"><div>Every skill is yours from the start. <span class="note">Their ranks come from gear.</span></div><button class="small" data-act="clear-skills" data-tip="Empty the bar and the passive slots.">Clear</button></div>';
   h += '<div class="sk-bar"><div><span class="lbl">Bar</span>' + hero.bar.map(id => slot(id, '')).join('') + '</div><div><span class="lbl">Passives</span>' + hero.passives.map(id => slot(id, 'round')).join('') + '</div></div>';
   h += '<p class="note">Five skills on the bar, one Basic and one Ultimate at most, and three passives. The smith picks the best Core skill for each moment.</p>';
+  // techniques: one of two for each skill on the bar, each leaning the skill toward a stat
+  const active = hero.bar.filter(id => id && D.TECH[id]);
+  h += '<div class="tech"><div class="tech-head"><b>Techniques</b><span>One for each skill on your bar. Each makes a different stat worth more, and the upgrade arrows follow.</span></div>';
+  if (!active.length) h += '<p class="note">Put a skill on the bar to choose its technique.</p>';
+  for (const id of active) {
+    const cur = (hero.tech || {})[id];
+    const on = D.TECH[id].find(t => t.id === cur);
+    h += `<div class="tech-row d-${D.SKILL[id].disc}"><div class="node on has" data-skill="${id}">${skillIcon(id)}</div><div class="tech-body"><div class="tech-opts">` +
+      D.TECH[id].map(t => `<button class="tech-opt ${cur === t.id ? 'on' : ''}" data-tech="${id}:${t.id}" data-tip="<b>${t.name}</b> · ${D.SKILL[id].name}<br>${esc(t.desc)}<br><i>Makes ${t.stat} worth more.${cur === t.id ? ' Click to take it off.' : ''}</i>"><b>${t.name}</b><i>${t.stat}</i></button>`).join('') +
+      `</div><p class="tech-say ${on ? '' : 'none'}">${on ? on.desc : 'No technique chosen. Hover one to see what it does.'}</p></div></div>`;
+  }
+  h += '</div>';
   for (const d in D.DISC) {
     const disc = D.DISC[d], list = D.SKILLS.filter(s => s.disc === d), bonus = G.C.st.skAll + G.C.st['sk' + disc.name];
     h += `<div class="disc d-${d}"><div class="disc-head"><b>${disc.name}</b><span>${disc.blurb}</span>${bonus ? `<i>+${bonus} ranks from gear</i>` : ''}</div><div class="nodes">`;
@@ -456,7 +470,10 @@ function renderCraft() {
         else {
           if (!list.some(a => a.id === UI.forgeAspect)) UI.forgeAspect = null;
           const c = I.imprintCost(it);
-          h += '<div class="asp-pick">' + list.map(a => `<button class="asp ${UI.forgeAspect === a.id ? 'on' : ''} c-${a.cat}" data-pick="${a.id}" data-aspect="${a.id}">${a.name.replace(/^of (the )?/, '')}</button>`).join('') + '</div>';
+          const taken = a => f.where === 'gear' && G.wornAspect(a.id, f.slot);           // already on another piece you are wearing
+          if (UI.forgeAspect && taken(D.ASPECT[UI.forgeAspect])) UI.forgeAspect = null;
+          h += '<div class="asp-pick">' + list.map(a => `<button class="asp ${UI.forgeAspect === a.id ? 'on' : ''} c-${a.cat}" data-pick="${a.id}" data-aspect="${a.id}" ${taken(a) ? 'disabled' : ''}>${a.name.replace(/^of (the )?/, '')}</button>`).join('') + '</div>';
+          if (list.some(taken)) h += '<p class="note">Greyed-out aspects are already on another piece you are wearing. Each can only be worn once.</p>';
           h += `<div class="op-a">${costHtml(c)}<button data-act="imprint" ${UI.forgeAspect && G.canPay(c) ? '' : 'disabled'}>${UI.forgeAspect ? 'Imprint ' + D.ASPECT[UI.forgeAspect].name : 'Choose an aspect'}</button></div>`;
         }
       }
@@ -696,7 +713,7 @@ UI.bind = function () {
     if (cell) { const to = cell.dataset.stash != null ? 'stash' : 'bag'; if (!G.moveItem(id, to, +cell.dataset[to]) && f.where === 'gear') deny('That slot holds a different kind of gear.'); }
     else if (doll && f.where !== 'gear') {
       const slot = doll.dataset.slot;
-      if (slot.replace(/\d/, '') !== f.it.slot) deny(`That is a ${D.SLOT_NAME[f.it.slot].toLowerCase()}, not a ${D.SLOT_NAME[slot].toLowerCase()}.`); else G.equip(id, slot);
+      if (slot.replace(/\d/, '') !== f.it.slot) deny(`That is a ${D.SLOT_NAME[f.it.slot].toLowerCase()}, not a ${D.SLOT_NAME[slot].toLowerCase()}.`); else if (!G.equip(id, slot)) deny(G.equipWhy(id, slot) || 'That cannot go there.');
     }
   });
   document.addEventListener('contextmenu', e => {
@@ -709,7 +726,7 @@ UI.bind = function () {
       hideTip();
       if (!e.shiftKey) {                         // right-click wears it, or takes it off
         if (f.where === 'gear') { if (!G.unequip(f.slot)) deny('Your bag is full.'); }
-        else G.equip(f.it.id);
+        else if (!G.equip(f.it.id)) deny(G.equipWhy(f.it.id) || 'That cannot be equipped.');
         return;
       }
       if (f.where === 'gear') return deny('Take it off before salvaging it.');
@@ -746,6 +763,7 @@ UI.bind = function () {
       tipKey = ''; hideTip();
       return;
     }
+    if ((el = t.closest('[data-tech]'))) { const [sk, id] = el.dataset.tech.split(':'); if (G.setTech(sk, id)) A.play('click'); hideTip(); return; }
     if ((el = t.closest('[data-usecodex]'))) {
       // from the Codex: carry the aspect over to the bench
       const id = el.dataset.usecodex, f = UI.forgeId ? G.findItem(UI.forgeId) : null;
@@ -769,7 +787,7 @@ UI.bind = function () {
       else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity. Upgrades, locked and Ancestral pieces are kept.'); }
       else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
       else if (act === 'transmute') { if (!G.cube(UI.forgeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
-      else if (act === 'equip-one') G.equip(UI.forgeId);
+      else if (act === 'equip-one') { if (!G.equip(UI.forgeId)) deny(G.equipWhy(UI.forgeId) || 'That cannot be equipped.'); }
       else if (act === 'bench-clear') { UI.forgeId = null; UI.forgeAspect = null; UI.cubeLast = null; hideTip(); mark('forge', 'bag', 'gear'); A.play('click'); }
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that.'); }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }

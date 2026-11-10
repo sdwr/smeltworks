@@ -142,10 +142,14 @@ class Battle {
 
   /* ---------------------------------------------------------- hero side */
   rank(id) { return this.C.ranks[id] || 0; }
+  /* is this technique chosen for this skill? */
+  tech(skill, id) { return (this.C.tech || {})[skill] === id; }
   nums(id) { return Hr.skillNums(D.SKILL[id], this.rank(id)); }
   cdOf(sk) {
     let cd = sk.cd * (1 - this.st.cdr / 100);
+    if (sk.id === 'meteor' && this.tech('meteor', 'relentless')) cd = sk.cd * (1 - Math.min(75, this.st.cdr * 2) / 100);      // Cooldown Reduction counts double
     if (sk.type === 'ult' && this.mods.ultCdr) cd *= 1 - this.mods.ultCdr / 100;
+    if (sk.id === 'ironskin' && this.tech('ironskin', 'bulwark')) cd = Math.max(3, cd - 5);
     return cd;
   }
   estDps() {
@@ -164,7 +168,7 @@ class Battle {
     for (const id of this.C.bar) {
       const sk = D.SKILL[id];
       if (h.cds[id] > 0) continue;
-      if (sk.type === 'def' && h.hp < h.max * 0.6) {
+      if (sk.type === 'def' && h.hp < h.max * (this.tech('ironskin', 'bulwark') ? 0.9 : 0.6)) {
         const n = this.nums(id);
         this.addBarrier(n.val, 6); h.cds[id] = this.cdOf(sk);
         this.emit({ e: 'cast', id, instant: 1 });
@@ -219,8 +223,10 @@ class Battle {
     let live = this.alive(); if (!live.length) return;
     const tgt = live.reduce((a, b) => (b.slot < a.slot ? b : a));
     if (!id) { this.emit({ e: 'cast', id: 'punch', tgt: tgt.uid }); this.hit(tgt, 70, 'phys', { basic: 1, skill: 'punch' }); this.gainHeat(8); return; }
-    const sk = D.SKILL[id], n = this.nums(id), el = sk.el;
+    const sk = D.SKILL[id], n = this.nums(id), el = sk.el, st = this.st;
     const o = { skill: id, [sk.type]: 1 };
+    const T = t => this.tech(id, t);                      // is this technique chosen for the skill being cast?
+    if (sk.type === 'core' && h.cds.forgeheart > 0 && this.tech('forgeheart', 'stoked')) h.cds.forgeheart = Math.max(0, h.cds.forgeheart - 1.5);
     // per-cast bonuses
     o.bonus = 0;
     if (h.doomReady) { o.bonus += mods.doom; h.doomReady = false; h.doomT = 8; this.emit({ e: 'proc', id: 'doom' }); }
@@ -232,57 +238,80 @@ class Battle {
     const others = live.filter(m => m !== tgt);
     switch (id) {
       case 'strike':
+        if (T('tempo')) o.mul = 1 + st.aspd / 100;
         this.hit(tgt, n.mult, el, o); h.strikeN++;
-        if (h.strikeN % 3 === 0 && !tgt.dead) this.vuln(tgt, 3);
+        if ((T('expose') || h.strikeN % 3 === 0) && !tgt.dead) this.vuln(tgt, 3);
         break;
-      case 'sunder':
-        this.hit(tgt, n.mult, el, o);
-        for (const m of others) { this.hit(m, n.mult * 0.5, el, o); if (!m.dead) this.dotAdd(m, 'bleeds', 60 * (1 + D.SKILL_RANK * (n.rank - 1)), 4, 'phys'); }
+      case 'sunder': {
+        const bleed = 60 * (1 + D.SKILL_RANK * (n.rank - 1)) * (T('rend') ? 3 : 1);
+        if (T('brutal')) o.cdMul = 2;
+        this.hit(tgt, n.mult, el, o); if (T('rend') && !tgt.dead) this.dotAdd(tgt, 'bleeds', bleed, 4, 'phys');
+        for (const m of others) { this.hit(m, n.mult * 0.5, el, o); if (!m.dead) this.dotAdd(m, 'bleeds', bleed, 4, 'phys'); }
         if (mods.coreStun) for (const m of live) this.stun(m, 1);
         break;
+      }
       case 'quake':
-        for (const m of live) { this.hit(m, n.mult, el, o); this.stun(m, 1); }
+        for (const m of live) {
+          this.hit(m, n.mult, el, o); this.stun(m, T('shatter') ? 2 : 1);
+          if (T('shatter') && !m.dead) this.vuln(m, 3);
+          if (T('spikes') && st.thorns > 0 && !m.dead) this.apply(m, this.thornsDmg() * 2.5, 'phys', false, { proc: 1, thorns: 1 });
+        }
         break;
       case 'meteor':
         this.hit(tgt, n.mult, el, o);
         for (const m of others) this.hit(m, n.mult * 0.4, el, o);
-        for (const m of live) this.stun(m, 2);
+        for (const m of live) { this.stun(m, 2); if (T('aftermath')) this.vuln(m, 6); }
         break;
       case 'cinder':
-        this.hit(tgt, n.mult, el, o); if (!tgt.dead) this.dotAdd(tgt, 'burns', n.burn, 3, 'fire');
+        if (T('bellows')) o.mul = 1 + st.heat * 2 / 100;
+        this.hit(tgt, n.mult, el, o); if (!tgt.dead) this.dotAdd(tgt, 'burns', n.burn * (T('smoulder') ? 2 : 1), 3, 'fire');
         break;
       case 'wave':
-        for (const m of live) { this.hit(m, n.mult, el, o); if (!m.dead) this.dotAdd(m, 'burns', n.burn, 3, 'fire'); }
+        for (const m of live) {
+          this.hit(m, n.mult, el, T('flashfire') && m.burns.length ? Object.assign({ forceCrit: true }, o) : o);
+          if (!m.dead) { this.dotAdd(m, 'burns', n.burn, 3, 'fire'); if (T('scorch')) this.vuln(m, 3); }
+        }
         break;
-      case 'brand':
-        this.hit(tgt, n.mult, el, o); if (!tgt.dead) this.dotAdd(tgt, 'burns', n.burn, 4, 'fire');
+      case 'brand': {
+        const lit = tgt.burns.length > 0 && T('detonate');
+        this.hit(tgt, n.mult, el, lit ? Object.assign({ forceCrit: true, mul: 2 }, o) : o);
+        if (!tgt.dead) this.dotAdd(tgt, 'burns', n.burn * (T('deep') ? 1 + st.dot / 100 : 1), 4, 'fire');
         break;
+      }
       case 'eruption':
-        for (let i = 0; i < 5; i++) this.pending.push({ t: i * 0.4, fn: () => { this.emit({ e: 'pulse', id }); for (const m of this.alive()) { this.hit(m, n.mult, el, o); if (!m.dead) this.dotAdd(m, 'burns', n.burn, 3, 'fire'); } } });
+        for (let i = 0; i < 5; i++) this.pending.push({ t: i * 0.4, fn: () => { this.emit({ e: 'pulse', id }); for (const m of this.alive()) { this.hit(m, n.mult, el, T('pyroclasm') && m.burns.length ? Object.assign({ forceCrit: true }, o) : o); if (!m.dead) this.dotAdd(m, 'burns', n.burn * (T('magma') ? 3 : 1), 3, 'fire'); } } });
         break;
-      case 'jab':
-        this.hit(tgt, n.mult, el, o);
-        this.pending.push({ t: 0.14, fn: () => { const l = this.alive(); if (l.length) { this.hit(tgt.dead ? l[0] : tgt, n.mult, el, o); this.gainHeat(n.gen); } } });
+      case 'jab': {
+        // one jab: hit, and with Static a critical jab leaves the target Vulnerable. Returns whether it was a critical strike
+        const jab = () => { const l = this.alive(); if (!l.length) return false; const m = tgt.dead ? l[0] : tgt; this.lastCrit = false; this.hit(m, n.mult, el, o); const c = this.lastCrit; if (c && T('static')) this.vuln(m, 3); return c; };
+        const first = jab();
+        this.pending.push({ t: 0.14, fn: () => { const c = jab(); this.gainHeat(n.gen); if ((first || c) && T('flurry')) this.pending.push({ t: 0.14, fn: () => { jab(); this.gainHeat(n.gen); } }); } });
         break;
+      }
       case 'chain': {
         const grow = mods.chainGrow;
-        let arcs = (live.length === 1 ? 3 : 5) + (grow ? 3 : 0), f = 1, i = live.indexOf(tgt);
+        let arcs = (live.length === 1 ? 3 : 5) + (grow ? 3 : 0), f = 1, i = live.indexOf(tgt), forked = 0;
         const path = [];
+        if (T('surge')) o.mul = 1 + st.aspd / 100;
         for (let a = 0; a < arcs; a++) {
           const l = this.alive(); if (!l.length) break;
           const m = l[i % l.length]; path.push(m.uid);
-          this.hit(m, n.mult * f, el, o);
+          this.lastCrit = false; this.hit(m, n.mult * f, el, o);
+          if (this.lastCrit && T('fork') && forked < 3) { forked++; arcs++; }
           f *= grow ? 1 + grow / 100 : 0.85; i++;
         }
         this.emit({ e: 'chain', path });
         break;
       }
       case 'lance':
-        this.hit(tgt, n.mult, el, Object.assign({ forceCrit: tgt.vulnT > 0 || tgt.stunT > 0 }, o));
+        this.hit(tgt, n.mult, el, Object.assign({ forceCrit: tgt.vulnT > 0 || tgt.stunT > 0, cdMul: T('skewer') ? 2 : 1, vulnMul: T('piercing') ? 3 : 1 }, o));
+        if (T('piercing') && !tgt.dead) this.vuln(tgt, 4);
         break;
-      case 'tempest':
-        for (let i = 0; i < 12; i++) this.pending.push({ t: i * 0.13, fn: () => { const l = this.alive(); if (l.length) { const m = U.pick(l); this.emit({ e: 'bolt', m: m.uid }); this.hit(m, n.mult, el, o); } } });
+      case 'tempest': {
+        const bolts = 12 + (T('gale') ? Math.min(12, Math.floor(st.aspd / 8)) : 0), head = T('thunderhead');
+        for (let i = 0; i < bolts; i++) this.pending.push({ t: i * 0.13, fn: () => { const l = this.alive(); if (l.length) { const m = U.pick(l); this.emit({ e: 'bolt', m: m.uid }); this.lastCrit = false; this.hit(m, n.mult, el, o); if (head && this.lastCrit && h.cds.tempest > 0) h.cds.tempest = Math.max(0, h.cds.tempest - 1); } } });
         break;
+      }
     }
     if (sk.gen) this.gainHeat(sk.gen + (mods.basicHeat || 0));
     if (sk.type === 'basic') {
@@ -308,6 +337,7 @@ class Battle {
     if (arr.length >= 6) { let w = 0; for (let i = 1; i < arr.length; i++) if (arr[i].dps * arr[i].t < arr[w].dps * arr[w].t) w = i; arr.splice(w, 1); }
     arr.push({ dps, t: dur });
   }
+  thornsDmg() { const st = this.st; return st.thorns * (1 + (st.dmgPct + st.physPct) / 100) * (1 + st.str / 100); }
   buffDmg() {
     const h = this.h, mods = this.mods;
     let b = 0;
@@ -331,18 +361,21 @@ class Battle {
     if (mods.opener && frac > 0.8) add += mods.opener;
     if (mods.stunDmg && m.stunT > 0) add += mods.stunDmg;
     if (mods.crush && (m.vulnT > 0 || m.stunT > 0)) add += mods.crush;
-    let dmg = st.dmg * U.rand(0.9, 1.1) * mult / 100 * (1 + add / 100) * (1 + st.str / 100);      // Strength is its own multiplier
+    let dmg = st.dmg * U.rand(0.9, 1.1) * mult / 100 * (1 + add / 100) * (1 + st.str / 100) * (o.mul || 1);      // Strength is its own multiplier; o.mul comes from techniques
     let cc = st.crit + (o.skill === 'jab' ? 10 : 0);
+    if (h.buffs.forgeheart && this.tech('forgeheart', 'whiteheat')) cc += 15;
     if (mods.hotCrit && h.heat >= 70) cc += mods.hotCrit;
     if (mods.burnCritCh && m.burns.length) cc += mods.burnCritCh;
     const crit = !o.noCrit && (o.forceCrit || U.chance(cc / 100));
-    if (crit) dmg *= 1 + st.critDmg / 100;
-    if (m.vulnT > 0) dmg *= 1 + (20 + st.vuln) / 100;
+    if (crit) dmg *= 1 + (st.critDmg + (h.buffs.overcharge && this.tech('overcharge', 'capacitor') ? st.aspd : 0)) * (o.cdMul || 1) / 100;
+    if (m.vulnT > 0) dmg *= 1 + (20 + st.vuln * (o.vulnMul || 1)) / 100;
+    this.lastCrit = crit;
     this.apply(m, dmg, el, crit, o);
     if (!o.proc) {
       if (st.loh) this.heal(st.loh, true);
       if (mods.hitArmor) { h.armorStacks = Math.min(10, h.armorStacks + 1); h.armorT = 4; }
       if (crit) {
+        if (h.buffs.overcharge && this.tech('overcharge', 'livewire') && (h.buffs.overcharge.ext || 0) < 6) { h.buffs.overcharge.t += 0.3; h.buffs.overcharge.ext = (h.buffs.overcharge.ext || 0) + 0.3; }
         if (mods.critHaste) { h.hasteT = 3; h.hasteV = mods.critHaste; }
         if (mods.critCdr) for (const k in h.cds) if (h.cds[k] > 0) h.cds[k] = Math.max(0, h.cds[k] - mods.critCdr);
         if (mods.critUlt) for (const k in h.cds) if (h.cds[k] > 0 && D.SKILL[k].type === 'ult') h.cds[k] = Math.max(0, h.cds[k] - mods.critUlt);
@@ -456,7 +489,7 @@ class Battle {
     if (m.def.poison || el.includes('venomous')) { if (h.poison.length < 5) h.poison.push({ dps: m.dmg * (m.def.poison || 0.5) / 4, t: 4 }); else h.poison[0].t = 4; }
     if (m.def.slow || el.includes('chilling') || (o && o.slow)) { h.slowT = (o && o.slow) || 2.5; this.emit({ e: 'slowed' }); }
     if (st.thorns > 0 && !m.dead) {
-      const td = st.thorns * (1 + (st.dmgPct + st.physPct) / 100) * (1 + st.str / 100);
+      const td = this.thornsDmg() * (h.barrier > 0 && this.tech('ironskin', 'barbs') ? 3 : 1);
       this.apply(m, td, 'phys', false, { proc: 1, thorns: 1 });
       if (mods.thornsAll) for (const x of this.alive()) if (x !== m) this.apply(x, td * mods.thornsAll / 100, 'phys', false, { proc: 1 });
     }

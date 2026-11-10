@@ -197,6 +197,130 @@ test('A Unique can have one affix rerolled at the forge, and takes a Tempering O
     assert.ok(G.cube(it.id, 'divine'), 'Tempering still works');
   }
 });
+test('Techniques: two for every skill that can go on the bar, chosen freely, counted only while the skill is on the bar', (SW, G, D, I, H) => {
+  const S = G.S, ids = new Set(), stats = new Set();
+  for (const sk of D.SKILLS) {
+    if (sk.type === 'passive') { assert.ok(!D.TECH[sk.id], sk.id); continue; }
+    const list = D.TECH[sk.id]; assert.ok(list && list.length === 2, sk.id + ' needs two techniques');
+    for (const t of list) { assert.ok(t.name && t.desc && t.stat, sk.id); assert.ok(!ids.has(t.id), 'duplicate id ' + t.id); ids.add(t.id); stats.add(t.rate[0]); assert.ok(t.rate[1] > 0); }
+    assert.notEqual(list[0].stat, list[1].stat, sk.id + ': the two should pull toward different stats');
+  }
+  for (const k of ['aspd', 'crit', 'critDmg', 'vulnUp', 'dot', 'thorns', 'cdr', 'heat', 'barrier']) assert.ok(stats.has(k), 'no technique rewards ' + k);
+  S.hero.bar = ['strike', 'sunder', null, null, null]; S.hero.tech = {}; G.recompute();
+  assert.ok(G.setTech('strike', 'expose')); assert.equal(G.C.tech.strike, 'expose');
+  assert.ok(G.setTech('strike', 'tempo')); assert.equal(G.C.tech.strike, 'tempo', 'choosing the other swaps');
+  assert.ok(G.setTech('strike', 'tempo')); assert.equal(G.C.tech.strike, undefined, 'choosing it again takes it off');
+  assert.equal(G.setTech('strike', 'rend'), false, "another skill's technique is refused"); assert.equal(G.setTech('heavy', 'x'), false);
+  G.setTech('strike', 'expose'); G.setTech('quake', 'shatter'); assert.equal(G.C.tech.quake, undefined, 'Earthshaker is not on the bar, so its technique does nothing yet');
+  S.hero.bar[2] = 'quake'; G.recompute(); assert.equal(G.C.tech.quake, 'shatter', 'and applies once it is');
+  const copy = JSON.parse(JSON.stringify(S)); G.init(copy); assert.equal(G.S.hero.tech.strike, 'expose', 'saved with the game');
+  const old = G.fresh(); delete old.hero.tech; G.init(old); assert.ok(G.S.hero.tech && !Object.keys(G.S.hero.tech).length, 'an old save simply has none');
+});
+test('Techniques do what they say in a fight', (SW, G, D, I, H) => {
+  const S = G.S; S.gear.weapon = I.roll(30, { slot: 'weapon', base: 'sword', rar: 0 });
+  // a fight against three immortal rats, with the dice fixed: st overrides let each case isolate one stat
+  const fight = (bar, tech, st) => {
+    S.hero.bar = bar.concat([null, null, null, null, null]).slice(0, 5); S.hero.tech = tech; G.recompute(); Object.assign(G.C.st, { crit: 0 }, st || {});
+    SW.util.seed(7); const B = new SW.Battle(G.C, {}, { waves: [[{ id: 'rat', lvl: 1 }, { id: 'rat', lvl: 1 }, { id: 'rat', lvl: 1 }]], lvl: 1 }, {}, true);
+    while (B.mobs.length < 3) B.step(0.05);
+    B.mobs.sort((x, y) => x.slot - y.slot);                // mobs[0] is the one skills aim at
+    for (const m of B.mobs) { m.hp = m.max = 1e12; m.dodge = 0; m.dmg = 0; } B.h.heat = 100; B.ev.length = 0;
+    return B;
+  };
+  const lost = m => 1e12 - m.hp, near = (a, b, msg) => assert.ok(Math.abs(a / b - 1) < 0.02, `${msg}: ${a} against ${b}`);
+  const cast = (B, id) => { SW.util.seed(11); B.cast(id, true); for (let i = 0; i < 80; i++) { const due = B.pending.filter(p => p.t <= 0); B.pending = B.pending.filter(p => p.t > 0); due.forEach(p => p.fn()); B.pending.forEach(p => { p.t -= 0.05; }); } };
+  // Expose: Vulnerable from the first Strike, not the third
+  let B = fight(['strike'], {}); cast(B, 'strike'); assert.ok(!(B.mobs[0].vulnT > 0));
+  B = fight(['strike'], { strike: 'expose' }); cast(B, 'strike'); assert.ok(B.mobs[0].vulnT > 0, 'Expose');
+  // Tempo: +1% Strike damage per 1% Attack Speed
+  B = fight(['strike'], {}, { aspd: 40 }); cast(B, 'strike'); const plain = lost(B.mobs[0]);
+  B = fight(['strike'], { strike: 'tempo' }, { aspd: 40 }); cast(B, 'strike'); near(lost(B.mobs[0]), plain * 1.4, 'Tempo');
+  // Brutal: Critical Strike Damage counts double for Sunder
+  B = fight(['sunder'], {}, { crit: 100, critDmg: 80 }); cast(B, 'sunder'); const s0 = lost(B.mobs[0]);
+  B = fight(['sunder'], { sunder: 'brutal' }, { crit: 100, critDmg: 80 }); cast(B, 'sunder'); near(lost(B.mobs[0]), s0 * 2.6 / 1.8, 'Brutal');
+  // Rend: the main target bleeds too, three times as hard
+  B = fight(['sunder'], {}); cast(B, 'sunder'); assert.equal(B.mobs[0].bleeds.length, 0); const b0 = B.mobs[1].bleeds[0].dps;
+  B = fight(['sunder'], { sunder: 'rend' }); cast(B, 'sunder'); assert.equal(B.mobs[0].bleeds.length, 1); near(B.mobs[1].bleeds[0].dps, b0 * 3, 'Rend');
+  // Spiked Ground: Earthshaker adds 250% of Thorns to everyone
+  B = fight(['quake'], {}, { thorns: 400 }); cast(B, 'quake'); const q0 = lost(B.mobs[2]);
+  B = fight(['quake'], { quake: 'spikes' }, { thorns: 400 }); cast(B, 'quake'); assert.ok(lost(B.mobs[2]) - q0 > 400 * 2.5 * 0.5, 'Spiked Ground adds thorns damage');
+  // Shatter: longer stun, and Vulnerable
+  B = fight(['quake'], { quake: 'shatter' }); cast(B, 'quake'); assert.ok(B.mobs[1].vulnT > 0 && B.mobs[1].stunT > 1.5, 'Shatter');
+  // Relentless and Bulwark change cooldowns; Bulwark also raises the trigger
+  B = fight(['meteor', 'ironskin'], {}, { cdr: 20 }); assert.equal(Math.round(B.cdOf(D.SKILL.meteor)), 36); const ic = B.cdOf(D.SKILL.ironskin);
+  B.h.hp = B.h.max * 0.8; B.autoCasts(); assert.ok(!(B.h.barrier > 0), 'Iron Skin waits for 60% without Bulwark');
+  B = fight(['meteor', 'ironskin'], { meteor: 'relentless', ironskin: 'bulwark' }, { cdr: 20 }); assert.equal(Math.round(B.cdOf(D.SKILL.meteor)), 27, 'Relentless'); near(B.cdOf(D.SKILL.ironskin), ic - 5, 'Bulwark cooldown');
+  B.h.hp = B.h.max * 0.8; B.autoCasts(); assert.ok(B.h.barrier > 0, 'Bulwark goes up below 90%');
+  // Aftermath
+  B = fight(['meteor'], { meteor: 'aftermath' }); cast(B, 'meteor'); assert.ok(B.mobs.every(m => m.vulnT >= 5.9), 'Aftermath');
+  // Smoulder, Deep Brand, Magma: stronger burns
+  B = fight(['cinder'], {}); cast(B, 'cinder'); const c0 = B.mobs[0].burns[0].dps;
+  B = fight(['cinder'], { cinder: 'smoulder' }); cast(B, 'cinder'); near(B.mobs[0].burns[0].dps, c0 * 2, 'Smoulder');
+  B = fight(['brand'], {}, { dot: 50 }); cast(B, 'brand'); const d0 = B.mobs[0].burns[0].dps;
+  B = fight(['brand'], { brand: 'deep' }, { dot: 50 }); cast(B, 'brand'); near(B.mobs[0].burns[0].dps, d0 * 1.5, 'Deep Brand');
+  // Bellows: +2% Cinder damage per 1% Heat Generation
+  B = fight(['cinder'], {}, { heat: 30 }); cast(B, 'cinder'); const h0 = lost(B.mobs[0]);
+  B = fight(['cinder'], { cinder: 'bellows' }, { heat: 30 }); cast(B, 'cinder'); near(lost(B.mobs[0]), h0 * 1.6, 'Bellows');
+  // Scorch and Flashfire
+  B = fight(['wave'], { wave: 'scorch' }); cast(B, 'wave'); assert.ok(B.mobs.every(m => m.vulnT > 0), 'Scorch');
+  B = fight(['wave'], { wave: 'flashfire' }, { critDmg: 100 }); cast(B, 'wave'); const w1 = lost(B.mobs[0]); B.mobs[0].hp = 1e12; cast(B, 'wave'); assert.ok(lost(B.mobs[0]) > w1 * 1.6, 'Flashfire crits what is already burning');
+  // Detonate: doubled and critical against a burning target
+  B = fight(['brand'], { brand: 'detonate' }, { critDmg: 100 }); cast(B, 'brand'); const f1 = lost(B.mobs[0]); B.mobs[0].hp = 1e12; cast(B, 'brand'); assert.ok(lost(B.mobs[0]) > f1 * 3.2, 'Detonate');
+  // Storm: Static, Flurry, Fork, Skewer, Piercing, Gale, Thunderhead, Live Wire, Capacitor
+  B = fight(['jab'], { jab: 'static' }, { crit: 100 }); cast(B, 'jab'); assert.ok(B.mobs[0].vulnT > 0, 'Static');
+  const hits = B2 => B2.ev.filter(e => e.e === 'hit' && !e.dot).length;
+  B = fight(['jab'], {}, { crit: 100 }); cast(B, 'jab'); assert.equal(hits(B), 2);
+  B = fight(['jab'], { jab: 'flurry' }, { crit: 100 }); cast(B, 'jab'); assert.equal(hits(B), 3, 'Flurry adds a third jab on a crit');
+  B = fight(['jab'], { jab: 'flurry' }, { crit: -100 }); cast(B, 'jab'); assert.equal(hits(B), 2, 'and not otherwise');
+  B = fight(['chain'], {}, { crit: 100 }); cast(B, 'chain'); const arcs = hits(B);
+  B = fight(['chain'], { chain: 'fork' }, { crit: 100 }); cast(B, 'chain'); assert.equal(hits(B), arcs + 3, 'Fork');
+  B = fight(['lance'], {}, { crit: 100, critDmg: 100 }); cast(B, 'lance'); const l0 = lost(B.mobs[0]);
+  B = fight(['lance'], { lance: 'skewer' }, { crit: 100, critDmg: 100 }); cast(B, 'lance'); near(lost(B.mobs[0]), l0 * 1.5, 'Skewer');
+  B = fight(['lance'], { lance: 'piercing' }, { vuln: 40 }); cast(B, 'lance'); assert.ok(B.mobs[0].vulnT > 3.5, 'Piercing leaves it Vulnerable');
+  B = fight(['tempest'], {}, { aspd: 40 }); cast(B, 'tempest'); assert.equal(hits(B), 12);
+  B = fight(['tempest'], { tempest: 'gale' }, { aspd: 40 }); cast(B, 'tempest'); assert.equal(hits(B), 17, 'Gale: one more bolt per 8% Attack Speed');
+  B = fight(['tempest'], { tempest: 'thunderhead' }, { crit: 100 }); B.h.cds.tempest = 45; cast(B, 'tempest'); assert.equal(Math.round(B.h.cds.tempest), 33, 'Thunderhead: a second off per critical bolt');
+  B = fight(['overcharge', 'jab'], { overcharge: 'livewire' }, { crit: 100 }); B.h.buffs.overcharge = { t: 6, v: 30 }; cast(B, 'jab'); near(B.h.buffs.overcharge.t, 6.6, 'Live Wire');
+  B = fight(['overcharge', 'lance'], {}, { crit: 100, critDmg: 50, aspd: 50 }); B.h.buffs.overcharge = { t: 6, v: 30 }; cast(B, 'lance'); const o0 = lost(B.mobs[0]);
+  B = fight(['overcharge', 'lance'], { overcharge: 'capacitor' }, { crit: 100, critDmg: 50, aspd: 50 }); B.h.buffs.overcharge = { t: 6, v: 30 }; cast(B, 'lance'); near(lost(B.mobs[0]), o0 * 2 / 1.5, 'Capacitor');
+  // Stoked, White Heat, Barbs
+  B = fight(['forgeheart', 'wave'], { forgeheart: 'stoked' }); B.h.cds.forgeheart = 10; cast(B, 'wave'); assert.equal(B.h.cds.forgeheart, 8.5, 'Stoked');
+  B = fight(['forgeheart', 'cinder'], { forgeheart: 'whiteheat' }, { crit: 85, critDmg: 100 }); B.h.buffs.forgeheart = { t: 7, v: 0 }; let crits = 0; SW.util.seed(3); for (let i = 0; i < 300; i++) { B.lastCrit = false; B.hit(B.mobs[0], 100, 'fire', {}); if (B.lastCrit) crits++; } assert.equal(crits, 300, 'White Heat: 85% + 15% always crits');
+});
+test('Choosing a technique changes which gear looks better', (SW, G, D, I, H) => {
+  const S = G.S; S.gear.weapon = I.roll(40, { slot: 'weapon', base: 'sword', rar: 0 }); S.hero.bar = ['strike', 'sunder', null, null, null];
+  const ring = k => { const r = I.roll(40, { rar: 2, slot: 'ring' }); r.affixes = [{ k, r: 0.9, g: 0 }]; return r; };
+  const gain = (tech, k) => { S.hero.tech = tech; S.gear.ring1 = null; G.recompute(); const base = G.C.rating.off; S.gear.ring1 = ring(k); G.recompute(); return G.C.rating.off / base; };
+  assert.ok(gain({ strike: 'expose' }, 'vuln') > gain({}, 'vuln') * 1.02, 'Expose makes Vulnerable Damage worth more');
+  assert.ok(gain({ strike: 'tempo' }, 'aspd') > gain({}, 'aspd') * 1.02, 'Tempo makes Attack Speed worth more');
+  assert.ok(gain({ sunder: 'brutal' }, 'critDmg') > gain({}, 'critDmg') * 1.002, 'Brutal makes Critical Strike Damage worth more');
+  assert.ok(gain({ sunder: 'rend' }, 'dot') > gain({}, 'dot') * 1.02, 'Rend makes Burn/Bleed Damage worth something to a Hammer bar');
+  // and so the better ring flips with the technique
+  const vuln = ring('vuln'), speed = ring('aspd'), pick = tech => { S.hero.tech = tech; S.gear.ring1 = vuln; G.recompute(); const a = G.C.rating.power; S.gear.ring1 = speed; G.recompute(); return a > G.C.rating.power ? 'vuln' : 'aspd'; };
+  assert.equal(pick({ strike: 'tempo' }), 'aspd');
+});
+test('The same legendary power cannot be worn twice', (SW, G, D, I) => {
+  const S = G.S, leg = (slot, asp) => { const it = I.roll(40, { rar: 2, slot }); I.imprint(it, asp, 0.5); return it; };
+  const asp = D.ASPECTS.find(a => D.ASPECT_SLOTS[a.cat].includes('ring') && D.ASPECT_SLOTS[a.cat].includes('amulet')).id, other = D.ASPECTS.find(a => a.id !== asp && D.ASPECT_SLOTS[a.cat].includes('ring')).id;
+  const r1 = leg('ring', asp), r2 = leg('ring', asp), am = leg('amulet', asp), r3 = leg('ring', other);
+  S.bag[0] = r1; S.bag[1] = r2; S.bag[2] = am; S.bag[3] = r3;
+  assert.ok(G.equip(r1.id)); assert.equal(S.gear.ring1, r1);
+  assert.equal(G.equip(am.id), false, 'the same aspect on an amulet is refused'); assert.ok(/only be worn once/.test(G.equipWhy(am.id))); assert.equal(G.isUpgrade(am), false, 'and it is not flagged as an upgrade');
+  assert.ok(G.equip(r3.id)); assert.equal(S.gear.ring2, r3, 'a different aspect is fine');
+  assert.ok(G.equip(r2.id), 'a second ring with the aspect can still be worn...'); assert.equal(S.gear.ring1, r2, '...by replacing the ring that has it'); assert.equal(S.gear.ring2, r3);
+  assert.equal(G.equip(r1.id, 'ring2'), false, 'but not dragged onto the other ring'); assert.ok(G.equipWhy(r1.id, 'ring2'));
+  assert.ok(G.unequip('ring1')); assert.ok(G.equip(am.id), 'once it is off, the amulet can go on');
+  // imprinting onto worn gear obeys it too
+  S.gold = 1e12; S.mats = { scrap: 999, dust: 999, soul: 999 }; S.codex[asp] = 0.5;
+  assert.equal(G.imprint(r3.id, asp), false, 'cannot imprint a worn ring with the aspect the amulet carries'); assert.equal(r3.aspect.id, other);
+  const spare = I.roll(40, { rar: 2, slot: 'ring' }); S.bag[5] = spare; assert.ok(G.imprint(spare.id, asp), 'a piece in the bag can take it'); assert.equal(G.equip(spare.id), false);
+  // Uniques too
+  const u1 = I.roll(40, { unique: 'coil', rar: 4 }), u2 = I.roll(40, { unique: 'coil', rar: 4 }); S.bag[6] = u1; S.bag[7] = u2; S.gear.ring1 = null; S.gear.ring2 = null;
+  assert.ok(G.equip(u1.id)); assert.ok(G.equip(u2.id), 'the second copy replaces the first'); assert.equal([S.gear.ring1, S.gear.ring2].filter(x => x && x.uniq === 'coil').length, 1);
+  // ordinary gear is never restricted
+  const a = I.roll(40, { rar: 2, slot: 'ring' }), b = I.roll(40, { rar: 2, slot: 'ring' }); b.affixes = JSON.parse(JSON.stringify(a.affixes)); S.gear.ring1 = null; S.gear.ring2 = null; S.bag[8] = a; S.bag[9] = b;
+  assert.ok(G.equip(a.id)); assert.ok(G.equip(b.id)); assert.ok(S.gear.ring1 && S.gear.ring2);
+});
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
   let prev = first;

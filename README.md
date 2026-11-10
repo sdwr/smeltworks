@@ -79,6 +79,14 @@ the skill bar to drink it.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
   available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
   moment.
+- **Techniques.** Every skill on the bar can take one of two techniques, chosen freely on the Skills page. Each
+  bends the skill toward a stat, so the same skill wants different gear: Strike with Tempo gains 1% damage per 1%
+  Attack Speed, Strike with Expose makes every hit Vulnerable and so wants Vulnerable Damage. Between them the 30
+  techniques give a reason to chase Attack Speed, Critical Strike Chance, Critical Strike Damage, Vulnerable Damage,
+  Burn/Bleed Damage, Thorns, Cooldown Reduction, Heat Generation and Barrier Strength. The gear comparison leans
+  toward the stats your techniques reward, so the upgrade arrows follow the build.
+- **One of each legendary power.** The same aspect, or the same Unique, cannot be worn on two pieces. A second
+  copy can only replace the first, and an aspect already worn cannot be imprinted onto another worn piece.
 - **Damage meter.** The arena shows measured DPS for the current fight, the average over the last ten, and which
   skills, burns and procs it came from.
 - **Auto.** Explores, fights, moves to the next area, and falls back to gather strength if it keeps dying.

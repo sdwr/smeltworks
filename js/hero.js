@@ -68,9 +68,12 @@ H.compute = function (S, gearOverride) {
   st.crit = Math.min(75, st.crit); st.dodge = Math.min(60, st.dodge); st.dr = Math.min(50, st.dr);
   st.cdr = Math.min(60, st.cdr); st.aspd = Math.min(200, st.aspd); st.move = Math.min(100, st.move);
   const bar = S.hero.bar.filter(id => id && ranks[id]);
+  // techniques: only for skills on the bar, and only ones that exist
+  const tech = {}, chosen = S.hero.tech || {};
+  for (const id of bar) if (D.TECH[id] && D.TECH[id].some(t => t.id === chosen[id])) tech[id] = chosen[id];
   // armor is judged against the monsters of the area you are in, so swapping one piece never moves the yardstick
   const ref = S.world ? D.areaLevel(S.world.area, S.world.tier) + 2 : lvl;
-  const C = { st, mods, ranks, bar, lvl, ref };
+  const C = { st, mods, ranks, bar, tech, lvl, ref };
   C.rating = H.rating(C);
   return C;
 };
@@ -93,20 +96,24 @@ H.rating = function (C) {
     if (sk.type === 'core') cores++;
   }
   if (!n) { els.phys = 1; n = 1; }
+  // techniques lean the estimate toward the stat they reward, so the upgrade arrow follows the build
+  const lean = { aspd: 0, crit: 0, critDmg: 0, dot: 0, heat: 0, cdr: 0, thorns: 0, barrier: 0, vulnUp: 0 };
+  for (const id in C.tech || {}) { const t = D.TECH[id].find(x => x.id === C.tech[id]); if (t) lean[t.rate[0]] += t.rate[1] / Math.max(3, C.bar.length) * 3; }
   const elPct = (els.phys * st.physPct + els.fire * st.firePct + els.light * st.lightPct) / n;   // weighted by the skills in use
   const crit = Math.min(80, st.crit + (m.burnCritCh || 0) * 0.5) / 100;
   let off = st.dmg * st.aps * (1 + st.aspd / 100)
     * (1 + (st.dmgPct + elPct + st.elite * 0.3 + (burn ? st.dot * 0.35 * burn / C.bar.length : 0)) / 100)
-    * (1 + st.str / 100) * (1 + crit * st.critDmg / 100) * (1 + (20 + st.vuln) / 100 * 0.35)
+    * (1 + st.str / 100) * (1 + crit * st.critDmg / 100 * (1 + lean.critDmg)) * (1 + (20 + st.vuln) / 100 * Math.min(0.9, 0.35 + lean.vulnUp))
+    * (1 + st.aspd / 100 * lean.aspd) * (1 + st.crit / 100 * lean.crit) * (1 + st.dot / 100 * lean.dot) * (1 + st.heat / 100 * lean.heat) * (1 + st.cdr / 100 * lean.cdr)
     * (1 + st.cdr / 100 * 0.12 * cds) * (1 + st.heat / 100 * 0.12 * Math.min(2, cores));
   let rk = 0, rn = 0;
   for (const id of C.bar) { rk += Math.min(C.ranks[id], 12); rn++; }
   off *= 1 + D.SKILL_RANK * (rn ? rk / rn - 1 : 0) * 0.8;
-  off += st.thorns * 0.6;
+  off += st.thorns * (0.6 + lean.thorns);
   const dr = H.armorDR(st.armor, C.ref);
   let def = st.maxLife / ((1 - dr) * (1 - st.dr / 100) * (1 - st.dodge / 100));
   def += (st.regen + st.loh * st.aps * (1 + st.aspd / 100) * 1.2) * 9;
-  def *= (1 + st.flask / 100 * 0.06) * (1 + (C.bar.includes('ironskin') ? st.barrier / 100 * 0.06 : 0));
+  def *= (1 + st.flask / 100 * 0.06) * (1 + (C.bar.includes('ironskin') ? st.barrier / 100 * (0.06 + lean.barrier) : 0));
   return { off, def, power: Math.round(Math.sqrt(off * def) * 1.2 * (1 + st.move / 100 * 0.04)) };   // a nod to Movement Speed, which is neither
 };
 })();

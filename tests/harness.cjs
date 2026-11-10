@@ -7,15 +7,15 @@ function load() {
   return ctx.SW;
 }
 const BUILDS = {
-  hammer: { bar: ['strike', 'sunder', 'quake', 'ironskin', 'meteor'], passives: ['heavy', 'tempered', 'crush'] },
-  ember:  { bar: ['cinder', 'wave', 'brand', 'forgeheart', 'eruption'], passives: ['kindling', 'combust', 'tempered'] },
-  storm:  { bar: ['jab', 'chain', 'lance', 'overcharge', 'tempest'], passives: ['conduct', 'aftershock', 'quicken'] },
+  hammer: { bar: ['strike', 'sunder', 'quake', 'ironskin', 'meteor'], passives: ['heavy', 'tempered', 'crush'], tech: { strike: 'expose', sunder: 'brutal', quake: 'shatter', ironskin: 'bulwark', meteor: 'aftermath' } },
+  ember:  { bar: ['cinder', 'wave', 'brand', 'forgeheart', 'eruption'], passives: ['kindling', 'combust', 'tempered'], tech: { cinder: 'smoulder', wave: 'scorch', brand: 'deep', forgeheart: 'stoked', eruption: 'magma' } },
+  storm:  { bar: ['jab', 'chain', 'lance', 'overcharge', 'tempest'], passives: ['conduct', 'aftershock', 'quicken'], tech: { jab: 'static', chain: 'fork', lance: 'piercing', overcharge: 'livewire', tempest: 'thunderhead' } },
 };
 /* The bot: picks a loadout, equips anything flagged as an upgrade and melts the rest. Unless it is playing
    casually it also upgrades, imprints aspects, spends Kindling Orbs and commissions its weakest slot. */
 function botTurn(SW, build, casual) {
   const G = SW.game, S = G.S, D = SW.data, I = SW.items, H = SW.hero;
-  if (S.hero.bar.join() !== build.bar.join()) { S.hero.bar = build.bar.slice(); S.hero.passives = build.passives.slice(); G.recompute(); }
+  if (S.hero.bar.join() !== build.bar.join()) { S.hero.bar = build.bar.slice(); S.hero.passives = build.passives.slice(); S.hero.tech = Object.assign({}, build.tech); G.recompute(); }
   for (let pass = 0; pass < 3; pass++) for (const it of S.bag.slice()) if (it && G.isUpgrade(it)) G.equip(it.id);
   G.salvageAll(4, true);
   if (casual) return;            // a casual player never touches the forge or the cube
@@ -39,7 +39,7 @@ function play(SW, o) {
   G.listeners.length = 0; for (const f of o.keep || []) G.listeners.push(f);     // o.keep: listeners a test wants to survive the reset
   G.init(null);
   const S = G.S; S.opts.auto = true; S.opts.full = o.full !== false; S.opts.onClear = 'advance';
-  const build = BUILDS[o.build || 'hammer'], log = [], setTimeout0 = [];
+  const build = o.noTech ? Object.assign({}, BUILDS[o.build || 'hammer'], { tech: {} }) : BUILDS[o.build || 'hammer'], log = [], setTimeout0 = [];      // noTech: play without techniques, to measure what they add
   let fights = 0, wins = 0, fightT = 0, fStart = 0, dz = { fight: [], elite: [], boss: [] }, bossT = 0;
   G.on((type, d) => {
     if (type === 'battleStart') fStart = S.stats.time;
