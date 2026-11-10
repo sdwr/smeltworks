@@ -483,8 +483,8 @@ G.enchant = function (id, idx) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
   if (!I.canEnchant(it, idx) || !G.pay(I.enchantCost(it))) return null;
-  const a = I.enchant(it, idx, G.S.world.tier);
-  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a }); G.save();
+  const was = it.affixes[idx].g, a = I.enchant(it, idx, G.S.world.tier);
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a, was }); G.save();
   return a;
 };
 G.imprint = function (id, aspectId) {

@@ -38,10 +38,10 @@ H.skillNums = function (sk, rank) {
 H.compute = function (S, gearOverride) {
   const gear = gearOverride || S.gear, lvl = H.gearLevel(gear);
   const st = { dmg: 0, aps: 1, dmgPct: 0, physPct: 0, firePct: 0, lightPct: 0, dot: 0, crit: 5, critDmg: 50, aspd: 0, vuln: 0, elite: 0,
-    life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0,
+    life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0, flask: 0,
     skHammer: 0, skEmber: 0, skStorm: 0, skAll: 0 };
   const mods = {};
-  let hasWeapon = false, nOff = 0, nDef = 0, nUtil = 0;
+  let hasWeapon = false;
   for (const slot of D.SLOTS) {
     const it = gear[slot]; if (!it) continue;
     const s = I.stats(it);
@@ -49,8 +49,6 @@ H.compute = function (S, gearOverride) {
     if (it.slot === 'weapon') hasWeapon = true;
     const m = I.mods(it);
     for (const k in m) { if (k in st) st[k] += m[k]; else mods[k] = (mods[k] || 0) + m[k]; }
-    if (it.aspect) { const c = D.ASPECT[it.aspect.id].cat; if (c === 'off') nOff++; else if (c === 'def') nDef++; else nUtil++; }
-    if (it.uniq) nOff++;
   }
   if (!hasWeapon) { st.dmg = Math.round(4 * D.flat(lvl)); st.aps = 1; }
   // skills
@@ -70,33 +68,44 @@ H.compute = function (S, gearOverride) {
   st.crit = Math.min(75, st.crit); st.dodge = Math.min(60, st.dodge); st.dr = Math.min(50, st.dr);
   st.cdr = Math.min(60, st.cdr); st.aspd = Math.min(200, st.aspd);
   const bar = S.hero.bar.filter(id => id && ranks[id]);
-  const C = { st, mods, ranks, bar, lvl, nOff, nDef, nUtil };
+  // armor is judged against the monsters of the area you are in, so swapping one piece never moves the yardstick
+  const ref = S.world ? D.areaLevel(S.world.area, S.world.tier) + 2 : lvl;
+  const C = { st, mods, ranks, bar, lvl, ref };
   C.rating = H.rating(C);
   return C;
 };
 H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * D.flat(attackerLvl)));
 
-/* A rough offence × defence estimate. Good enough to tell an upgrade from a sidegrade. */
+/* A rough offence × defence estimate from the stat sheet, used for the upgrade arrow and the tooltip comparison.
+   It counts stats only. Aspect and unique powers are left out on purpose: most are conditional, and a guess at
+   their worth would let a legendary look like more damage than a piece that simply has more damage on it.
+   Damage   = weapon damage × attacks per second × (1 + additive damage %) × crit × Vulnerable uptime × skill ranks,
+              with small credit for cooldown reduction and Heat generation when the bar has skills that use them.
+   Toughness = life ÷ (what armor, damage reduction and dodge let through), plus a few seconds of healing. */
 H.rating = function (C) {
   const st = C.st, m = C.mods;
-  const els = { phys: 0, fire: 0, light: 0 }; let n = 0, burn = 0;
-  for (const id of C.bar) { const sk = D.SKILL[id]; if (sk.mult) { els[sk.el] += sk.type === 'basic' ? 2 : 1; n += sk.type === 'basic' ? 2 : 1; if (sk.burn) burn++; } }
+  const els = { phys: 0, fire: 0, light: 0 }; let n = 0, burn = 0, cds = 0, cores = 0;
+  for (const id of C.bar) {
+    const sk = D.SKILL[id];
+    if (sk.mult) { els[sk.el] += sk.type === 'basic' ? 2 : 1; n += sk.type === 'basic' ? 2 : 1; if (sk.burn) burn++; }
+    if (sk.type === 'ult' || sk.type === 'buff') cds++;
+    if (sk.type === 'core') cores++;
+  }
   if (!n) { els.phys = 1; n = 1; }
-  const elPct = (els.phys * st.physPct + els.fire * st.firePct + els.light * st.lightPct) / n;
-  const crit = Math.min(80, st.crit + (m.hotCrit || 0) * 0.5 + (m.burnCritCh || 0) * 0.5) / 100;
+  const elPct = (els.phys * st.physPct + els.fire * st.firePct + els.light * st.lightPct) / n;   // weighted by the skills in use
+  const crit = Math.min(80, st.crit + (m.burnCritCh || 0) * 0.5) / 100;
   let off = st.dmg * st.aps * (1 + st.aspd / 100)
     * (1 + (st.dmgPct + elPct + st.elite * 0.3 + (burn ? st.dot * 0.35 * burn / C.bar.length : 0)) / 100)
     * (1 + crit * st.critDmg / 100) * (1 + (20 + st.vuln) / 100 * 0.35)
-    * (1 + st.cdr / 100 * 0.25) * (1 + st.heat / 100 * 0.25);
+    * (1 + st.cdr / 100 * 0.12 * cds) * (1 + st.heat / 100 * 0.12 * Math.min(2, cores));
   let rk = 0, rn = 0;
   for (const id of C.bar) { rk += Math.min(C.ranks[id], 12); rn++; }
   off *= 1 + D.SKILL_RANK * (rn ? rk / rn - 1 : 0) * 0.8;
-  off *= Math.pow(1.13, C.nOff);
   off += st.thorns * 0.6;
-  const dr = H.armorDR(st.armor, C.lvl);
+  const dr = H.armorDR(st.armor, C.ref);
   let def = st.maxLife / ((1 - dr) * (1 - st.dr / 100) * (1 - st.dodge / 100));
   def += (st.regen + st.loh * st.aps * (1 + st.aspd / 100) * 1.2) * 9;
-  def *= Math.pow(1.1, C.nDef);
-  return { off, def, power: Math.round(Math.sqrt(off * def) * 1.2 * Math.pow(1.02, C.nUtil)) };
+  def *= 1 + st.flask / 100 * 0.06;
+  return { off, def, power: Math.round(Math.sqrt(off * def) * 1.2) };
 };
 })();

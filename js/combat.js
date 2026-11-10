@@ -426,8 +426,8 @@ class Battle {
       else { h.hp = 0; this.over = 'lose'; this.emit({ e: 'end', win: false }); return; }
     }
     if (h.hp < h.max * 0.35 && h.potCd <= 0) {
-      const plus = mods.potionPlus || 0;
-      this.heal(h.max * 0.35 * (1 + plus / 100), true); h.potCd = 22 * (plus ? 0.8 : 1);
+      const plus = (mods.potionPlus || 0) + (st.flask || 0);
+      this.heal(h.max * 0.35 * (1 + plus / 100), true); h.potCd = 22 * (mods.potionPlus ? 0.8 : 1);
       this.emit({ e: 'potion' });
     }
   }

@@ -15,9 +15,9 @@ function itemCell(it, extra, idx, box) {
   const bag = idx == null ? '' : ` data-${box || 'bag'}="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
-    (it.upg ? '<b class="up">▲</b>' : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl">+${it.up}</b>` : '') +
+    (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl">+${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
 }
 function skillIcon(id, cls) {
@@ -37,8 +37,9 @@ function compareHtml(it) {
   }
   const cur = G.C.rating, d = (a, b) => (b ? (a / b - 1) * 100 : 100);
   const line = (label, v) => `<span class="${v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'zero'}">${label} ${v > 0 ? '+' : ''}${v.toFixed(Math.abs(v) < 10 ? 1 : 0)}%</span>`;
-  const dp = d(best.r.power, cur.power);
-  return `<div class="tt-cmp"><b class="${dp > 0.5 ? 'pos' : dp < -0.5 ? 'neg' : 'zero'}">${dp > 0.5 ? '▲ Upgrade' : dp < -0.5 ? '▼ Weaker' : '◆ Sidegrade'}</b>${line('Damage', d(best.r.off, cur.off))}${line('Toughness', d(best.r.def, cur.def))}</div>`;
+  const dp = d(best.r.power, cur.power), worn = S.gear[best.s];
+  const note = it.aspect || it.uniq || (worn && (worn.aspect || worn.uniq)) ? '<div class="tt-note">From stats and your current skills only. Aspect and unique powers are not counted.</div>' : '';
+  return `<div class="tt-cmp"><b class="${dp > 0.5 ? 'pos' : dp < -0.5 ? 'neg' : 'zero'}">${dp > 0.5 ? '▲ Upgrade' : dp < -0.5 ? '▼ Weaker' : '◆ Sidegrade'}</b>${line('Damage', d(best.r.off, cur.off))}${line('Toughness', d(best.r.def, cur.def))}</div>${note}`;
 }
 function itemTooltip(it, o) {
   o = o || {};
@@ -54,7 +55,7 @@ function itemTooltip(it, o) {
   if (it.affixes.length) {
     h += '<ul class="tt-aff">' + it.affixes.map((a, i) => {
       const mw = (it.mw || []).filter(x => x === i).length;
-      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)}${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked' + (mw > 1 ? ' ×' + mw : '') + '</i>' : ''}</li>`;
+      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked' + (mw > 1 ? ' ×' + mw : '') + '</i>' : ''}</li>`;
     }).join('') + '</ul>';
   }
   if (it.aspect) { const a = D.ASPECT[it.aspect.id], r = I.aspectRange(a, it.slot); h += `<div class="tt-asp">${I.powerText(it)} <span>[${r[0]}–${r[1]}]</span></div>`; }
@@ -278,7 +279,7 @@ function dollSlot(slot) {
 }
 function renderGear() {
   const S = G.S, C = G.C, st = C.st, w = S.gear.weapon, wk = w ? I.spriteKey(w) : null;
-  const dr = Hr.armorDR(st.armor, G.areaLevel() + 2);
+  const dr = Hr.armorDR(st.armor, C.ref);
   const row = (l, v, tip) => `<div class="st" ${tip ? `data-tip="${tip}"` : ''}><span>${l}</span><b>${v}</b></div>`;
   let h = '<div class="doll"><div class="dcol">' + DOLL_L.map(dollSlot).join('') + '</div>';
   h += `<div class="dmid"><div class="portrait">${wk ? `<img class="pw" src="${SP.url(wk.spr, wk.pal, 6)}" alt="">` : ''}<img class="ph" src="${SP.url('hero', 'hero', 8)}" alt=""></div>`;
@@ -301,7 +302,7 @@ function renderGear() {
   if (st.regen) h += row('Life / sec', U.fmt(st.regen));
   if (st.thorns) h += row('Thorns', U.fmt(st.thorns), 'Damage dealt back to anything that hits you.');
   h += '</div><div class="scol"><h4>Utility</h4>';
-  h += row('Cooldowns', '−' + pct(st.cdr)) + row('Heat gain', '+' + pct(st.heat)) + row('Gold find', '+' + pct(st.gold)) + row('Magic find', '+' + pct(st.mf), 'Raises the odds of Rare, Legendary and Unique drops.');
+  h += row('Cooldowns', '−' + pct(st.cdr)) + row('Heat gain', '+' + pct(st.heat)) + row('Gold find', '+' + pct(st.gold)) + row('Magic find', '+' + pct(st.mf), 'Raises the odds of Rare, Legendary and Unique drops.') + (st.flask ? row('Flask healing', '+' + pct(st.flask)) : '');
   h += '</div></div>';
   $('gear-stats').innerHTML = h;
 }
@@ -363,15 +364,16 @@ function renderForge() {
     else { const c = I.upgradeCost(it); h += `<div class="op-a">${costHtml(c)}<button data-act="upgrade" ${G.canPay(c) ? '' : 'disabled'}>Upgrade to +${up + 1}<small>${up}/${max}</small></button></div>`; }
     h += '</div>';
     // enchant
-    if (!it.uniq && it.affixes.length) {
+    if (I.fixed(it)) h += `<div class="op"><div class="op-t"><b>Enchant</b><span>${it.uniq ? 'Unique' : 'Legendary'} affixes are fixed and cannot be rerolled.</span></div></div>`;
+    else if (it.affixes.length) {
       const c = I.enchantCost(it);
       h += `<div class="op"><div class="op-t"><b>Enchant</b><span>Reroll one affix into something else. Once you pick an affix, only that one can be rerolled on this item.</span></div><div class="op-a">${costHtml(c)}</div><ul class="aff-list">`;
-      it.affixes.forEach((a, i) => { const ok = I.canEnchant(it, i); h += `<li class="${ok ? '' : 'no'} ${it.ench === i ? 'ench' : ''}"><span>${I.affixText(it, a, i)}</span>${ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(c) ? '' : 'disabled'}>Reroll</button>` : ''}</li>`; });
+      it.affixes.forEach((a, i) => { const ok = I.canEnchant(it, i); h += `<li class="${ok ? '' : 'no'} ${it.ench === i ? 'ench' : ''}"><span>${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>${ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(c) ? '' : 'disabled'}>Reroll</button>` : ''}</li>`; });
       h += '</ul></div>';
     }
     // imprint
     if (!it.uniq) {
-      h += '<div class="op"><div class="op-t"><b>Imprint</b><span>Stamp an aspect from your Codex onto Rare or Legendary gear. It replaces any aspect already there.</span></div>';
+      h += '<div class="op"><div class="op-t"><b>Imprint</b><span>Stamp an aspect from your Codex onto Rare or Legendary gear. It replaces any aspect already there. A Rare becomes Legendary, which locks its affixes, so finish crafting them first.</span></div>';
       if (it.rar < 2) h += '<div class="op-a"><i>Only Rare and Legendary gear can hold an aspect.</i></div>';
       else {
         const list = D.ASPECTS.filter(a => S.codex[a.id] != null && I.canImprint(it, a.id));
@@ -395,17 +397,18 @@ function renderForge() {
 }
 
 /* ---------------------------------------------------------------- cube */
+const affName = k => D.AFFIX[k].t.replace(/\+?\{v\}%? ?(to )?/, '');
 function renderCube() {
   const S = G.S, f = UI.cubeId ? G.findItem(UI.cubeId) : null, orb = UI.cubeOrb, O = D.ORBS[orb];
   if (!f) { UI.cubeId = null; UI.cubeLast = null; }
   const aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
-  const why = !f ? 'Put a piece of gear in the cube: click one you are wearing or one in your stash.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb, cat);
+  const why = !f ? 'Put a piece of gear in the cube: click one you are wearing, or one in your bag or stash below.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb, cat);
   let h = '';
   h += `<div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div></div>`;
   if (aims) {
     h += '<div class="aim"><span class="lbl">Aim at</span>' + [null, ...Object.keys(D.AFFIX_CAT)].map(c => {
       const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
-      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" ${c ? `data-tip="${D.AFFIX_CAT[c].keys.map(k => D.AFFIX[k].t.replace(/\+?\{v\}%? ?(to )?/, '')).join(', ')}"` : ''}>${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
+      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" ${c ? `data-tip="${f ? `On a ${D.BASES[f.it.base].name.toLowerCase()}: ` + (D.AFFIX_CAT[c].keys.filter(k => D.AFFIX[k].slots.includes(I.poolKey(f.it))).map(affName).join(', ') || 'nothing') : D.AFFIX_CAT[c].keys.map(affName).join(', ')}"` : ''}>${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
     }).join('') + '</div>';
   }
   const say = why || (cat ? (orb === 'add' ? `Adds one random ${D.AFFIX_CAT[cat].name} affix.` : `Removes one ${D.AFFIX_CAT[cat].name} affix.`) : orb === 'add' ? 'Adds one random affix of any type.' : orb === 'remove' ? 'Removes one affix, chosen at random.' : O.desc);
@@ -414,7 +417,7 @@ function renderCube() {
   if (f) {
     const it = f.it, last = UI.cubeLast || {};
     h += `<div class="cube-item"><div class="an-item"><div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span></div></div><ul class="aff-list">`;
-    it.affixes.forEach((a, i) => { const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine'; h += `<li class="${fresh ? 'fresh' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${I.affixText(it, a, i)}${a.g ? ' <i>greater</i>' : ''}</span>${last.idx === i ? '<em>new</em>' : ''}</li>`; });
+    it.affixes.forEach((a, i) => { const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine'; h += `<li class="${fresh ? 'fresh' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}</span>${last.idx === i ? '<em>new</em>' : ''}</li>`; });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
     h += '</ul></div>';
@@ -457,11 +460,10 @@ UI.setTab = function (t) {
   UI.tab = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   for (const k of ['gear', 'skills', 'forge', 'cube', 'codex']) $('tab-' + k).classList.toggle('hidden', k !== t);
-  $('bagwrap').classList.toggle('hidden', t !== 'gear' && t !== 'forge');
+  $('bagwrap').classList.toggle('hidden', t !== 'gear' && t !== 'forge' && t !== 'cube');
   $('stashwrap').classList.toggle('hidden', t !== 'gear' && t !== 'forge' && t !== 'cube');
   $('worn').classList.toggle('hidden', t !== 'forge' && t !== 'cube');
   $('gear-stats').classList.toggle('hidden', t !== 'gear');
-  if (t === 'cube' && UI.cubeId) { const f = G.findItem(UI.cubeId); if (f && f.where === 'bag') UI.cubeId = null; }   // the cube works from the stash
   $('right').dataset.tab = t;
   mark(t, 'bag'); hideTip();
 };
@@ -484,7 +486,7 @@ UI.feedItem = function (it, fate) {
   UI.shownIds = UI.shownIds || []; UI.shownIds.push(it.id); if (UI.shownIds.length > 40) delete UI.shown[UI.shownIds.shift()];
   if (fate === 'salvaged') { if (it.rar >= 2) UI.feed(`<span class="dim">Salvaged</span> <b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b>`, 'sal'); return; }
   if (it.rar === 0 && !it.upg) return;
-  UI.feed(`${it.upg ? '<i class="pos">▲</i> ' : ''}<b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b> <span class="dim">${I.typeLine(it)}</span>`, 'r' + it.rar);
+  UI.feed(`${it.upg ? '<i class="pos">▲</i> ' : ''}${I.greaterCount(it) ? '<i class="hot">' + '★'.repeat(I.greaterCount(it)) + '</i> ' : ''}<b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b> <span class="dim">${I.typeLine(it)}</span>`, 'r' + it.rar);
 };
 UI.toast = function (msg, cls) {
   const t = $('toasts'), d = document.createElement('div');
@@ -582,11 +584,13 @@ UI.onGame = function (type, d) {
     case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. New drops are being salvaged until you make room.', 'bad'); } break;
     case 'cube': A.play(d.res.orb === 'remove' ? 'salvage' : 'forge'); UI.cubeLast = d.res; mark('cube', 'bag', 'gear', 'forge');
       if (d.res.from != null) UI.toast(`It is now ${D.RARITY[d.it.rar].name}.`, 'good');
+      if (d.res.crit) { A.play('master'); UI.toast(d.res.crit > 1 ? `${d.res.crit} Greater affixes!` : 'It crit: a Greater affix!', 'good'); }
       break;
     case 'orbs': { const n = {}; for (const k of d.list) n[k] = (n[k] || 0) + 1;
       UI.feed('Orb: ' + Object.keys(n).map(k => `<b style="color:${D.ORBS[k].color}">${n[k] > 1 ? n[k] + ' × ' : ''}${D.ORBS[k].name}</b>`).join(', ') + (S.seen.orb ? '' : ' <span class="dim">Use it in the Cube tab</span>'), 'orb');
       S.seen.orb = 1; A.play('shrine', 0.3); mark('cube', 'top'); break; }
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
+      if (d.kind === 'enchant' && d.a && d.a.g && !d.was) UI.toast('It crit: a Greater affix!', 'good');
       if (d.kind === 'upgrade' && d.mw >= 0) UI.toast('Masterwork! ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good');
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
       break;

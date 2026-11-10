@@ -21,7 +21,7 @@ const RARE_SUF = {
 };
 const MAGIC_PRE = { dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', lightPct: 'Crackling', dot: 'Festering', crit: 'Keen', critDmg: 'Savage', aspd: 'Quick',
   vuln: 'Exposing', elite: 'Slaying', life: 'Stout', lifePct: 'Hale', armor: 'Sturdy', armorPct: 'Plated', dodge: 'Nimble', dr: 'Warding', loh: 'Thirsting', regen: 'Mending',
-  thorns: 'Barbed', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
+  thorns: 'Barbed', flask: 'Brimming', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
 
 /* ---------------------------------------------------------------- rolling */
 I.rarityWeights = function (lvl, mf, tier, boost) {
@@ -43,11 +43,15 @@ I.rollRarity = function (lvl, mf, tier, boost, minRar) {
   for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
   return minRar || 0;
 };
+/* any affix can crit when it is rolled and come out Greater: half again as strong. Likelier in Torment. */
+I.greaterChance = tier => 0.04 + 0.03 * (tier || 0);
+I.greaterCount = it => it.affixes.reduce((n, a) => n + (a.g ? 1 : 0), 0);
 /* the affixes a slot can still gain, optionally of one type */
-I.affixPool = (slot, have, cat) => Object.values(D.AFFIX).filter(a => a.slots.includes(slot) && !have.includes(a.id) && (!cat || a.cat === cat));
+I.poolKey = it => (it.slot === 'offhand' ? it.base : it.slot);      // shields and lanterns roll different affixes
+I.affixPool = (key, have, cat) => Object.values(D.AFFIX).filter(a => a.slots.includes(key) && !have.includes(a.id) && (!cat || a.cat === cat));
 function rollAffix(slot, have, tier, cat) {
   const a = U.wpick(I.affixPool(slot, have, cat), x => x.w);
-  return { k: a.id, r: U.rng(), g: tier > 0 && U.chance(0.05 + 0.03 * tier) ? 1 : 0 };
+  return { k: a.id, r: U.rng(), g: U.chance(I.greaterChance(tier)) ? 1 : 0 };
 }
 /* opts: slot, base, rar, minRar, mf, tier, boost, unique (id) */
 I.roll = function (ilvl, o) {
@@ -63,7 +67,7 @@ I.roll = function (ilvl, o) {
     else {
       const u = U.pick(pool);
       it.uniq = u.id; it.base = u.base; it.slot = D.BASES[u.base].slot;
-      it.affixes = u.affixes.map(k => ({ k, r: 0.35 + U.rng() * 0.65, g: (o.tier || 0) > 0 && U.chance(0.08 + 0.04 * o.tier) ? 1 : 0 }));
+      it.affixes = u.affixes.map(k => ({ k, r: 0.35 + U.rng() * 0.65, g: U.chance(I.greaterChance(o.tier) * 1.25) ? 1 : 0 }));
       it.ur = U.rng();
       it.name = u.name;
       return it;
@@ -71,7 +75,7 @@ I.roll = function (ilvl, o) {
   }
   const [lo, hi] = D.RARITY[rar].affixes;
   const n = U.irand(lo, hi);
-  for (let i = 0; i < n; i++) it.affixes.push(rollAffix(it.slot, it.affixes.map(a => a.k), o.tier || 0));
+  for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(a => a.k), o.tier || 0));
   if (rar === 3) {
     const pool = D.ASPECTS.filter(a => D.ASPECT_SLOTS[a.cat].includes(it.slot));
     it.aspect = { id: (o.aspect || U.pick(pool).id), r: U.rng() };
@@ -101,6 +105,11 @@ I.affixValue = function (it, a, idx) {
   if (idx != null && it.mw) for (const m of it.mw) if (m === idx) v *= 1.25;
   if (def.dp) return Math.round(v * 10) / 10;
   return Math.max(1, Math.round(v));
+};
+/* the lowest and highest this affix could have rolled on this item, as "[lo–hi]" */
+I.affixRange = function (it, a, idx) {
+  const lo = I.affixValue(it, { k: a.k, r: 0, g: a.g }, idx), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g }, idx);
+  return '[' + U.fmt1(lo) + '–' + U.fmt1(hi) + ']';
 };
 I.affixText = function (it, a, idx) {
   return D.AFFIX[a.k].t.replace('{v}', U.fmt1(I.affixValue(it, a, idx)));
@@ -176,11 +185,13 @@ I.upgrade = function (it) {
   return -1;
 };
 I.enchantCost = it => ({ gold: Math.round(45 * I.goldScale(it.ilvl) * Math.pow(1.6, Math.min(8, it.enchN || 0))), dust: 2 });
-I.canEnchant = (it, idx) => !it.uniq && it.affixes.length > 0 && (it.ench < 0 || it.ench === idx);
+/* Legendaries and Uniques are finished pieces: their affixes cannot be rerolled, added or removed */
+I.fixed = it => !!it.uniq || it.rar >= 3;
+I.canEnchant = (it, idx) => !I.fixed(it) && it.affixes.length > 0 && (it.ench < 0 || it.ench === idx);
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
-  const na = rollAffix(it.slot, have, tier || 0);
-  na.g = it.affixes[idx].g;
+  const na = rollAffix(I.poolKey(it), have, tier || 0);
+  na.g = it.affixes[idx].g || na.g;            // a Greater affix stays Greater; an ordinary one can crit
   it.affixes[idx] = na; it.ench = idx; it.enchN = (it.enchN || 0) + 1;
   if (it.rar === 1) it.name = I.makeName(it);
   return na;
@@ -197,10 +208,10 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 I.cubeCheck = function (it, orb, cat) {
   const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
   if (orb === 'divine') return n ? null : 'It has no affixes to reroll.';
-  if (it.uniq) return 'Uniques are fixed. Only a Tempering Orb works on them.';
+  if (I.fixed(it)) return (it.uniq ? 'Uniques' : 'Legendaries') + ' are finished pieces. Only a Tempering Orb works on them.';
   if (orb === 'add') {
     if (n >= D.MAX_AFFIXES) return 'It already has ' + D.MAX_AFFIXES + ' affixes.';
-    if (C && !I.affixPool(it.slot, it.affixes.map(a => a.k), cat).length) return `No ${C.name} affix is left that fits a ${D.SLOT_NAME[it.slot].toLowerCase()}.`;
+    if (C && !I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat).length) return `No ${C.name} affix is left that fits a ${D.BASES[it.base].name.toLowerCase()}.`;
     return null;
   }
   if (!n) return 'It has no affixes.';
@@ -211,8 +222,8 @@ I.cubeCheck = function (it, orb, cat) {
 I.cube = function (it, orb, tier, cat) {
   const res = { orb };
   if (orb === 'add') {
-    const a = rollAffix(it.slot, it.affixes.map(x => x.k), tier || 0, cat);
-    it.affixes.push(a); res.idx = it.affixes.length - 1;
+    const a = rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, cat);
+    it.affixes.push(a); res.idx = it.affixes.length - 1; if (a.g) res.crit = 1;
     const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
     if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
   } else if (orb === 'remove') {
@@ -224,10 +235,10 @@ I.cube = function (it, orb, tier, cat) {
     it.mw = (it.mw || []).filter(x => x !== i).map(x => (x > i ? x - 1 : x));
   } else if (orb === 'chaos') {
     const n = it.affixes.length; it.affixes = [];
-    for (let i = 0; i < n; i++) it.affixes.push(rollAffix(it.slot, it.affixes.map(x => x.k), tier || 0));
-    it.ench = -1;
+    for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0));
+    it.ench = -1; res.crit = I.greaterCount(it);
   } else if (orb === 'divine') {
-    for (const a of it.affixes) a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();
+    for (const a of it.affixes) { a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng(); if (!a.g && U.chance(I.greaterChance(tier))) { a.g = 1; res.crit = (res.crit || 0) + 1; } }
   }
   if (!it.uniq && it.rar < 3) it.name = I.makeName(it);
   return res;
