@@ -239,7 +239,8 @@ I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Ma
 /* Legendaries and Uniques cannot be cubed (no adding, removing or rerolling affixes), though a Tempering Orb can
    reroll their numbers. The forge can still enchant one affix on a Legendary; a Unique's affixes are fixed. */
 I.fixed = it => !!it.uniq || it.rar >= 3;
-I.canEnchant = (it, idx) => !it.uniq && it.affixes.length > 0 && (it.ench < 0 || it.ench === idx);
+/* any piece with affixes, Uniques included: one affix of your choosing, and then only that one */
+I.canEnchant = (it, idx) => it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
   const na = rollAffix(I.poolKey(it), have, tier || 0, null, true);      // plain: crafting never makes a Greater affix, so rerolling a Greater one gives it up

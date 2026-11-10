@@ -391,7 +391,7 @@ function renderCraft() {
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
     h += '</ul>';
     if (it.aspect || it.uniq) h += `<div class="an-asp">✦ ${I.powerText(it)}</div>`;
-    h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.uniq ? '<span>A Unique\'s affixes cannot be rerolled</span>' : it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
+    h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
   }
   // ---- the cube
   if (f && UI.cubeCat && !I.slotCats(f.it).includes(UI.cubeCat)) UI.cubeCat = null;      // this piece's slot does not offer the type that was aimed at

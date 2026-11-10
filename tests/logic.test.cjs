@@ -182,6 +182,21 @@ test('Falling clears the route', (SW, G, D, I) => {
   for (let i = 0; i < 4000 && (G.phase === 'battle' || G.phase === 'dead'); i++) G.update(0.05);
   assert.equal(G.S.stats.deaths, 1); assert.equal(G.route.length, 0); assert.equal(G.phase, 'idle');
 });
+test('A Unique can have one affix rerolled at the forge, and takes a Tempering Orb, but no other cube orb', (SW, G, D, I) => {
+  const S = G.S; S.gold = 1e12; S.mats = { scrap: 999, dust: 999, soul: 999 }; S.orbs = { add: 9, remove: 9, chaos: 9, divine: 9 };
+  for (const u of D.UNIQUES) {
+    const it = I.roll(50, { unique: u.id, rar: 4 }); S.bag[0] = it; S.orbs.divine = 9;
+    assert.equal(it.uniq, u.id); const power = I.powerText(it), name = it.name, keys = it.affixes.map(a => a.k);
+    for (let i = 0; i < it.affixes.length; i++) assert.ok(I.canEnchant(it, i), u.id + ': any one affix to begin with');
+    assert.ok(G.enchant(it.id, 1), u.id); assert.equal(it.ench, 1); assert.equal(it.affixes.length, keys.length);
+    assert.notEqual(it.affixes[1].k, keys[1], 'it becomes a different affix'); assert.ok(D.AFFIX[it.affixes[1].k].slots.includes(I.poolKey(it)), 'one its slot can roll'); assert.ok(!it.affixes[1].g, 'never Greater');
+    assert.equal(new Set(it.affixes.map(a => a.k)).size, it.affixes.length, 'no doubles'); it.affixes.forEach((a, i) => { if (i !== 1) assert.equal(a.k, keys[i], 'the others are untouched'); });
+    assert.equal(G.enchant(it.id, 0), null, 'only the affix first chosen, as on any gear'); assert.ok(G.enchant(it.id, 1), 'and that one again');
+    assert.equal(it.name, name); assert.equal(I.powerText(it), power, 'its unique power is untouched'); assert.equal(it.rar, 4);
+    for (const orb of ['add', 'remove', 'chaos']) assert.equal(G.cube(it.id, orb), null, u.id + ' refuses ' + orb);
+    assert.ok(G.cube(it.id, 'divine'), 'Tempering still works');
+  }
+});
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
   let prev = first;
@@ -464,7 +479,7 @@ test('Legendaries cannot be cubed, but can be enchanted and Tempered', (SW, G, D
   assert.ok(G.cube(rare.id, 'remove')); assert.ok(G.cube(rare.id, 'add'));
   S.codex.twin = 0.5; assert.ok(G.imprint(rare.id, 'twin')); assert.equal(rare.rar, 3);
   assert.equal(G.cube(rare.id, 'add'), null); assert.equal(G.cube(rare.id, 'remove'), null); assert.ok(G.enchant(rare.id, 0));
-  const u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' }); S.bag[2] = u; assert.equal(G.enchant(u.id, 0), null, 'Uniques stay fixed');
+  const u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' }); S.bag[2] = u; assert.ok(G.enchant(u.id, 0), 'a Unique can have one affix rerolled too');
 });
 test('The cube: Slag rerolls every affix, Tempering only the numbers, and Uniques resist', (SW, G, D, I) => {
   const S = G.S, it = I.roll(30, { rar: 2, slot: 'ring' }), u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' });
