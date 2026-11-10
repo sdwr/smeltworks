@@ -8,6 +8,8 @@ your job is the build: skills, gear, and what you remake at the forge.
 Open `index.html` in a browser. There is no build step and nothing to install.
 (If you prefer a server: `python -m http.server 8437` in this folder, then http://localhost:8437.)
 
+To share it as a single file, `node build-single.cjs` writes `dist/smeltworks.html` with everything inlined.
+
 The game saves to the browser's local storage after every battle. Settings (the gear icon) can copy a save out as
 text, load one back in, or wipe it.
 
