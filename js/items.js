@@ -27,10 +27,10 @@ const MAGIC_PRE = { dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', 
 I.rarityWeights = function (lvl, mf, tier, boost) {
   mf = mf || 0; tier = tier || 0; boost = boost || 1;
   const w = [
-    100 * (lvl < 10 ? 1 : Math.max(0.2, 1 - lvl / 55)),
+    70 * (lvl < 10 ? 1 : Math.max(0.2, 1 - lvl / 55)),
     45,
-    Math.min(32, 6 + lvl * 0.5) * (1 + mf / 200) * (boost > 1 ? 1.8 : 1),
-    lvl < 6 ? 0 : Math.min(6, 0.7 + lvl * 0.07) * (1 + tier * 0.6) * (1 + mf / 100) * boost,
+    Math.min(46, 9 + lvl * 0.75) * (1 + mf / 200) * (boost > 1 ? 1.8 : 1),
+    lvl < 6 ? 0 : Math.min(8.5, 1 + lvl * 0.1) * (1 + tier * 0.6) * (1 + mf / 100) * boost,
     lvl < 18 ? 0 : (0.14 + tier * 0.15) * (1 + mf / 100) * boost,
   ];
   if (tier > 0) { w[0] = 0; w[1] *= 0.4; }

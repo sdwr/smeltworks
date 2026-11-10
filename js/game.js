@@ -28,6 +28,7 @@ G.fresh = function () {
 G.init = function (saved) {
   G.S = saved || G.fresh();
   const S = G.S;
+  S.bag = S.bag.filter(Boolean);                 // older saves had a bigger bag: keep everything, packed to the front
   let mx = 1;
   for (const s of D.SLOTS) if (S.gear[s]) mx = Math.max(mx, S.gear[s].id);
   for (const it of S.bag) if (it) mx = Math.max(mx, it.id);
@@ -182,19 +183,14 @@ G.salvageItem = function (it, quiet) {
   if (!quiet) G.emit('salvage', { it, y });
   return y;
 };
-/* put an item in the bag, honouring the auto-salvage filter. returns 'bag' | 'salvaged' */
+/* put an item in the bag, honouring the auto-salvage filter and a full bag. returns 'bag' | 'salvaged' */
 G.addItem = function (it) {
   const S = G.S;
   if (it.rar === 3) S.stats.leg++; if (it.rar === 4) S.stats.uniq++;
   it.upg = G.isUpgrade(it) ? 1 : 0;
   if (it.rar <= 3 && S.opts.salv[it.rar] && !it.upg) { G.salvageItem(it, true); return 'salvaged'; }
-  if (G.bagCount() >= D.BAG_SIZE) {
-    // make room: melt the least valuable unlocked piece
-    let worst = null;
-    for (const b of S.bag) if (b && !b.lock && (!worst || b.rar < worst.rar || (b.rar === worst.rar && b.ilvl < worst.ilvl))) worst = b;
-    if (!worst || worst.rar > it.rar || (worst.rar === it.rar && worst.ilvl >= it.ilvl && !it.upg)) { G.salvageItem(it, true); G.emit('bagfull'); return 'salvaged'; }
-    S.bag[S.bag.indexOf(worst)] = null; G.salvageItem(worst, true); G.emit('bagfull');
-  }
+  // no room: the new piece is salvaged where it drops. Nothing already in the bag is touched.
+  if (G.bagCount() >= D.BAG_SIZE) { G.salvageItem(it, true); G.emit('bagfull'); return 'salvaged'; }
   let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length;
   S.bag[i] = it;
   return 'bag';
@@ -206,11 +202,11 @@ G.dropsFor = function (m) {
   const weight = m.boss ? 45 : m.champ ? 16 : m.elite ? 6 : m.def.flee ? 30 : m.minion ? 0.3 : m.def.hp;
   out.gold = Math.max(1, Math.round(D.mobGold(m.lvl) * weight * U.rand(0.7, 1.3) * (1 + st.gold / 100) * (greed ? 3 : 1)));
   let n = 0, boost = 1, minRar = 0;
-  if (m.boss) { n = 4; boost = 6; minRar = 2; }
-  else if (m.champ) { n = 3; boost = 4; minRar = 1; }
-  else if (m.elite) { n = 1 + (U.chance(0.5) ? 1 : 0); boost = 3; minRar = 1; }
-  else if (m.def.flee) { n = 3; boost = 4; minRar = 1; }
-  else if (U.chance((m.minion ? 0.03 : 0.12 + (m.def.hp > 1.4 ? 0.06 : 0)) * (1 + mf / 300))) n = 1;
+  if (m.boss) { n = 3; boost = 6; minRar = 2; }
+  else if (m.champ) { n = 2; boost = 4; minRar = 1; }
+  else if (m.elite) { n = 1 + (U.chance(0.2) ? 1 : 0); boost = 3; minRar = 1; }
+  else if (m.def.flee) { n = 2; boost = 4; minRar = 1; }
+  else if (U.chance((m.minion ? 0.012 : 0.05 + (m.def.hp > 1.4 ? 0.03 : 0)) * (1 + mf / 300))) n = 1;
   for (let i = 0; i < n; i++) out.items.push(I.roll(Math.max(1, m.lvl + U.irand(-1, 1)), { mf, tier, boost, minRar }));
   if (m.boss) {
     const key = m.id + tier;
@@ -256,7 +252,7 @@ G.addXp = function (x, mobLvl) {
 };
 G.openChest = function (c) {
   const S = G.S, st = G.C.st, items = [];
-  const n = U.irand(2, 3);
+  const n = U.irand(1, 2);
   for (let i = 0; i < n; i++) items.push(I.roll(c.lvl, { mf: st.mf, tier: S.world.tier, boost: 2, minRar: 1 }));
   const gold = Math.round(D.mobGold(c.lvl) * 14 * U.rand(0.8, 1.3) * (1 + st.gold / 100));
   S.gold += gold;
@@ -373,7 +369,7 @@ G.completeCell = function (c) {
   }
   if (!map.allDone && map.cells.every(x => x.type === 'wall' || x.state === 'done')) {
     map.allDone = true;
-    const items = [I.roll(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 5, minRar: 2 }), I.roll(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 3, minRar: 1 })];
+    const items = [I.roll(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 5, minRar: 2 })];
     const gold = Math.round(D.mobGold(c.lvl) * 40 * (1 + G.C.st.gold / 100)); S.gold += gold;
     const fate = items.map(it => G.addItem(it));
     G.emit('fullClear', { items, gold, fate });

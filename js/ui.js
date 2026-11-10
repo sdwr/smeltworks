@@ -301,7 +301,7 @@ function renderBag() {
   h += ['C', 'M', 'R', 'L'].map((nm, i) => `<label class="chk mini r${i}" data-tip="Auto-salvage ${D.RARITY[i].name} drops${i === 3 ? '. Their aspects still go to your Codex.' : ''}"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('');
   $('baghead').innerHTML = h;
   let b = '';
-  for (let i = 0; i < D.BAG_SIZE; i++) b += itemCell(S.bag[i] || null, UI.tab === 'forge' && S.bag[i] && S.bag[i].id === UI.forgeId ? 'sel' : '');
+  for (let i = 0; i < Math.max(D.BAG_SIZE, S.bag.length); i++) b += itemCell(S.bag[i] || null, UI.tab === 'forge' && S.bag[i] && S.bag[i].id === UI.forgeId ? 'sel' : '');
   $('bag').innerHTML = b;
 }
 
@@ -529,14 +529,14 @@ UI.onGame = function (type, d) {
       break;
     case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', 'Open Travel to begin', 'boss', 3200), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
     case 'chest': A.play('chest'); SW.fx.spill(d.items, d.fate); UI.feed(`Chest: <b class="gold">${U.fmt(d.gold)} gold</b>`, ''); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag', 'map'); break;
-    case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b> and a bonus cache`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
+    case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b> and a bonus piece`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
     case 'shrine': { const s = D.SHRINES[d.id]; A.play('shrine'); SW.fx.heroGlow(s.color); UI.banner(s.name, `${s.desc} for ${D.SHRINE_FIGHTS} battles`, 'shrine', 1800); break; }
     case 'equip': A.play('equip'); mark('gear', 'bag', 'forge', 'hint'); hideTip(); break;
     case 'bag': mark('bag'); break;
     case 'salvage': A.play('salvage'); mark('bag', 'forge', 'hint'); break;
     case 'salvageAll': A.play('salvage'); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
     case 'codex': mark('codex', 'forge'); UI.feed(`${d.isNew ? 'New aspect learned' : 'Aspect improved'}: <b style="color:${RC(3)}" data-aspect="${d.id}">${D.ASPECT[d.id].name}</b>`, 'r3'); break;
-    case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. The least valuable piece was salvaged to make room.', 'bad'); } break;
+    case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. New drops are being salvaged until you make room.', 'bad'); } break;
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind === 'upgrade' && d.mw >= 0) UI.toast('Masterwork! ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good');
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }

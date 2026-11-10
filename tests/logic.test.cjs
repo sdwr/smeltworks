@@ -76,10 +76,12 @@ test('The auto-salvage filter keeps upgrades and melts the rest', (SW, G, D, I) 
   assert.equal(G.addItem(I.roll(1, { rar: 0, slot: 'helm' })), 'salvaged');
   assert.equal(G.addItem(I.roll(1, { rar: 2, slot: 'helm' })), 'bag', 'rares are not filtered');
 });
-test('A full bag makes room by melting its least valuable piece', (SW, G, D, I) => {
-  for (let i = 0; i < D.BAG_SIZE; i++) G.S.bag[i] = I.roll(10, { rar: 1, slot: 'boots' });
-  const leg = I.roll(10, { rar: 3, slot: 'ring' });
-  assert.equal(G.addItem(leg), 'bag'); assert.equal(G.bagCount(), D.BAG_SIZE); assert.ok(G.S.bag.includes(leg));
+test('A full bag salvages the new drop and leaves the bag alone', (SW, G, D, I) => {
+  for (let i = 0; i < D.BAG_SIZE; i++) G.S.bag[i] = I.roll(10, { rar: 0, slot: 'boots' });
+  const before = G.S.bag.map(b => b.id).join(), leg = I.roll(10, { rar: 3, slot: 'ring', aspect: 'twin' }), soul = G.S.mats.soul;
+  assert.equal(G.addItem(leg), 'salvaged'); assert.equal(G.S.bag.map(b => b.id).join(), before, 'nothing in the bag changed');
+  assert.equal(G.S.mats.soul, soul + 1, 'its materials are kept'); assert.ok(G.S.codex.twin != null, 'and so is its aspect');
+  G.S.bag[5] = null; assert.equal(G.addItem(I.roll(10, { rar: 1, slot: 'ring' })), 'bag', 'a free slot is used again');
 });
 test('Skill points: one per level, refundable, level-gated', (SW, G, D) => {
   const S = G.S;
@@ -156,9 +158,9 @@ test('Saves survive an export and import', (SW, G, D, I) => {
   G.S.gold = 4242; G.S.bag[3] = I.roll(12, { rar: 3 }); G.S.hero.level = 9;
   const str = G.exportSave(), name = G.S.bag[3].name;
   G.init(null); assert.equal(G.S.gold, 0);
-  assert.ok(G.importSave(str)); assert.equal(G.S.gold, 4242); assert.equal(G.S.bag[3].name, name); assert.equal(G.S.hero.level, 9);
+  assert.ok(G.importSave(str)); assert.equal(G.S.gold, 4242); assert.equal(G.S.bag[0].name, name, 'the bag is packed to the front on load'); assert.equal(G.S.hero.level, 9);
   assert.equal(G.importSave('not a save'), false);
-  const it = I.roll(5, {}); assert.ok(it.id > G.S.bag[3].id, 'new item ids never collide with loaded ones');
+  const it = I.roll(5, {}); assert.ok(it.id > G.S.bag[0].id, 'new item ids never collide with loaded ones');
 });
 test('Auto-explore clears the first area without help, and never stalls', () => {
   const SW = load();

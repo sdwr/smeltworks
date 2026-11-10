@@ -40,7 +40,7 @@ D.MOB_DMG_G = 1.085;   // monster damage per level
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
 D.pct = l => 1 + l / 70;
 D.MAX_LEVEL = 50;
-D.BAG_SIZE = 48;
+D.BAG_SIZE = 24;        // three rows of eight
 D.HEAT_MAX = 100;
 
 D.RARITY = [
