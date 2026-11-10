@@ -322,7 +322,7 @@ D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ul
 /* cube orbs: each one changes an item's affixes at random when transmuted with it */
 D.ORBS = {
   add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater.' },
-  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes an affix', desc: 'Removes one affix of the type you choose. If there are several of that type, which one goes is random.' },
+  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes a random affix', desc: 'Removes one random affix of the type you choose. Hover a type to see which affixes on the piece it could take.' },
   chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Rerolls all affixes', desc: 'Melts every affix and rolls the same number of new ones. None of them come out Greater.' },
   divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Rerolls the numbers', desc: 'Rerolls the numbers on every affix. The affixes themselves stay, and each ordinary one has a chance to crit and come back Greater.' },
 };

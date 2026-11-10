@@ -26,7 +26,7 @@ The screen is three panes. Left: Skills, Crafting, Commission and the Codex. Mid
 stash. Right: the fight and the map. On a window narrower than 1240px they stack instead.
 
 Mouse: click a glowing tile to fight there. Click any piece of gear to put it on the crafting bench. Right-click
-a piece to equip it, or to take it off if you are wearing it. Shift-right-click salvages it, Alt-click locks it,
+a piece to equip it, or to take it off if you are wearing it. The bench's Clear button only empties the bench. Shift-right-click salvages it, Alt-click locks it,
 Ctrl-click sends it to the stash (or back). Drag items to rearrange the bag and stash, onto the paper doll to
 equip, or off it to unequip. In Skills, click a skill to use it and click again to drop it. Click the flask on
 the skill bar to drink it.

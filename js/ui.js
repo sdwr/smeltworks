@@ -353,7 +353,9 @@ function renderSkills() {
 }
 
 /* --------------------------------------------------------------- forge */
-const affName = k => D.AFFIX[k].t.replace(/\+?\{v\}%? ?(to )?/, '');
+/* an affix's name without its number. Flat and percent Maximum Life would read the same, so the percent one says so */
+const affBare = k => D.AFFIX[k].t.replace(/\+?\{v\}%? ?(to )?/, '');
+const affName = k => { const n = affBare(k); return D.AFFIX[k].t.includes('{v}%') && Object.keys(D.AFFIX).some(o => o !== k && affBare(o) === n) ? '% ' + n : n; };
 /* One bench for everything done to a single piece: its affixes (with enchant rerolls), the cube, then the forge. */
 function renderCraft() {
   const S = G.S, f = UI.forgeId ? G.findItem(UI.forgeId) : null;
@@ -363,7 +365,7 @@ function renderCraft() {
   else {
     const it = f.it, last = UI.cubeLast || {}, ec = I.enchantCost(it);
     h += `<div class="anvil"><div class="an-item">${itemCell(it, 'big')}<div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${I.itemPower(it)} Item Power · ${f.where === 'gear' ? 'worn' : f.where === 'stash' ? 'in stash' : 'in bag'}</span></div>` +
-      `<button class="small" data-act="${f.where === 'gear' ? 'unequip-one' : 'equip-one'}">${f.where === 'gear' ? 'Take off' : 'Equip'}</button></div>`;
+      `<div class="an-btns">${f.where === 'gear' ? '' : '<button class="small" data-act="equip-one">Equip</button>'}<button class="small" data-act="bench-clear" data-tip="Take this piece off the bench. It stays ${f.where === 'gear' ? 'equipped' : f.where === 'stash' ? 'in your stash' : 'in your bag'}.">Clear</button></div></div>`;
     const imp = I.implicit(it);
     h += `<div class="main-stat">${imp.dmg ? `<b>${U.fmt(imp.dmg)}</b> damage per hit, ${imp.aps.toFixed(2)} attacks per second` : imp.armor ? `<b>${U.fmt(imp.armor)}</b> armor` : imp.life ? `<b>${U.fmt(imp.life)}</b> life` : `<b>+${imp.dmgPct}%</b> damage`}</div>`;
     h += '<ul class="aff-list">';
@@ -383,12 +385,24 @@ function renderCraft() {
   const why = !f ? 'Bring a piece of gear to the bench first.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb, cat);
   h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
   if (aims) {
+    // tooltips: a Kindling Orb lists what could roll on this slot, a Quenching Orb lists what is on the piece and could go
+    const aimTip = c => {
+      if (orb === 'remove') {
+        if (!f) return c ? 'Removes one random ' + D.AFFIX_CAT[c].name + ' affix.' : 'Removes one random affix of any type.';
+        const on = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !c || D.AFFIX[o.a.k].cat === c).map(o => I.affixText(f.it, o.a, o.i));
+        const what = c ? D.AFFIX_CAT[c].name + ' affix' : 'affix';
+        const list = on.map(t => '<br>• ' + t).join('');
+        return !on.length ? `This piece has no ${what}${c ? '' : 'es'} to remove.` : on.length === 1 ? `The only ${what} on this piece, so it is the one removed:${list}` : `One of these ${on.length} ${what}es is removed at random:${list}`;
+      }
+      const keys = (c ? D.AFFIX_CAT[c].keys : Object.keys(D.AFFIX)).filter(k => !f || (D.AFFIX[k].slots.includes(I.poolKey(f.it)) && !f.it.affixes.some(a => a.k === k)));
+      return (f ? `Can roll on this ${D.BASES[f.it.base].name.toLowerCase()}: ` : 'Can roll: ') + (keys.map(affName).join(', ') || 'nothing');
+    };
     h += '<div class="aim"><span class="lbl">Aim at</span>' + [null, ...Object.keys(D.AFFIX_CAT)].map(c => {
       const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
-      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" ${c ? `data-tip="${f ? `On a ${D.BASES[f.it.base].name.toLowerCase()}: ` + (D.AFFIX_CAT[c].keys.filter(k => D.AFFIX[k].slots.includes(I.poolKey(f.it))).map(affName).join(', ') || 'nothing') : D.AFFIX_CAT[c].keys.map(affName).join(', ')}"` : ''}>${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
+      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" data-tip="${esc(aimTip(c))}">${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
     }).join('') + '</div>';
   }
-  const say = why || (cat ? (orb === 'add' ? `Adds one random ${D.AFFIX_CAT[cat].name} affix.` : `Removes one ${D.AFFIX_CAT[cat].name} affix.`) : orb === 'add' ? 'Adds one random affix of any type.' : orb === 'remove' ? 'Removes one affix, chosen at random.' : O.desc);
+  const say = why || (cat ? (orb === 'add' ? `Adds one random ${D.AFFIX_CAT[cat].name} affix.` : `Removes one random ${D.AFFIX_CAT[cat].name} affix.`) : orb === 'add' ? 'Adds one random affix of any type.' : orb === 'remove' ? 'Removes one random affix of any type.' : O.desc);
   h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p></div>`;
   h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].name}</b><span>${D.ORBS[k].short}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
   // ---- the forge
@@ -719,7 +733,7 @@ UI.bind = function () {
       else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
       else if (act === 'transmute') { if (!G.cube(UI.forgeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
       else if (act === 'equip-one') G.equip(UI.forgeId);
-      else if (act === 'unequip-one') { const f = G.findItem(UI.forgeId); if (f && !G.unequip(f.slot)) deny('Your bag is full.'); }
+      else if (act === 'bench-clear') { UI.forgeId = null; UI.forgeAspect = null; UI.cubeLast = null; hideTip(); mark('forge', 'bag', 'gear'); A.play('click'); }
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that upgrade.'); }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }
       else if (act === 'imprint') { if (!G.imprint(UI.forgeId, UI.forgeAspect)) deny('You cannot afford that imprint.'); else UI.forgeAspect = null; }
