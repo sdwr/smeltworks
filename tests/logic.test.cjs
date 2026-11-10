@@ -84,16 +84,16 @@ test('Old saves: an upgrade becomes five masterwork ranks, and one masterworked 
   assert.equal(a.up, 15); assert.equal(b.up, 25); assert.equal(b.mw.join(), '2'); assert.equal(S.mwv, 1);
   G.init(S); assert.equal(a.up, 15, 'only converted once');
 });
-test('Gear stops at item level 50; Ancestral gear is 60 and only drops in Torment', (SW, G, D, I, H) => {
+test('Gear stops at item level 50; Ancestral gear is 55 and only drops in Torment', (SW, G, D, I, H) => {
   assert.equal(I.roll(999, { rar: 2 }).ilvl, 50); assert.equal(I.roll(50, { rar: 2 }).anc, 0);
-  const a = I.roll(12, { rar: 3, anc: true }); assert.equal(a.ilvl, 60); assert.equal(a.anc, 1); assert.ok(I.typeLine(a).startsWith('Ancestral Legendary'));
-  const w50 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0 }), w60 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0, anc: true });
-  assert.ok(I.implicit(w60).dmg > I.implicit(w50).dmg * 2, 'ten item levels is a big step');
-  const S = G.S, rate = tier => { S.world.tier = tier; let n = 0; for (let i = 0; i < 4000; i++) { const it = G.rollLoot(D.areaLevel(14, tier) + 3, { tier }); assert.ok(it.ilvl === (it.anc ? 60 : Math.min(50, it.ilvl))); assert.ok(it.ilvl <= 60); if (it.anc) n++; } return n / 4000; };
+  const a = I.roll(12, { rar: 3, anc: true }); assert.equal(D.ANC_LEVEL, 55); assert.equal(a.ilvl, 55); assert.equal(a.anc, 1); assert.ok(I.typeLine(a).startsWith('Ancestral Legendary'));
+  const w50 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0 }), w55 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0, anc: true });
+  const step = I.implicit(w55).dmg / I.implicit(w50).dmg; assert.ok(step > 1.4 && step < 1.6, 'five item levels is about half again: ' + step);
+  const S = G.S, rate = tier => { S.world.tier = tier; let n = 0; for (let i = 0; i < 4000; i++) { const it = G.rollLoot(D.areaLevel(14, tier) + 3, { tier }); assert.ok(it.ilvl === (it.anc ? 55 : Math.min(50, it.ilvl))); assert.ok(it.ilvl <= 55); if (it.anc) n++; } return n / 4000; };
   assert.equal(rate(0), 0, 'never outside Torment');
   const r = [1, 2, 3, 4].map(rate); for (let i = 0; i < 4; i++) assert.ok(Math.abs(r[i] - D.ANC_CHANCE[i + 1]) < 0.025, `T${i + 1}: ${r[i]}`);
   assert.ok(r[0] < r[1] && r[1] < r[2] && r[2] < r[3], 'the chance rises with every tier');
-  S.world.tier = 4; S.gold = 1e15; let anc = 0; for (let i = 0; i < 300; i++) { S.bag.fill(null); const it = G.commission('ring'); assert.ok(it.ilvl === 50 || (it.anc && it.ilvl === 60)); if (it.anc) anc++; }
+  S.world.tier = 4; S.gold = 1e15; let anc = 0; for (let i = 0; i < 300; i++) { S.bag.fill(null); const it = G.commission('ring'); assert.ok(it.ilvl === 50 || (it.anc && it.ilvl === 55)); if (it.anc) anc++; }
   assert.ok(anc > 15, 'commissions can come out Ancestral in Torment: ' + anc);
   S.world.tier = 0; S.bag.fill(null);
 });
@@ -115,9 +115,10 @@ test('Ancestral gear is never auto-salvaged or bulk-salvaged', (SW, G, D, I) => 
 test('Old saves: gear above item level 50 comes down to the cap and a Torment map is redrawn', (SW, G, D, I) => {
   const S = G.fresh(); delete S.capv;
   const a = I.roll(50, { slot: 'chest', rar: 3 }); a.ilvl = 138; const b = I.roll(30, { slot: 'ring', rar: 2 });
+  const old = I.roll(50, { slot: 'helm', rar: 2, anc: true }); old.ilvl = 60; S.bag[1] = old;
   S.gear.chest = a; S.bag[0] = b; S.world.tier = 2; S.world.area = 3; S.world.cleared = [15, 15, 3]; S.world.map = { stale: true, cells: [] };
   G.init(S);
-  assert.equal(a.ilvl, 50); assert.equal(b.ilvl, 30); assert.equal(S.capv, 1); assert.ok(!S.world.map.stale && S.world.map.cells.length === 35);
+  assert.equal(a.ilvl, 50); assert.equal(b.ilvl, 30); assert.equal(old.ilvl, 55, 'an Ancestral piece saved at 60 becomes 55'); assert.equal(S.capv, 1); assert.ok(!S.world.map.stale && S.world.map.cells.length === 35);
   assert.ok(S.world.map.cells.every(c => c.lvl >= 60 && c.lvl <= 70), 'Torment II levels');
 });
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {

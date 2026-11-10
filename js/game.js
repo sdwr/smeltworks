@@ -35,6 +35,7 @@ G.init = function (saved) {
     for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it) { it.up = Math.min(D.MW_MAX, (it.up || 0) * 5); if (it.mw && it.mw.length > 1) it.mw = [it.mw[0]]; }
     S.mwv = 1;
   }
+  for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && it.anc) it.ilvl = D.ANC_LEVEL;      // Ancestral is one fixed level, whatever it was when the save was made
   if (!S.capv) {
     // saves from before the gear cap: anything above item level 50 comes down to it, and a Torment map is redrawn at the new monster levels
     for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && it.ilvl > D.GEAR_CAP && !it.anc) it.ilvl = D.GEAR_CAP;

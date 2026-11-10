@@ -40,8 +40,8 @@ the skill bar to drink it.
 - **Gear caps at item level 50.** Torment monsters keep climbing (levels 50-59 in Torment I up to 80-89 in
   Torment IV), but gear does not. From there you grow through Ancestral gear, masterworking, greater affixes and
   better rolls.
-- **Ancestral gear.** In Torment any drop, chest piece or commission can come out Ancestral: item level 60, about
-  2.3 times the main stat of a level 50 piece. The chance is 3% in Torment I, then 6%, 10% and 15%. Ancestral gear
+- **Ancestral gear.** In Torment any drop, chest piece or commission can come out Ancestral: item level 55, about
+  one and a half times the main stat of a level 50 piece. The chance is 3% in Torment I, then 6%, 10% and 15%. Ancestral gear
   has a bright frame and a gold item level, and is never auto-salvaged or caught by the bulk salvage buttons.
 - **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
   for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,

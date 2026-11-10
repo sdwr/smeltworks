@@ -38,12 +38,12 @@ D.FLAT_G = 1.085;      // growth of flat gear stats per item level
 D.MOB_HP_G = 1.084;    // monster life per level
 D.MOB_DMG_G = 1.075;   // monster damage per level
 /* Gear stops at item level 50. Torment monsters keep rising (levels 50 to 89), but only gently, because from there
-   the player grows by Ancestral gear (item level 60, Torment only), masterworking, greater affixes and better rolls. */
+   the player grows by Ancestral gear (item level 55, Torment only), masterworking, greater affixes and better rolls. */
 D.GEAR_CAP = 50;
-D.ANC_LEVEL = 60;
+D.ANC_LEVEL = 55;
 D.ANC_CHANCE = [0, 0.03, 0.06, 0.10, 0.15];   // chance for a Torment drop to be Ancestral, by tier
-D.MOB_HP_G2 = 1.055;   // ...and past level 50
-D.MOB_DMG_G2 = 1.062;
+D.MOB_HP_G2 = 1.042;   // ...and past level 50
+D.MOB_DMG_G2 = 1.047;
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
 /* gold from monsters and the price of forge work: 8% a level to 50, then 3% a level, since gear no longer grows with it */
 D.goldScale = l => Math.pow(1.08, Math.min(l, D.GEAR_CAP) - 1) * Math.pow(1.03, Math.max(0, l - D.GEAR_CAP));
