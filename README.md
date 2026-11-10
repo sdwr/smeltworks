@@ -54,9 +54,10 @@ the skill bar to drink it.
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
 - **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
   so it is where you park pieces between trips to the crafting bench.
-- **Greater affixes.** Any affix has a small chance to crit when it is rolled, on a drop or at the cube or forge,
-  and come out Greater: half again as strong, marked with a gold star. The chance rises in Torment. It applies to
-  drops, forge enchants and Tempering Orbs; Kindling and Slag rolls never crit.
+- **Greater affixes.** When a piece drops or is commissioned, each affix has a small chance to crit and come out
+  Greater: half again as strong, marked with a gold star. The chance rises in Torment. Greater affixes are found,
+  never crafted: the forge's reroll and every cube orb roll ordinary affixes. A Tempering Orb leaves a Greater
+  affix Greater, but rerolling one at the forge or melting it with a Slag Orb gives it up.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
 - **The forge.** Masterwork, enchant (the Reroll button beside an affix), imprint and salvage. Rerolling costs a
   little more each time on the same piece and levels off at five times the first price.

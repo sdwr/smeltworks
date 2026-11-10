@@ -43,7 +43,8 @@ I.rollRarity = function (lvl, mf, tier, boost, minRar) {
   for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
   return minRar || 0;
 };
-/* any affix can crit when it is rolled and come out Greater: half again as strong. Likelier in Torment. */
+/* An affix can crit when a piece drops (or is commissioned) and come out Greater: half again as strong. Likelier in
+   Torment. Greater affixes are found, never crafted: the forge's reroll and every cube orb roll plain affixes. */
 I.greaterChance = tier => 0.04 + 0.03 * (tier || 0);
 I.greaterCount = it => it.affixes.reduce((n, a) => n + (a.g ? 1 : 0), 0);
 /* the affixes a slot can still gain, optionally of one type */
@@ -238,8 +239,7 @@ I.fixed = it => !!it.uniq || it.rar >= 3;
 I.canEnchant = (it, idx) => !it.uniq && it.affixes.length > 0 && (it.ench < 0 || it.ench === idx);
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
-  const na = rollAffix(I.poolKey(it), have, tier || 0);
-  na.g = it.affixes[idx].g || na.g;            // a Greater affix stays Greater; an ordinary one can crit
+  const na = rollAffix(I.poolKey(it), have, tier || 0, null, true);      // plain: crafting never makes a Greater affix, so rerolling a Greater one gives it up
   it.affixes[idx] = na; it.ench = idx; it.enchN = (it.enchN || 0) + 1;
   if (it.rar === 1) it.name = I.makeName(it);
   return na;
@@ -287,7 +287,7 @@ I.cube = function (it, orb, tier, cat) {
     for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, null, true));
     it.ench = -1;
   } else if (orb === 'divine') {
-    for (const a of it.affixes) { a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng(); if (!a.g && U.chance(I.greaterChance(tier))) { a.g = 1; res.crit = (res.crit || 0) + 1; } }
+    for (const a of it.affixes) a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();      // new numbers only: what is Greater stays Greater, and nothing becomes Greater
   }
   if (!it.uniq && it.rar < 3) it.name = I.makeName(it);
   return res;

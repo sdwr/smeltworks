@@ -422,7 +422,7 @@ test('Cube types: four of them, a few affixes in two, and none that holds only w
   let got = 0; for (let i = 0; i < 400; i++) { const helm = I.roll(40, { rar: 0, slot: 'helm' }); S.bag[0] = helm; G.cube(helm.id, 'add', 'skill'); assert.ok(['str', 'skHammer', 'skEmber', 'skStorm'].includes(helm.affixes[0].k)); if (helm.affixes[0].k === 'str') got++; }
   assert.ok(got > 60 && got < 340, 'Strength is one of four outcomes there, not a certainty: ' + got);
 });
-test('Affixes can crit into Greater affixes on drops, Tempering and enchanting, never from Kindling or Slag', (SW, G, D, I) => {
+test('Greater affixes come from drops only: no cube orb and no forge reroll can make one', (SW, G, D, I) => {
   const S = G.S; let n = 0, g = 0;
   for (let i = 0; i < 4000; i++) { const it = I.roll(20, { rar: 2 }); n += it.affixes.length; g += I.greaterCount(it); }
   assert.ok(g / n > 0.02 && g / n < 0.07, 'about 4% in Normal, got ' + (g / n * 100).toFixed(1) + '%');
@@ -435,10 +435,14 @@ test('Affixes can crit into Greater affixes on drops, Tempering and enchanting, 
   const real = SW.util.rng; SW.util.rng = () => 0.001;
   const res = G.cube(it.id, 'add'); assert.ok(!res.crit && !it.affixes[1].g, 'Kindling never rolls Greater');
   G.cube(it.id, 'chaos'); assert.equal(I.greaterCount(it), 0, 'nor does Slag');
-  assert.ok(G.cube(it.id, 'divine').crit >= 1); assert.ok(it.affixes.every(a => a.g), 'Tempering can crit the ordinary ones');
-  SW.util.rng = () => 0.999; G.cube(it.id, 'divine'); assert.ok(it.affixes.every(a => a.g), 'and never takes Greater away');
-  S.gold = 1e9; S.mats.dust = 99; G.enchant(it.id, 0); assert.ok(it.affixes[0].g, 'an enchanted Greater affix stays Greater');
-  SW.util.rng = () => 0.001; it.affixes[0].g = 0; G.enchant(it.id, 0); assert.ok(it.affixes[0].g, 'and an ordinary one can crit at the forge');
+  assert.ok(!G.cube(it.id, 'divine').crit); assert.equal(I.greaterCount(it), 0, 'nor does Tempering');
+  S.gold = 1e12; S.mats.dust = 9999; for (let k = 0; k < 20; k++) { G.enchant(it.id, 0); assert.equal(I.greaterCount(it), 0, 'nor does the forge reroll'); }
+  // what is already Greater: Tempering keeps it, a forge reroll gives it up
+  for (const a of it.affixes) a.g = 1; const was = it.affixes.map(a => a.k).join();
+  G.cube(it.id, 'divine'); assert.ok(it.affixes.every(a => a.g) && it.affixes.map(a => a.k).join() === was, 'Tempering only changes the numbers');
+  G.enchant(it.id, 0); assert.equal(it.affixes[0].g, 0, 'the rerolled affix is ordinary'); assert.equal(it.affixes[1].g, 1, 'the others are untouched');
+  for (let k = 0; k < 2000; k++) { const c = G.commission('ring'); if (c && I.greaterCount(c)) { g = -1; break; } S.bag.fill(null); S.bag[0] = it; }
+  assert.equal(g, -1, 'a commissioned piece is a fresh roll, so it can still come with one');
   SW.util.rng = real;
 });
 test('Legendaries cannot be cubed, but can be enchanted and Tempered', (SW, G, D, I) => {
