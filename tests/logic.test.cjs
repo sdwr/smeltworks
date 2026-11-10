@@ -31,11 +31,20 @@ test('Rolled items only carry affixes allowed on their slot, never twice', (SW, 
     const st = I.stats(it); for (const k in st) assert.ok(st[k] > 0 && isFinite(st[k]), k);
   }
 });
-test('Higher item levels and rarities are worth more', (SW, G, D, I) => {
-  const a = I.roll(10, { slot: 'weapon', base: 'sword', rar: 0 }), b = I.roll(40, { slot: 'weapon', base: 'sword', rar: 0 });
-  assert.ok(I.implicit(b).dmg > I.implicit(a).dmg * 8);
-  assert.equal(I.roll(30, { rar: 2, slot: 'helm' }).affixes.length, 3);
-  assert.equal(I.roll(50, { rar: 2, slot: 'helm' }).affixes.length, 4);
+test('Each piece has one main stat, identical on every piece of its type and level', (SW, G, D, I) => {
+  const one = { sword: 'dmg', axe: 'dmg', hammer: 'dmg', shield: 'armor', lantern: 'dmgPct', helm: 'armor', chest: 'armor', gloves: 'armor', pants: 'armor', boots: 'armor', amulet: 'life', ring: 'life' };
+  for (const base in one) {
+    const slot = D.BASES[base].slot, seen = new Set();
+    for (let i = 0; i < 40; i++) { const imp = I.implicit(I.roll(25, { slot, base, rar: i % 4 })); assert.equal(Object.keys(imp).filter(k => k !== 'aps').join(), one[base], base); seen.add(imp[one[base]]); }
+    assert.equal(seen.size, 1, base + ' main stat varies between pieces');
+  }
+  assert.ok(I.implicit(I.roll(40, { slot: 'weapon', base: 'sword', rar: 0 })).dmg > I.implicit(I.roll(10, { slot: 'weapon', base: 'sword', rar: 0 })).dmg * 8);
+});
+test('Affix counts: none on Common, 1-2 Magic, 3-4 Rare, 4 Legendary and Unique', (SW, G, D, I) => {
+  const counts = [new Set(), new Set(), new Set(), new Set(), new Set()];
+  for (let i = 0; i < 1500; i++) { const it = I.roll(1 + (i % 90), { rar: i % 5, slot: i % 5 === 4 ? 'ring' : undefined }); counts[it.rar].add(it.affixes.length); }
+  const show = s => [...s].sort().join();
+  assert.equal(show(counts[0]), '0'); assert.equal(show(counts[1]), '1,2'); assert.equal(show(counts[2]), '3,4'); assert.equal(show(counts[3]), '4'); assert.equal(show(counts[4]), '4');
 });
 test('Upgrades add 5% each and masterwork every fourth', (SW, G, D, I) => {
   const it = I.roll(30, { slot: 'chest', rar: 3 }), base = I.implicit(it).armor;
@@ -113,8 +122,8 @@ test('There are no levels: life and power come from what is worn', (SW, G, D, I,
   assert.equal(S.hero.level, undefined); assert.equal(G.addXp, undefined);
   for (const s of D.SLOTS) S.gear[s] = null; G.recompute();
   assert.equal(G.C.st.maxLife, H.BASE_LIFE); const naked = G.C.rating.power;
-  S.gear.chest = I.roll(30, { rar: 0, slot: 'chest' }); S.gear.helm = I.roll(10, { rar: 0, slot: 'helm' }); G.recompute();
-  assert.ok(G.C.st.maxLife > H.BASE_LIFE + 100, 'armour carries life'); assert.ok(G.C.rating.power > naked);
+  S.gear.ring1 = I.roll(30, { rar: 0, slot: 'ring' }); S.gear.helm = I.roll(10, { rar: 0, slot: 'helm' }); G.recompute();
+  assert.ok(G.C.st.maxLife > H.BASE_LIFE + 100, 'rings carry life'); assert.ok(G.C.st.armor > 0, 'armour carries armor'); assert.ok(G.C.rating.power > naked);
   assert.equal(H.gearLevel(S.gear), 20);
 });
 test('Drops favour the slots that have fallen behind', (SW, G, D, I) => {
@@ -124,14 +133,14 @@ test('Drops favour the slots that have fallen behind', (SW, G, D, I) => {
   let boots = 0; for (let i = 0; i < 2000; i++) if (G.rollLoot(40, { rar: 1 }).slot === 'boots') boots++;
   assert.ok(boots > 2000 * 0.25, 'boots came up ' + boots + ' times in 2000');
 });
-test('The cube: Kindling adds an affix and lifts rarity, up to five', (SW, G, D, I) => {
+test('The cube: Kindling adds an affix and lifts rarity, up to four', (SW, G, D, I) => {
   const S = G.S, it = I.roll(20, { rar: 0, slot: 'gloves' }); S.bag[0] = it; S.orbs.add = 9;
   assert.equal(it.affixes.length, 0);
   assert.ok(G.cube(it.id, 'add')); assert.equal(it.rar, 1, 'Common becomes Magic'); assert.equal(it.affixes.length, 1);
   G.cube(it.id, 'add'); assert.equal(it.rar, 1); G.cube(it.id, 'add'); assert.equal(it.rar, 2, 'a third affix makes it Rare');
-  G.cube(it.id, 'add'); G.cube(it.id, 'add'); assert.equal(it.affixes.length, 5);
-  assert.equal(G.cube(it.id, 'add'), null, 'no sixth affix'); assert.equal(S.orbs.add, 4, 'a refused recipe costs nothing');
-  assert.equal(new Set(it.affixes.map(a => a.k)).size, 5);
+  G.cube(it.id, 'add'); assert.equal(it.affixes.length, 4);
+  assert.equal(G.cube(it.id, 'add'), null, 'no fifth affix'); assert.equal(S.orbs.add, 5, 'a refused recipe costs nothing');
+  assert.equal(new Set(it.affixes.map(a => a.k)).size, 4);
   for (const a of it.affixes) assert.ok(D.AFFIX[a.k].slots.includes('gloves'));
 });
 test('The cube: Quenching removes one affix and keeps the bookkeeping straight', (SW, G, D, I) => {
@@ -145,12 +154,27 @@ test('The cube: Quenching removes one affix and keeps the bookkeeping straight',
   G.cube(it.id, 'remove'); G.cube(it.id, 'remove'); G.cube(it.id, 'remove'); assert.equal(it.affixes.length, 0);
   assert.equal(G.cube(it.id, 'remove'), null); assert.equal(S.orbs.remove, 5);
 });
+test('The cube can be aimed at an affix type, for adding and for removing', (SW, G, D, I) => {
+  const S = G.S; S.orbs = { add: 999, remove: 99, chaos: 0, divine: 0 };
+  for (const cat of ['off', 'def', 'util', 'skill']) for (let i = 0; i < 30; i++) {
+    const it = I.roll(30, { rar: 0, slot: 'helm' }); S.bag[0] = it;
+    assert.ok(G.cube(it.id, 'add', cat)); assert.equal(D.AFFIX[it.affixes[0].k].cat, cat, 'asked for ' + cat);
+    assert.ok(D.AFFIX[it.affixes[0].k].slots.includes('helm'));
+  }
+  const boots = I.roll(30, { rar: 0, slot: 'boots' }); S.bag[0] = boots;
+  assert.equal(G.cube(boots.id, 'add', 'skill'), null, 'boots cannot roll skill ranks'); assert.equal(S.orbs.add, 999 - 120, 'and the orb is not spent');
+  const it = I.roll(30, { rar: 2, slot: 'chest' }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }, { k: 'skEmber', r: 0.5, g: 0 }, { k: 'armor', r: 0.5, g: 0 }]; S.bag[0] = it;
+  assert.equal(G.cube(it.id, 'remove', 'off'), null, 'nothing offensive to remove');
+  assert.ok(G.cube(it.id, 'remove', 'skill')); assert.equal(it.affixes.map(a => a.k).join(), 'life,armor');
+  assert.ok(G.cube(it.id, 'remove', 'def')); assert.equal(it.affixes.length, 1);
+  for (const k in D.AFFIX) assert.ok(D.AFFIX_CAT[D.AFFIX[k].cat], k + ' has no type');
+});
 test('The cube: Slag rerolls every affix, Tempering only the numbers, and Uniques resist', (SW, G, D, I) => {
   const S = G.S, it = I.roll(30, { rar: 2, slot: 'ring' }), u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' });
   S.bag[0] = it; S.bag[1] = u; S.orbs = { add: 5, remove: 5, chaos: 5, divine: 5 };
   const keys = it.affixes.map(a => a.k).join(), rolls = it.affixes.map(a => a.r).join();
   G.cube(it.id, 'divine'); assert.equal(it.affixes.map(a => a.k).join(), keys); assert.notEqual(it.affixes.map(a => a.r).join(), rolls);
-  G.cube(it.id, 'chaos'); assert.equal(it.affixes.length, 3);
+  const n = it.affixes.length; G.cube(it.id, 'chaos'); assert.equal(it.affixes.length, n);
   for (const orb of ['add', 'remove', 'chaos']) assert.equal(G.cube(u.id, orb), null, orb + ' must not touch a Unique');
   const ur = u.affixes.map(a => a.r).join(); assert.ok(G.cube(u.id, 'divine')); assert.notEqual(u.affixes.map(a => a.r).join(), ur);
   assert.equal(u.affixes.map(a => a.k).join(), D.UNIQUE.coil.affixes.join());
@@ -158,12 +182,26 @@ test('The cube: Slag rerolls every affix, Tempering only the numbers, and Unique
 test('Bag items can be moved and swapped, and gear dropped into the bag', (SW, G, D, I) => {
   const S = G.S, a = I.roll(5, { slot: 'boots', rar: 1 }), b = I.roll(5, { slot: 'ring', rar: 1 });
   S.bag[0] = a; S.bag[1] = b;
-  assert.ok(G.moveItem(a.id, 10)); assert.equal(S.bag[10], a); assert.equal(S.bag[0], null);
-  assert.ok(G.moveItem(b.id, 10)); assert.equal(S.bag[10], b); assert.equal(S.bag[1], a, 'dropping on an item swaps them');
-  assert.equal(G.moveItem(a.id, 99), false);
-  const worn = S.gear.chest; assert.ok(G.moveItem(worn.id, 5)); assert.equal(S.bag[5], worn); assert.equal(S.gear.chest, null);
-  assert.equal(G.moveItem(S.gear.weapon.id, 10), false, 'worn gear only swaps with its own kind');
-  G.sortBag(); assert.equal(S.bag.length, D.BAG_SIZE); assert.ok(S.bag[0] && S.bag[1] && S.bag[2] && !S.bag[3]);
+  assert.ok(G.moveItem(a.id, 'bag', 10)); assert.equal(S.bag[10], a); assert.equal(S.bag[0], null);
+  assert.ok(G.moveItem(b.id, 'bag', 10)); assert.equal(S.bag[10], b); assert.equal(S.bag[1], a, 'dropping on an item swaps them');
+  assert.equal(G.moveItem(a.id, 'bag', 99), false);
+  const worn = S.gear.chest; assert.ok(G.moveItem(worn.id, 'bag', 5)); assert.equal(S.bag[5], worn); assert.equal(S.gear.chest, null);
+  assert.equal(G.moveItem(S.gear.weapon.id, 'bag', 10), false, 'worn gear only swaps with its own kind');
+  assert.ok(G.moveItem(b.id, 'stash', 3)); assert.equal(S.stash[3], b); assert.equal(S.bag[10], null);
+  G.sortBag(); assert.equal(S.bag.length, D.BAG_SIZE); assert.ok(S.bag[0] && S.bag[1] && !S.bag[2]); assert.equal(S.stash[3], b, 'sorting the bag leaves the stash alone');
+});
+test('The stash keeps gear safe: salvage, sort and the full-bag rule never touch it', (SW, G, D, I) => {
+  const S = G.S, keep = I.roll(8, { slot: 'boots', rar: 0 }), junk = I.roll(8, { slot: 'boots', rar: 0 });
+  S.gear.boots = I.roll(60, { slot: 'boots', rar: 2 }); G.recompute();
+  S.bag[0] = keep; S.bag[1] = junk; G.refreshUpgrades();
+  assert.equal(S.stash.length, D.STASH_SIZE);
+  assert.ok(G.stashToggle(keep.id)); assert.equal(S.stash[0], keep); assert.equal(S.bag[0], null);
+  assert.equal(G.salvage(keep.id), false); assert.equal(G.salvageAll(4), 1); assert.equal(S.stash[0], keep, 'salvage-all skips the stash');
+  for (let i = 0; i < D.BAG_SIZE; i++) S.bag[i] = I.roll(5, { rar: 0, slot: 'helm' });
+  assert.equal(G.stashToggle(keep.id), false, 'no room in the bag, so it stays put');
+  assert.ok(G.moveItem(keep.id, 'stash', 9)); assert.equal(S.stash[9], keep);
+  S.orbs.add = 1; assert.ok(G.cube(keep.id, 'add'), 'stashed gear can be crafted in place'); assert.equal(keep.affixes.length, 1);
+  const worn = S.gear.boots; assert.ok(G.equip(keep.id)); assert.equal(S.gear.boots, keep); assert.equal(S.stash[9], worn, 'the swapped-out piece takes its place in the stash');
 });
 test('The damage meter adds up to the damage dealt and ignores overkill', (SW, G, D) => {
   const B = new SW.Battle(G.C, {}, { waves: [[{ id: 'rat', lvl: 1 }, { id: 'wolf', lvl: 1 }, { id: 'bandit', lvl: 1 }]], lvl: 1 }, {}, false);

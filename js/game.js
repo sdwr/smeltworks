@@ -13,15 +13,15 @@ G.fresh = function () {
   const S = {
     v: 2,
     hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null] },
-    gear: {}, bag: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 }, codex: {},
+    gear: {}, bag: [], stash: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 }, codex: {},
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
     opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false, false], sound: true, vol: 0.6 },
     stats: { kills: 0, deaths: 0, leg: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
     seen: {}, uid: 1,
   };
   for (const s of D.SLOTS) S.gear[s] = null;
-  const w = I.roll(1, { slot: 'weapon', base: 'hammer', rar: 0 }); w.name = "Apprentice's Hammer"; w.isNew = 0; w.br = 0.5;
-  const c = I.roll(1, { slot: 'chest', rar: 0 }); c.name = 'Singed Apron'; c.isNew = 0; c.br = 0.3;
+  const w = I.roll(1, { slot: 'weapon', base: 'hammer', rar: 0 }); w.name = "Apprentice's Hammer"; w.isNew = 0;
+  const c = I.roll(1, { slot: 'chest', rar: 0 }); c.name = 'Singed Apron'; c.isNew = 0;
   S.gear.weapon = w; S.gear.chest = c;
   return S;
 };
@@ -32,7 +32,8 @@ G.init = function (saved) {
   S.orbs = Object.assign({ add: 0, remove: 0, chaos: 0, divine: 0 }, S.orbs || {});
   let mx = 1;
   for (const s of D.SLOTS) if (S.gear[s]) mx = Math.max(mx, S.gear[s].id);
-  for (const it of S.bag) if (it) mx = Math.max(mx, it.id);
+  S.stash = (S.stash || []).slice(0, Math.max(D.STASH_SIZE, (S.stash || []).length)); while (S.stash.length < D.STASH_SIZE) S.stash.push(null);
+  for (const it of S.bag.concat(S.stash)) if (it) mx = Math.max(mx, it.id);
   I.setUid(mx + 1);
   G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = {}; G.deathStreak = 0; G.meter = [];
   G.recompute();
@@ -391,12 +392,12 @@ G.winCell = function () {
 G.findItem = function (id) {
   const S = G.S;
   for (const s of D.SLOTS) if (S.gear[s] && S.gear[s].id === id) return { it: S.gear[s], where: 'gear', slot: s };
-  const i = S.bag.findIndex(b => b && b.id === id);
-  return i >= 0 ? { it: S.bag[i], where: 'bag', idx: i } : null;
+  for (const where of ['bag', 'stash']) { const i = S[where].findIndex(b => b && b.id === id); if (i >= 0) return { it: S[where][i], where, idx: i }; }
+  return null;
 };
 G.equip = function (id, slotHint) {
   const S = G.S, f = G.findItem(id);
-  if (!f || f.where !== 'bag') return false;
+  if (!f || f.where === 'gear') return false;
   const it = f.it;
   let slot = it.slot;
   if (slot === 'ring') {
@@ -410,7 +411,7 @@ G.equip = function (id, slotHint) {
   }
   const old = S.gear[slot];
   S.gear[slot] = it; it.isNew = 0; it.upg = 0;
-  S.bag[f.idx] = old || null;
+  S[f.where][f.idx] = old || null;            // what was worn goes back where the new piece came from
   G.recompute(); G.refreshUpgrades(); G.emit('equip', { it }); G.save();
   return true;
 };
@@ -422,23 +423,33 @@ G.unequip = function (slot) {
   G.recompute(); G.refreshUpgrades(); G.emit('equip', { it }); G.save();
   return true;
 };
-/* drag and drop: move a bag item to another slot (swapping), or drop worn gear into a bag slot */
-G.moveItem = function (id, toIdx) {
-  const S = G.S, f = G.findItem(id);
-  if (!f || toIdx < 0 || toIdx >= Math.max(D.BAG_SIZE, S.bag.length)) return false;
-  if (f.where === 'bag') {
-    if (f.idx === toIdx) return false;
-    const other = S.bag[toIdx] || null; S.bag[toIdx] = f.it; S.bag[f.idx] = other;
-    G.emit('bag'); G.save(); return true;
+/* drag and drop: move an item to a slot in the bag or the stash (swapping with what is there), or drop worn gear into one */
+G.moveItem = function (id, to, toIdx) {
+  const S = G.S, f = G.findItem(id), box = S[to];
+  if (!f || (to !== 'bag' && to !== 'stash') || toIdx < 0 || toIdx >= box.length) return false;
+  const there = box[toIdx] || null;
+  if (f.where === 'gear') {
+    if (there && there.slot !== f.it.slot) return false;       // worn gear only swaps with a piece for the same slot
+    box[toIdx] = f.it; S.gear[f.slot] = there;
+    if (there) { there.isNew = 0; there.upg = 0; }
+    G.recompute(); G.refreshUpgrades(); G.emit('equip', { it: f.it }); G.save();
+    return true;
   }
-  const there = S.bag[toIdx];
-  if (there && there.slot !== f.it.slot) return false;       // can only swap with a piece for the same slot
-  S.bag[toIdx] = f.it; S.gear[f.slot] = there || null;
-  if (there) { there.isNew = 0; there.upg = 0; }
-  G.recompute(); G.refreshUpgrades(); G.emit('equip', { it: f.it }); G.save();
+  if (f.where === to && f.idx === toIdx) return false;
+  box[toIdx] = f.it; S[f.where][f.idx] = there;
+  G.emit('bag'); G.save();
   return true;
 };
-G.refreshUpgrades = function () { for (const b of G.S.bag) if (b) b.upg = G.isUpgrade(b) ? 1 : 0; };
+/* send a bag item to the first free stash slot, or a stashed one back to the bag */
+G.stashToggle = function (id) {
+  const S = G.S, f = G.findItem(id);
+  if (!f || f.where === 'gear') return false;
+  const to = f.where === 'bag' ? 'stash' : 'bag', i = S[to].indexOf(null);
+  if (i < 0) return false;
+  return G.moveItem(id, to, i);
+};
+G.stashCount = () => G.S.stash.filter(Boolean).length;
+G.refreshUpgrades = function () { for (const b of G.S.bag.concat(G.S.stash)) if (b) b.upg = G.isUpgrade(b) ? 1 : 0; };
 G.salvage = function (id) {
   const f = G.findItem(id);
   if (!f || f.where !== 'bag' || f.it.lock) return false;
@@ -496,11 +507,12 @@ G.commission = function (slot) {
 };
 
 /* The cube: one item, one orb, a random result. */
-G.cube = function (id, orb) {
+G.cube = function (id, orb, cat) {
   const S = G.S, f = G.findItem(id);
-  if (!f || !D.ORBS[orb] || !(S.orbs[orb] > 0) || I.cubeCheck(f.it, orb)) return null;
+  if (!D.AFFIX_CAT[cat]) cat = null;
+  if (!f || !D.ORBS[orb] || !(S.orbs[orb] > 0) || I.cubeCheck(f.it, orb, cat)) return null;
   S.orbs[orb]--;
-  const res = I.cube(f.it, orb, S.world.tier);
+  const res = I.cube(f.it, orb, S.world.tier, cat);
   G.recompute(); G.refreshUpgrades(); G.emit('cube', { it: f.it, res }); G.save();
   return res;
 };

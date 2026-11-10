@@ -43,9 +43,10 @@ I.rollRarity = function (lvl, mf, tier, boost, minRar) {
   for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
   return minRar || 0;
 };
-function rollAffix(slot, have, tier) {
-  const pool = Object.values(D.AFFIX).filter(a => a.slots.includes(slot) && !have.includes(a.id));
-  const a = U.wpick(pool, x => x.w);
+/* the affixes a slot can still gain, optionally of one type */
+I.affixPool = (slot, have, cat) => Object.values(D.AFFIX).filter(a => a.slots.includes(slot) && !have.includes(a.id) && (!cat || a.cat === cat));
+function rollAffix(slot, have, tier, cat) {
+  const a = U.wpick(I.affixPool(slot, have, cat), x => x.w);
   return { k: a.id, r: U.rng(), g: tier > 0 && U.chance(0.05 + 0.03 * tier) ? 1 : 0 };
 }
 /* opts: slot, base, rar, minRar, mf, tier, boost, unique (id) */
@@ -55,7 +56,7 @@ I.roll = function (ilvl, o) {
   const slot = o.slot || U.wpick(D.ITEM_SLOTS, s => D.SLOT_WEIGHT[s]);
   let rar = o.rar != null ? o.rar : I.rollRarity(ilvl, o.mf, o.tier, o.boost, o.minRar);
   let base = o.base || U.pick(D.BASES_BY_SLOT[slot]);
-  const it = { id: uid++, slot, base, rar, ilvl, affixes: [], aspect: null, uniq: null, up: 0, mw: [], ench: -1, enchN: 0, lock: 0, isNew: 1, br: U.rng() };
+  const it = { id: uid++, slot, base, rar, ilvl, affixes: [], aspect: null, uniq: null, up: 0, mw: [], ench: -1, enchN: 0, lock: 0, isNew: 1 };
   if (rar === 4) {
     const pool = D.UNIQUES.filter(u => (o.unique ? u.id === o.unique : D.BASES[u.base].slot === slot && u.minLvl <= ilvl));
     if (!pool.length) rar = it.rar = 3;
@@ -69,8 +70,7 @@ I.roll = function (ilvl, o) {
     }
   }
   const [lo, hi] = D.RARITY[rar].affixes;
-  let n = U.irand(lo, hi);
-  if (rar >= 2 && ilvl >= 45) n++;                 // late rares and legendaries carry a fourth affix
+  const n = U.irand(lo, hi);
   for (let i = 0; i < n; i++) it.affixes.push(rollAffix(it.slot, it.affixes.map(a => a.k), o.tier || 0));
   if (rar === 3) {
     const pool = D.ASPECTS.filter(a => D.ASPECT_SLOTS[a.cat].includes(it.slot));
@@ -105,14 +105,13 @@ I.affixValue = function (it, a, idx) {
 I.affixText = function (it, a, idx) {
   return D.AFFIX[a.k].t.replace('{v}', U.fmt1(I.affixValue(it, a, idx)));
 };
-/* implicit stats from the base type */
+/* the main stat: fixed by base type and item level, never rolled. Forge upgrades raise it. */
 I.implicit = function (it) {
-  const b = D.BASES[it.base], out = {};
-  const q = (0.92 + 0.16 * (it.br == null ? 0.5 : it.br)) * I.upMult(it) * (1 + it.rar * 0.03);
-  if (b.dmg) { out.dmg = Math.max(1, Math.round(D.WEAPON_DMG * b.dmg * D.flat(it.ilvl) * q)); out.aps = b.aps; }
-  if (b.armor) out.armor = Math.max(1, Math.round(D.ARMOR_BASE * b.armor * D.flat(it.ilvl) * q));
-  if (b.armor && b.slot !== 'offhand') out.life = Math.max(1, Math.round(D.ARMOR_LIFE * b.armor * D.flat(it.ilvl) * q));   // armour carries the smith's life
-  if (b.imp) for (const k in b.imp) out[k] = b.imp[k];
+  const b = D.BASES[it.base], out = {}, f = D.flat(it.ilvl) * I.upMult(it);
+  if (b.dmg) { out.dmg = Math.max(1, Math.round(D.WEAPON_DMG * b.dmg * f)); out.aps = b.aps; }
+  if (b.armor) out.armor = Math.max(1, Math.round(D.ARMOR_BASE * b.armor * f));
+  if (b.life) out.life = Math.max(1, Math.round(D.JEWEL_LIFE * b.life * f));
+  if (b.pct) out.dmgPct = Math.round(b.pct * D.pct(it.ilvl) * I.upMult(it));
   return out;
 };
 /* every stat the item grants, summed */
@@ -195,22 +194,30 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 
 /* ------------------------------------------------------------------- cube
    Orbs change affixes at random. Returns a reason string when the recipe cannot run. */
-I.cubeCheck = function (it, orb) {
-  const n = it.affixes.length;
+I.cubeCheck = function (it, orb, cat) {
+  const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
   if (orb === 'divine') return n ? null : 'It has no affixes to reroll.';
   if (it.uniq) return 'Uniques are fixed. Only a Tempering Orb works on them.';
-  if (orb === 'add') return n >= D.MAX_AFFIXES ? 'It already has ' + D.MAX_AFFIXES + ' affixes.' : null;
-  return n ? null : 'It has no affixes.';
+  if (orb === 'add') {
+    if (n >= D.MAX_AFFIXES) return 'It already has ' + D.MAX_AFFIXES + ' affixes.';
+    if (C && !I.affixPool(it.slot, it.affixes.map(a => a.k), cat).length) return `No ${C.name} affix is left that fits a ${D.SLOT_NAME[it.slot].toLowerCase()}.`;
+    return null;
+  }
+  if (!n) return 'It has no affixes.';
+  if (orb === 'remove' && C && !it.affixes.some(a => D.AFFIX[a.k].cat === cat)) return `It has no ${C.name} affix to remove.`;
+  return null;
 };
-I.cube = function (it, orb, tier) {
+/* cat aims Kindling (what to add) and Quenching (what to remove) at one affix type; the roll inside it is still random */
+I.cube = function (it, orb, tier, cat) {
   const res = { orb };
   if (orb === 'add') {
-    const a = rollAffix(it.slot, it.affixes.map(x => x.k), tier || 0);
+    const a = rollAffix(it.slot, it.affixes.map(x => x.k), tier || 0, cat);
     it.affixes.push(a); res.idx = it.affixes.length - 1;
     const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
     if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
   } else if (orb === 'remove') {
-    const i = Math.floor(U.rng() * it.affixes.length);
+    const idxs = it.affixes.map((a, k) => k).filter(k => !cat || D.AFFIX[it.affixes[k].k].cat === cat);
+    const i = idxs[Math.floor(U.rng() * idxs.length)];
     res.removed = I.affixText(it, it.affixes[i], i);
     it.affixes.splice(i, 1);
     if (it.ench === i) it.ench = -1; else if (it.ench > i) it.ench--;

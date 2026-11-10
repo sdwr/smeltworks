@@ -22,8 +22,8 @@ text, load one back in, or wipe it.
 | T | Travel |
 
 Mouse: click a glowing tile to fight there. Click a bag item to equip it, right-click to salvage it (Shift for
-Legendaries), Alt-click to lock it. Drag items to rearrange the bag, onto the paper doll to equip, or off it to
-unequip. In Skills, click a skill to use it and click again to drop it.
+Legendaries), Alt-click to lock it, Ctrl-click to send it to the stash (or back). Drag items to rearrange the bag
+and stash, onto the paper doll to equip, or off it to unequip. In Skills, click a skill to use it and click again to drop it.
 
 ## What is in it
 
@@ -31,16 +31,20 @@ unequip. In Skills, click a skill to use it and click again to drop it.
   Clear a tile to reveal its neighbours. Beat the boss to open the next area.
 - **Fifteen areas in five acts**, each act with its own monsters and a scripted boss, then four Torment tiers that
   replay the descent at higher levels with better drops.
-- **Gear is the only progression.** There are no character levels or experience. Life comes from armour, damage
-  from the weapon, and skill ranks from "+ to skills" affixes.
+- **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
+  for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,
+  3-4 on Rare, 4 on Legendary. Skill ranks come from "+ to skills" affixes.
 - **Loot.** Ten gear slots, five rarities, 26 affixes, 30 legendary aspects and 12 uniques. Item level follows
   monster level, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
+- **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
+  and it is what the Cube tab offers you alongside what you are wearing.
 - **The forge.** Upgrade (+5% per step, a masterwork every fourth), enchant (reroll one affix), imprint (stamp an
   aspect from the Codex onto a Rare), commission (pay gold for a random piece in a slot you choose), salvage.
 - **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
-  affix (up to five, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
-  reroll them all, Tempering Orbs reroll the numbers. Orbs drop from elites, bosses, chests and full clears.
+  affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
+  reroll them all, Tempering Orbs reroll the numbers. Kindling and Quenching can be aimed at a type (Offence,
+  Defence, Utility or Skills); the affix within the type is still random. Orbs drop from elites, bosses, chests and full clears.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
   available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
   moment.

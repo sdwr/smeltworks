@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero, G = SW.game, SP = SW.sprites, A = SW.audio;
-const UI = SW.ui = { tab: 'gear', dirty: {}, forgeId: null, forgeAspect: null, cubeId: null, cubeOrb: 'add', cubeLast: null, dragId: null, lastGold: -1 };
+const UI = SW.ui = { tab: 'gear', dirty: {}, forgeId: null, forgeAspect: null, cubeId: null, cubeOrb: 'add', cubeCat: null, cubeLast: null, dragId: null, lastGold: -1 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const RC = i => D.RARITY[i].color;
@@ -11,8 +11,8 @@ const pct = v => (Math.round(v * 10) / 10) + '%';
 const MAT_NAME = { gold: 'gold', scrap: 'scrap', dust: 'ember dust', soul: 'soulsteel' };
 
 /* ------------------------------------------------------------- pieces */
-function itemCell(it, extra, idx) {
-  const bag = idx == null ? '' : ` data-bag="${idx}"`;
+function itemCell(it, extra, idx, box) {
+  const bag = idx == null ? '' : ` data-${box || 'bag'}="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
   return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
@@ -42,14 +42,15 @@ function compareHtml(it) {
 }
 function itemTooltip(it, o) {
   o = o || {};
-  const imp = I.implicit(it), b = D.BASES[it.base];
+  const imp = I.implicit(it);
   let h = `<div class="tt r${it.rar}">`;
   if (o.label) h += `<div class="tt-label">${o.label}</div>`;
   h += `<div class="tt-name">${esc(it.name)}${it.up ? ' <span>+' + it.up + '</span>' : ''}</div>`;
   h += `<div class="tt-type">${I.typeLine(it)}<span>${I.itemPower(it)} Item Power</span></div>`;
-  if (imp.dmg) h += `<div class="tt-base"><b>${U.fmt(imp.dmg)}</b> damage per hit<br><b>${imp.aps.toFixed(2)}</b> attacks per second</div>`;
-  if (imp.armor) h += `<div class="tt-base"><b>${U.fmt(imp.armor)}</b> armor${imp.life ? `<br><b>${U.fmt(imp.life)}</b> life` : ''}</div>`;
-  if (b.imp) h += '<ul class="tt-imp">' + Object.keys(b.imp).map(k => `<li>${D.AFFIX[k].t.replace('{v}', b.imp[k])}</li>`).join('') + '</ul>';
+  if (imp.dmg) h += `<div class="tt-base"><b>${U.fmt(imp.dmg)}</b> damage per hit<span>${imp.aps.toFixed(2)} attacks per second</span></div>`;
+  else if (imp.armor) h += `<div class="tt-base"><b>${U.fmt(imp.armor)}</b> armor</div>`;
+  else if (imp.life) h += `<div class="tt-base"><b>${U.fmt(imp.life)}</b> life</div>`;
+  else if (imp.dmgPct) h += `<div class="tt-base"><b>+${imp.dmgPct}%</b> damage</div>`;
   if (it.affixes.length) {
     h += '<ul class="tt-aff">' + it.affixes.map((a, i) => {
       const mw = (it.mw || []).filter(x => x === i).length;
@@ -104,9 +105,9 @@ function tipFor(el, x, y) {
     const f = G.findItem(+el.dataset.item) || (UI.shown && UI.shown[el.dataset.item] ? { it: UI.shown[el.dataset.item], where: 'show' } : null);
     if (!f) return hideTip();
     const it = f.it;
-    if (f.where === 'bag') {
-      const forge = UI.tab === 'forge', cube = UI.tab === 'cube';
-      const hint = cube ? 'Click to put it in the cube' : forge ? 'Click to put it on the anvil' : `Click to equip · Right-click to salvage${it.rar >= 3 ? ' (hold Shift)' : ''} · Alt-click to ${it.lock ? 'unlock' : 'lock'}`;
+    if (f.where === 'bag' || f.where === 'stash') {
+      const forge = UI.tab === 'forge', cube = UI.tab === 'cube', move = f.where === 'bag' ? 'Ctrl-click to stash it' : 'Ctrl-click to move it to the bag';
+      const hint = (cube ? 'Click to put it in the cube' : forge ? 'Click to put it on the anvil' : f.where === 'stash' ? 'Click to equip' : `Click to equip · Right-click to salvage${it.rar >= 3 ? ' (hold Shift)' : ''} · Alt-click to ${it.lock ? 'unlock' : 'lock'}`) + ' · ' + move;
       let cmp = null;
       if (it.slot === 'ring') { cmp = S.gear.ring1 && S.gear.ring2 ? (Hr.compute(S, Object.assign({}, S.gear, { ring1: null })).rating.power > Hr.compute(S, Object.assign({}, S.gear, { ring2: null })).rating.power ? S.gear.ring1 : S.gear.ring2) : null; }
       else cmp = S.gear[it.slot];
@@ -283,7 +284,8 @@ function renderGear() {
   h += `<div class="dmid"><div class="portrait">${wk ? `<img class="pw" src="${SP.url(wk.spr, wk.pal, 6)}" alt="">` : ''}<img class="ph" src="${SP.url('hero', 'hero', 8)}" alt=""></div>`;
   h += `<div class="power" data-tip="A rough measure of how hard you hit and how much you can take. Use it to compare, not as gospel."><span>Power</span><b>${U.fmt(C.rating.power)}</b></div></div>`;
   h += '<div class="dcol">' + DOLL_R.map(dollSlot).join('') + '</div></div>';
-  h += '<div class="stats"><div class="scol"><h4>Offence</h4>';
+  $('tab-gear').innerHTML = h;
+  h = '<div class="stats"><div class="scol"><h4>Offence</h4>';
   h += row('Damage per hit', U.fmt(st.dmg), 'Weapon damage. Every skill is a percentage of this.');
   h += row('Attacks / sec', (st.aps * (1 + st.aspd / 100)).toFixed(2));
   h += row('Damage', '+' + pct(st.dmgPct));
@@ -301,7 +303,7 @@ function renderGear() {
   h += '</div><div class="scol"><h4>Utility</h4>';
   h += row('Cooldowns', '−' + pct(st.cdr)) + row('Heat gain', '+' + pct(st.heat)) + row('Gold find', '+' + pct(st.gold)) + row('Magic find', '+' + pct(st.mf), 'Raises the odds of Rare, Legendary and Unique drops.');
   h += '</div></div>';
-  $('tab-gear').innerHTML = h;
+  $('gear-stats').innerHTML = h;
 }
 function renderBag() {
   const S = G.S, n = G.bagCount();
@@ -312,9 +314,18 @@ function renderBag() {
   h += '<span class="lbl" style="margin-left:8px" data-tip="Tick a rarity to salvage those drops the moment you pick them up. Upgrades are always kept.">Auto</span>';
   h += ['C', 'M', 'R', 'L'].map((nm, i) => `<label class="chk mini r${i}" data-tip="Auto-salvage ${D.RARITY[i].name} drops${i === 3 ? '. Their aspects still go to your Codex.' : ''}"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('');
   $('baghead').innerHTML = h;
+  const sel = it => it && ((UI.tab === 'forge' && it.id === UI.forgeId) || (UI.tab === 'cube' && it.id === UI.cubeId)) ? 'sel' : '';
   let b = '';
-  for (let i = 0; i < Math.max(D.BAG_SIZE, S.bag.length); i++) b += itemCell(S.bag[i] || null, S.bag[i] && ((UI.tab === 'forge' && S.bag[i].id === UI.forgeId) || (UI.tab === 'cube' && S.bag[i].id === UI.cubeId)) ? 'sel' : '', i);
+  for (let i = 0; i < S.bag.length; i++) b += itemCell(S.bag[i] || null, sel(S.bag[i]), i, 'bag');
   $('bag').innerHTML = b;
+  const m = G.stashCount();
+  $('stashhead').innerHTML = `<span class="bcount ${m >= D.STASH_SIZE ? 'full' : ''}">Stash <b>${m}</b>/${D.STASH_SIZE}</span><span class="note">Gear kept for crafting. Never salvaged. Drag it here, or Ctrl-click.</span>`;
+  b = '';
+  for (let i = 0; i < S.stash.length; i++) b += itemCell(S.stash[i] || null, sel(S.stash[i]), i, 'stash');
+  $('stash').innerHTML = b;
+  // what you are wearing, as a pick-list for the forge and the cube
+  const pick = UI.tab === 'cube' ? UI.cubeId : UI.forgeId;
+  $('worn').innerHTML = '<span class="lbl">Wearing</span>' + D.SLOTS.map(sl => S.gear[sl] ? itemCell(S.gear[sl], pick === S.gear[sl].id ? 'sel' : '') : '<div class="it empty"></div>').join('');
 }
 
 /* -------------------------------------------------------------- skills */
@@ -340,9 +351,9 @@ function renderSkills() {
 function renderForge() {
   const S = G.S, f = UI.forgeId ? G.findItem(UI.forgeId) : null;
   if (!f) UI.forgeId = null;
-  let h = '<div class="worn"><span class="lbl">Wearing</span>' + D.SLOTS.map(s => S.gear[s] ? itemCell(S.gear[s], UI.forgeId === S.gear[s].id ? 'sel' : '') : '<div class="it empty"></div>').join('') + '</div>';
+  let h = '';
   if (!f) {
-    h += '<div class="anvil empty"><b>The anvil is empty</b><p>Pick a piece you are wearing, or anything in your bag, to upgrade it, reroll an affix or imprint a legendary aspect.</p></div>';
+    h += '<div class="anvil empty"><b>The anvil is empty</b><p>Pick a piece you are wearing, or anything in your bag or stash, to upgrade it, reroll an affix or imprint a legendary aspect.</p></div>';
   } else {
     const it = f.it, max = I.maxUp(it), up = it.up || 0;
     h += `<div class="anvil"><div class="an-item">${itemCell(it, 'big')}<div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${I.itemPower(it)} Item Power${f.where === 'gear' ? ' · equipped' : ''}</span></div></div>`;
@@ -387,20 +398,28 @@ function renderForge() {
 function renderCube() {
   const S = G.S, f = UI.cubeId ? G.findItem(UI.cubeId) : null, orb = UI.cubeOrb, O = D.ORBS[orb];
   if (!f) { UI.cubeId = null; UI.cubeLast = null; }
-  const why = !f ? 'Put a piece of gear in the cube: click one you are wearing or one in your bag.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb);
-  let h = '<div class="worn"><span class="lbl">Wearing</span>' + D.SLOTS.map(s => S.gear[s] ? itemCell(S.gear[s], UI.cubeId === S.gear[s].id ? 'sel' : '') : '<div class="it empty"></div>').join('') + '</div>';
+  const aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
+  const why = !f ? 'Put a piece of gear in the cube: click one you are wearing or one in your stash.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb, cat);
+  let h = '';
   h += `<div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div></div>`;
-  h += `<p class="cube-say ${why ? 'no' : ''}">${why || O.desc}</p><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
+  if (aims) {
+    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null, ...Object.keys(D.AFFIX_CAT)].map(c => {
+      const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
+      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" ${c ? `data-tip="${D.AFFIX_CAT[c].keys.map(k => D.AFFIX[k].t.replace(/\+?\{v\}%? ?(to )?/, '')).join(', ')}"` : ''}>${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
+    }).join('') + '</div>';
+  }
+  const say = why || (cat ? (orb === 'add' ? `Adds one random ${D.AFFIX_CAT[cat].name} affix.` : `Removes one ${D.AFFIX_CAT[cat].name} affix.`) : orb === 'add' ? 'Adds one random affix of any type.' : orb === 'remove' ? 'Removes one affix, chosen at random.' : O.desc);
+  h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
   h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].name}</b><span>${D.ORBS[k].short}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
   if (f) {
     const it = f.it, last = UI.cubeLast || {};
     h += `<div class="cube-item"><div class="an-item"><div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span></div></div><ul class="aff-list">`;
-    it.affixes.forEach((a, i) => { const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine'; h += `<li class="${fresh ? 'fresh' : ''}"><span>${I.affixText(it, a, i)}${a.g ? ' <i>greater</i>' : ''}</span>${last.idx === i ? '<em>new</em>' : ''}</li>`; });
+    it.affixes.forEach((a, i) => { const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine'; h += `<li class="${fresh ? 'fresh' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${I.affixText(it, a, i)}${a.g ? ' <i>greater</i>' : ''}</span>${last.idx === i ? '<em>new</em>' : ''}</li>`; });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
     h += '</ul></div>';
   }
-  h += '<p class="note">Orbs drop from elites, champions, bosses, chests and Slag Hoarders, and one comes with every fully cleared map. The result is always random.</p>';
+  h += '<p class="note">Orbs drop from elites, champions, bosses, chests and Slag Hoarders, and one comes with every fully cleared map. You choose the type; the affix within it is random.</p>';
   $('tab-cube').innerHTML = h;
 }
 
@@ -428,7 +447,7 @@ UI.render = function () {
   if (d.hud) renderHudBar();
   if (d.map) renderMap(); else if (d.hint) renderHint();
   if (d.gear && UI.tab === 'gear') renderGear();
-  if (d.bag) renderBag();
+  if (d.bag || d.gear || d.forge || d.cube) renderBag();
   if (d.skills && UI.tab === 'skills') renderSkills();
   if (d.forge && UI.tab === 'forge') renderForge();
   if ((d.cube || d.bag) && UI.tab === 'cube') renderCube();
@@ -438,7 +457,11 @@ UI.setTab = function (t) {
   UI.tab = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   for (const k of ['gear', 'skills', 'forge', 'cube', 'codex']) $('tab-' + k).classList.toggle('hidden', k !== t);
-  $('bagwrap').classList.toggle('hidden', t === 'skills' || t === 'codex');
+  $('bagwrap').classList.toggle('hidden', t !== 'gear' && t !== 'forge');
+  $('stashwrap').classList.toggle('hidden', t !== 'gear' && t !== 'forge' && t !== 'cube');
+  $('worn').classList.toggle('hidden', t !== 'forge' && t !== 'cube');
+  $('gear-stats').classList.toggle('hidden', t !== 'gear');
+  if (t === 'cube' && UI.cubeId) { const f = G.findItem(UI.cubeId); if (f && f.where === 'bag') UI.cubeId = null; }   // the cube works from the stash
   $('right').dataset.tab = t;
   mark(t, 'bag'); hideTip();
 };
@@ -604,16 +627,16 @@ UI.bind = function () {
     if (!f) { e.preventDefault(); return; }
     UI.dragId = f.it.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(f.it.id)); hideTip();
   });
-  document.addEventListener('dragover', e => { if (UI.dragId && e.target.closest('[data-bag],.dslot')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
+  document.addEventListener('dragover', e => { if (UI.dragId && e.target.closest('[data-bag],[data-stash],.dslot')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
   document.addEventListener('dragend', () => { UI.dragId = null; });
   document.addEventListener('drop', e => {
     const id = UI.dragId; UI.dragId = null;
     if (!id) return;
     e.preventDefault();
-    const cell = e.target.closest('[data-bag]'), doll = e.target.closest('.dslot'), f = G.findItem(id);
+    const cell = e.target.closest('[data-bag],[data-stash]'), doll = e.target.closest('.dslot'), f = G.findItem(id);
     if (!f) return;
-    if (cell) { if (!G.moveItem(id, +cell.dataset.bag) && f.where === 'gear') deny('That slot holds a different kind of gear.'); }
-    else if (doll && f.where === 'bag') {
+    if (cell) { const to = cell.dataset.stash != null ? 'stash' : 'bag'; if (!G.moveItem(id, to, +cell.dataset[to]) && f.where === 'gear') deny('That slot holds a different kind of gear.'); }
+    else if (doll && f.where !== 'gear') {
       const slot = doll.dataset.slot;
       if (slot.replace(/\d/, '') !== f.it.slot) deny(`That is a ${D.SLOT_NAME[f.it.slot].toLowerCase()}, not a ${D.SLOT_NAME[slot].toLowerCase()}.`); else G.equip(id, slot);
     }
@@ -624,6 +647,7 @@ UI.bind = function () {
     e.preventDefault();
     if (el.dataset.item) {
       const f = G.findItem(+el.dataset.item);
+      if (f && f.where === 'stash') return deny('Stashed gear is safe. Move it to your bag to salvage it.');
       if (!f || f.where !== 'bag') return;
       if (f.it.lock) return deny('That piece is locked. Alt-click to unlock it.');
       if (f.it.rar >= 3 && !e.shiftKey) return deny('Hold Shift and right-click to salvage a ' + D.RARITY[f.it.rar].name + '.');
@@ -655,6 +679,7 @@ UI.bind = function () {
       return;
     }
     if ((el = t.closest('[data-pick]'))) { UI.forgeAspect = el.dataset.pick; mark('forge'); return; }
+    if ((el = t.closest('[data-aim]'))) { UI.cubeCat = el.dataset.aim || null; mark('cube'); A.play('click'); return; }
     if ((el = t.closest('[data-orb]'))) { UI.cubeOrb = el.dataset.orb; mark('cube'); A.play('click'); return; }
     if ((el = t.closest('[data-skill][data-tree]'))) {
       const id = el.dataset.skill, was = G.skillOn(id), msg = G.toggleSkill(id);
@@ -667,7 +692,7 @@ UI.bind = function () {
       if (act === 'sort') { G.sortBag(); A.play('click'); }
       else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity.'); }
       else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
-      else if (act === 'transmute') { if (!G.cube(UI.cubeId, UI.cubeOrb)) deny('The cube does nothing.'); }
+      else if (act === 'transmute') { if (!G.cube(UI.cubeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that upgrade.'); }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }
       else if (act === 'imprint') { if (!G.imprint(UI.forgeId, UI.forgeAspect)) deny('You cannot afford that imprint.'); else UI.forgeAspect = null; }
@@ -679,9 +704,10 @@ UI.bind = function () {
       const f = G.findItem(+el.dataset.item);
       if (!f) return;
       if (e.altKey) { G.toggleLock(f.it.id); hideTip(); return; }
+      if ((e.ctrlKey || e.metaKey) && f.where !== 'gear') { if (!G.stashToggle(f.it.id)) deny(f.where === 'bag' ? 'Your stash is full.' : 'Your bag is full.'); else A.play('equip'); hideTip(); return; }
       if (UI.tab === 'cube') { UI.cubeId = f.it.id; UI.cubeLast = null; mark('cube', 'bag'); A.play('click'); return; }
       if (UI.tab === 'forge') { UI.forgeId = f.it.id; UI.forgeAspect = null; mark('forge', 'bag'); A.play('click'); return; }
-      if (f.where === 'bag') G.equip(f.it.id);
+      if (f.where === 'bag' || f.where === 'stash') G.equip(f.it.id);
       else if (f.where === 'gear' && el.closest('.doll')) { if (!G.unequip(f.slot)) deny('Your bag is full.'); }
       return;
     }

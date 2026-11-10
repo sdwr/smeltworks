@@ -42,13 +42,14 @@ D.MOB_DMG_G2 = 1.091;
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
 D.pct = l => 1 + l / 70;
 D.BAG_SIZE = 24;        // three rows of eight
+D.STASH_SIZE = 16;      // two rows kept safe from salvage, for crafting
 D.HEAT_MAX = 100;
 
 D.RARITY = [
   { id: 'common',    name: 'Common',    color: '#b9b4aa', affixes: [0, 0] },
   { id: 'magic',     name: 'Magic',     color: '#6f9dff', affixes: [1, 2] },
-  { id: 'rare',      name: 'Rare',      color: '#ffd84a', affixes: [3, 3] },
-  { id: 'legendary', name: 'Legendary', color: '#ff8a2a', affixes: [3, 3] },
+  { id: 'rare',      name: 'Rare',      color: '#ffd84a', affixes: [3, 4] },
+  { id: 'legendary', name: 'Legendary', color: '#ff8a2a', affixes: [4, 4] },
   { id: 'unique',    name: 'Unique',    color: '#e6c79a', affixes: [4, 4] },
 ];
 
@@ -57,26 +58,27 @@ D.SLOT_NAME = { weapon: 'Weapon', offhand: 'Offhand', helm: 'Helm', chest: 'Ches
 D.ITEM_SLOTS = ['weapon', 'offhand', 'helm', 'chest', 'gloves', 'pants', 'boots', 'amulet', 'ring'];
 D.SLOT_WEIGHT = { weapon: 14, offhand: 9, helm: 10, chest: 10, gloves: 10, pants: 10, boots: 10, amulet: 7, ring: 14 };
 
-/* base item types. dmg/aps for weapons, armor multiplier for armour, imp = implicit stats */
+/* base item types. Each has exactly one main stat, the same on every piece of that type at a given item level:
+   weapons damage (dmg, with a fixed attack rate), armour and shields armor, jewellery life, lanterns % damage. */
 D.BASES = {
-  sword:   { slot: 'weapon',  name: 'Sword',   dmg: 1.00, aps: 1.30, imp: { crit: 5 },      spr: 'sword' },
-  axe:     { slot: 'weapon',  name: 'Axe',     dmg: 1.20, aps: 1.10, imp: { dmgPct: 12 },   spr: 'axe' },
-  hammer:  { slot: 'weapon',  name: 'Hammer',  dmg: 1.52, aps: 0.90, imp: { critDmg: 30 },  spr: 'hammer' },
-  shield:  { slot: 'offhand', name: 'Shield',  armor: 1.3, imp: { dr: 6 },                  spr: 'shield' },
-  lantern: { slot: 'offhand', name: 'Lantern', imp: { dmgPct: 10, heat: 10 },               spr: 'lantern' },
+  sword:   { slot: 'weapon',  name: 'Sword',   dmg: 1.00, aps: 1.30, spr: 'sword' },
+  axe:     { slot: 'weapon',  name: 'Axe',     dmg: 1.20, aps: 1.10, spr: 'axe' },
+  hammer:  { slot: 'weapon',  name: 'Hammer',  dmg: 1.52, aps: 0.90, spr: 'hammer' },
+  shield:  { slot: 'offhand', name: 'Shield',  armor: 1.5, spr: 'shield' },
+  lantern: { slot: 'offhand', name: 'Lantern', pct: 12, spr: 'lantern' },
   helm:    { slot: 'helm',    name: 'Helm',    armor: 0.7, spr: 'helm' },
   chest:   { slot: 'chest',   name: 'Plate',   armor: 1.2, spr: 'chest' },
   gloves:  { slot: 'gloves',  name: 'Gauntlets', armor: 0.5, spr: 'gloves' },
   pants:   { slot: 'pants',   name: 'Greaves', armor: 0.9, spr: 'pants' },
   boots:   { slot: 'boots',   name: 'Boots',   armor: 0.5, spr: 'boots' },
-  amulet:  { slot: 'amulet',  name: 'Amulet',  spr: 'amulet' },
-  ring:    { slot: 'ring',    name: 'Ring',    spr: 'ring' },
+  amulet:  { slot: 'amulet',  name: 'Amulet',  life: 1.5, spr: 'amulet' },
+  ring:    { slot: 'ring',    name: 'Ring',    life: 1.0, spr: 'ring' },
 };
 D.BASES_BY_SLOT = {};
 for (const k in D.BASES) { D.BASES[k].id = k; (D.BASES_BY_SLOT[D.BASES[k].slot] = D.BASES_BY_SLOT[D.BASES[k].slot] || []).push(k); }
 D.WEAPON_DMG = 8;     // weapon damage at item level 1 (× base.dmg)
 D.ARMOR_BASE = 10;    // armour at item level 1 (× base.armor)
-D.ARMOR_LIFE = 12;    // life on armour pieces at item level 1 (× base.armor)
+D.JEWEL_LIFE = 14;    // life on rings and amulets at item level 1 (× base.life)
 D.ARMOR_K = 50;       // armour needed for 50% reduction vs a level-1 attacker
 
 /* material tiers — name prefix for commons and the palette used for the icon */
@@ -124,6 +126,14 @@ D.AFFIX = {
   skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
   skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
 };
+/* affix types, used to aim Kindling and Quenching Orbs in the cube */
+D.AFFIX_CAT = {
+  off:   { name: 'Offence', color: '#ff8a6a', keys: ['dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite'] },
+  def:   { name: 'Defence', color: '#8fd0ff', keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen', 'thorns'] },
+  util:  { name: 'Utility', color: '#9be36a', keys: ['cdr', 'heat', 'gold', 'mf'] },
+  skill: { name: 'Skills',  color: '#ffd27a', keys: ['skHammer', 'skEmber', 'skStorm'] },
+};
+for (const c in D.AFFIX_CAT) for (const k of D.AFFIX_CAT[c].keys) D.AFFIX[k].cat = c;
 for (const k in D.AFFIX) D.AFFIX[k].id = k;
 /* labels for the stat sheet */
 D.STAT_LABEL = { dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
@@ -290,13 +300,13 @@ D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ul
 
 /* cube orbs: each one changes an item's affixes at random when transmuted with it */
 D.ORBS = {
-  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix. A Common piece becomes Magic, and a third affix makes it Rare. Five affixes at most.' },
-  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes an affix', desc: 'Removes one affix, chosen at random.' },
+  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most.' },
+  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes an affix', desc: 'Removes one affix of the type you choose. If there are several of that type, which one goes is random.' },
   chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Rerolls all affixes', desc: 'Melts every affix and rolls the same number of new ones.' },
   divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Rerolls the numbers', desc: 'Rerolls the numbers on every affix. The affixes themselves stay.' },
 };
 D.ORB_IDS = Object.keys(D.ORBS);
-D.MAX_AFFIXES = 5;
+D.MAX_AFFIXES = 4;
 
 /* ------------------------------------------------------------ monsters
    hp/dmg are multipliers on the level curve; int = seconds between attacks. */
