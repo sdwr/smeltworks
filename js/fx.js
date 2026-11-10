@@ -123,7 +123,8 @@ function bolt(x1, y1, x2, y2, col, w) {
 }
 function ring(x, y, r, col, life, w, flat) { rings.push({ x, y, r0: 6, r, col, life, max: life, w: w || 4, flat: flat !== false }); }
 function slash(x, y, col, size, rot) { slashes.push({ x, y, col, size: size || 46, rot: rot == null ? rnd(-0.9, -0.3) : rot, life: 0.16, max: 0.16 }); }
-function quake(n) { shake = Math.max(shake, n); }
+const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function quake(n) { if (!calm) shake = Math.max(shake, n); }
 FX.heroGlow = function (col) { hero.glow = 0.9; hero.glowCol = col; spark(hero.x, hero.y - 40, col, 26, 260, 0.9, 4, -120); };
 FX.heroWalk = function (on) { hero.walk = on ? 1 : 0; };
 
@@ -432,7 +433,7 @@ FX.draw = function (B, phase) {
     text(f.text, f.x, f.y, sz, f.col, Math.min(1, k * 2.2));
   }
   ctx.restore();
-  if (flash > 0) { ctx.globalAlpha = Math.min(0.35, flash); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  if (flash > 0 && !calm) { ctx.globalAlpha = Math.min(0.35, flash); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 };
 FX.width = () => W;
 })();

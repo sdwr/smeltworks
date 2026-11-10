@@ -296,9 +296,9 @@ function renderBag() {
   let h = `<span class="bcount ${n >= D.BAG_SIZE ? 'full' : ''}">Bag <b>${n}</b>/${D.BAG_SIZE}</span>`;
   h += '<button class="small" data-act="sort" data-tip="Sort by rarity, then slot.">Sort</button>';
   h += '<span class="sep"></span><span class="lbl">Salvage</span>';
-  h += ['Common', 'Magic', 'Rare'].map((nm, i) => `<button class="small r${i}" data-act="salv" data-rar="${i}" data-tip="Salvage every unlocked ${nm} item${i ? ' or lower' : ''} in your bag. Anything marked as an upgrade is kept.">${nm}</button>`).join('');
+  h += ['Common', 'Magic', 'Rare'].map((nm, i) => `<button class="small r${i}" data-act="salv" data-rar="${i}" data-tip="Salvage every unlocked ${nm} item${i ? ' or lower' : ''} in your bag. Anything marked as an upgrade is kept.">${i ? nm : 'Com.'}</button>`).join('');
   h += '<span class="lbl" style="margin-left:8px" data-tip="Tick a rarity to salvage those drops the moment you pick them up. Upgrades are always kept.">Auto</span>';
-  h += ['C', 'M', 'R'].map((nm, i) => `<label class="chk mini r${i}"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('');
+  h += ['C', 'M', 'R', 'L'].map((nm, i) => `<label class="chk mini r${i}" data-tip="Auto-salvage ${D.RARITY[i].name} drops${i === 3 ? '. Their aspects still go to your Codex.' : ''}"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('');
   $('baghead').innerHTML = h;
   let b = '';
   for (let i = 0; i < D.BAG_SIZE; i++) b += itemCell(S.bag[i] || null, UI.tab === 'forge' && S.bag[i] && S.bag[i].id === UI.forgeId ? 'sel' : '');
@@ -431,6 +431,7 @@ UI.feed = function (html, cls) {
 };
 UI.feedItem = function (it, fate) {
   UI.shown = UI.shown || {}; UI.shown[it.id] = it;
+  UI.shownIds = UI.shownIds || []; UI.shownIds.push(it.id); if (UI.shownIds.length > 40) delete UI.shown[UI.shownIds.shift()];
   if (fate === 'salvaged') { if (it.rar >= 2) UI.feed(`<span class="dim">Salvaged</span> <b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b>`, 'sal'); return; }
   if (it.rar === 0 && !it.upg) return;
   UI.feed(`${it.upg ? '<i class="pos">▲</i> ' : ''}<b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b> <span class="dim">${I.typeLine(it)}</span>`, 'r' + it.rar);
@@ -479,6 +480,14 @@ UI.welcome = function () {
     <ul class="how"><li><b>Map</b>Click a glowing tile to fight there. Reach the boss to open the next area.</li><li><b>Gear</b>A green arrow marks an upgrade. Click to equip, right-click to salvage.</li><li><b>Skills</b>A point every level. Hammer, Ember or Storm, or a mix.</li></ul>
     <div class="mfoot"><span></span><button data-close="1" class="big">Go down</button></div>`, 'welcome');
 };
+UI.victory = function () {
+  const S = G.S, t = S.stats.time, hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60);
+  UI.modal(`<h1>The forges burn again</h1>
+    <p class="lead">Vulkar is slag. Heat climbs back up through the mountain, shaft by shaft, and somewhere above you a bellows starts to breathe.</p>
+    <p>You finished the descent in ${hh ? hh + 'h ' : ''}${mm}m, at level ${S.hero.level}, after ${U.fmt(S.stats.kills)} kills and ${S.stats.deaths} fall${S.stats.deaths === 1 ? '' : 's'}.</p>
+    <p><b style="color:${D.TIERS[1].color}">Torment I is open.</b> The same descent, far deadlier. No Common gear drops there, Legendaries and Uniques come faster, and affixes can roll greater. Past level 50, experience earns Paragon points without end.</p>
+    <div class="mfoot"><button data-close="1">Keep farming here</button><button class="big" data-go="0" data-gotier="1">Enter Torment I</button></div>`, 'welcome');
+};
 UI.areaDone = function (d) {
   const S = G.S, W = S.world, area = D.AREAS[d.area], last = d.area === D.AREAS.length - 1, next = last ? null : D.AREAS[d.area + 1];
   let h = `<h2>${area.name} cleared</h2>`;
@@ -514,10 +523,11 @@ UI.onGame = function (type, d) {
     case 'point': UI.feed('<b class="hot">Bonus skill point</b> for felling an act boss', 'r3'); break;
     case 'areaClear':
       A.play('clear'); UI.banner(D.AREAS[d.area].name + ' cleared', d.first ? 'The way on is open' : '', 'clear', 2400);
-      if (!S.opts.auto) setTimeout(() => { if (!S.opts.auto && $('modal').classList.contains('hidden')) UI.areaDone(d); }, 1500);
+      if (d.first && d.area === D.AREAS.length - 1 && d.tier === 0) setTimeout(() => UI.victory(), 1600);
+      else if (!S.opts.auto) setTimeout(() => { if (!S.opts.auto && $('modal').classList.contains('hidden')) UI.areaDone(d); }, 1500);
       mark('top', 'map');
       break;
-    case 'tierUnlock': UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
+    case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', 'Open Travel to begin', 'boss', 3200), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
     case 'chest': A.play('chest'); SW.fx.spill(d.items, d.fate); UI.feed(`Chest: <b class="gold">${U.fmt(d.gold)} gold</b>`, ''); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag', 'map'); break;
     case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b> and a bonus cache`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
     case 'shrine': { const s = D.SHRINES[d.id]; A.play('shrine'); SW.fx.heroGlow(s.color); UI.banner(s.name, `${s.desc} for ${D.SHRINE_FIGHTS} battles`, 'shrine', 1800); break; }
@@ -532,15 +542,14 @@ UI.onGame = function (type, d) {
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
       break;
     case 'skills': mark('skills', 'hud', 'top', 'hint'); break;
-    case 'fallback': UI.toast(`Too strong for now. Falling back to ${d.to} to gather strength.`, 'bad'); break;
-    case 'autoOff': mark('top'); UI.toast('Auto stopped: you keep falling here. Check your gear and skills.', 'bad'); break;
+    case 'fallback': UI.toast(d.same ? `Not strong enough yet. Running ${d.to} again for loot and experience.` : `Too strong for now. Falling back to ${d.to} to gather strength.`, 'bad'); break;
   }
 };
 /* battle events the DOM cares about */
 UI.onBattle = function (ev) {
   if (ev.e === 'die' && ev.drops) {
     const d = ev.drops;
-    d.items.forEach((it, i) => UI.feedItem(it, d.fate[i]));
+    d.items.forEach((it, i) => { UI.feedItem(it, d.fate[i]); if (it.rar === 4) UI.banner(it.name, 'A Unique drops', 'unique', 2600); });
     if (d.items.length) mark('bag', 'hint');
     if (d.first) UI.feed('First kill: a guaranteed <b style="color:' + RC(3) + '">Legendary</b>', 'r3');
   }

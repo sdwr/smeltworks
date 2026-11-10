@@ -92,6 +92,7 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 #banner b { display: block; font: 700 38px var(--serif); font-variant: small-caps; letter-spacing: .1em; color: var(--hot); text-shadow: 0 0 24px rgba(255,138,42,.9), 0 3px 0 #000, 0 0 3px #000; }
 #banner span { display: block; font: italic 16px var(--serif); color: var(--text); text-shadow: 0 1px 3px #000, 0 0 8px #000; }
 #banner.boss b { color: #ff5a3a; font-size: 44px; text-shadow: 0 0 30px #c01010, 0 3px 0 #000; } #banner.dead b { color: #c8c2b8; text-shadow: 0 0 30px #7a0a0a, 0 3px 0 #000; }
+#banner.unique b { color: var(--r4); text-shadow: 0 0 26px #c9963a, 0 3px 0 #000; }
 #banner.level b { color: #c9b8ff; text-shadow: 0 0 24px #7a5cff, 0 3px 0 #000; } #banner.shrine b { font-size: 28px; color: #b4f0ff; text-shadow: 0 0 20px #3a9ad9, 0 3px 0 #000; }
 #bossbar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 44%; text-align: center; pointer-events: none; }
 .bb-name { font: 600 16px var(--serif); color: #ffb0a0; text-shadow: 0 1px 3px #000, 0 0 8px #000; }
@@ -146,7 +147,7 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 #right[data-tab=forge] #bagwrap { max-height: 36%; }
 .bcount b { color: var(--hot); } .bcount.full b { color: var(--bad); }
 .sep { flex: 1; } .lbl { color: var(--dim); margin-right: 2px; font-size: 12px; }
-#baghead .r0 { color: var(--r0); } #baghead .r1 { color: var(--r1); } #baghead .r2 { color: var(--r2); }
+#baghead .r0 { color: var(--r0); } #baghead .r1 { color: var(--r1); } #baghead .r2 { color: var(--r2); } #baghead .r3 { color: var(--r3); }
 .chk.mini { gap: 2px; font-weight: 700; }
 #bag { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; padding: 1px; }
 .it { --c: var(--r0); position: relative; aspect-ratio: 1; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--c) 26%, #15121a), #0e0c12 80%); border: 1px solid color-mix(in srgb, var(--c) 70%, #000); border-radius: 2px; cursor: pointer; min-width: 0; }

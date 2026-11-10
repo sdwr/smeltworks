@@ -35,8 +35,8 @@ const U = SW.util = {
 /* ------------------------------------------------------------ scaling */
 const D = SW.data = {};
 D.FLAT_G = 1.085;      // growth of flat gear stats per item level
-D.MOB_HP_G = 1.095;    // monster life per level
-D.MOB_DMG_G = 1.088;   // monster damage per level
+D.MOB_HP_G = 1.093;    // monster life per level
+D.MOB_DMG_G = 1.085;   // monster damage per level
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
 D.pct = l => 1 + l / 70;
 D.MAX_LEVEL = 50;
@@ -384,6 +384,9 @@ D.TIERS = [
   { name: 'Torment III', short: 'T3', color: '#e0354a' },
   { name: 'Torment IV',  short: 'T4', color: '#c04bff' },
 ];
+/* Torment multiplies monster life and damage on top of their level */
+D.TIER_HP = [1, 1.7, 2.8, 4.6, 7.5];
+D.TIER_DMG = [1, 1.4, 1.9, 2.6, 3.5];
 /* level of an area at a difficulty tier */
 D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 30 + area * 2;
 D.MAP_W = 7; D.MAP_H = 5;

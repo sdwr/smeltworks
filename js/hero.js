@@ -6,7 +6,7 @@ const H = SW.hero = {};
 
 H.xpNeed = function (lvl) {
   // fights-per-level grows slowly; xp per on-level kill grows with the monster curve
-  return Math.round(D.mobXp(lvl) * Math.min(46, (5 + lvl * 0.95) * 2.6));
+  return Math.round(D.mobXp(lvl) * Math.min(46, 4 + lvl * 3.2));
 };
 H.paragonNeed = function (p, lvl) { return Math.round(D.mobXp(50) * 75 * Math.pow(1.11, p)); };
 D.mobXp = l => 10 * Math.pow(1.085, l - 1);

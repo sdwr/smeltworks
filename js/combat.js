@@ -35,7 +35,8 @@ class Battle {
   mkMob(s) {
     const boss = s.boss ? D.BOSSES[s.id] : null, def = boss || D.MOB[s.id], lvl = s.lvl;
     const el = s.elite || null, has = k => el && el.includes(k);
-    let hp = D.mobHp(lvl) * def.hp, dmg = D.mobDmg(lvl) * def.dmg, int = def.int;
+    const tier = this.spec.tier || 0;
+    let hp = D.mobHp(lvl) * def.hp * D.TIER_HP[tier], dmg = D.mobDmg(lvl) * def.dmg * D.TIER_DMG[tier], int = def.int;
     if (el) { hp *= 4.2; dmg *= 1.3; }
     if (s.champ) { hp *= 2.3; dmg *= 1.15; }
     if (has('hulking')) { hp *= 1.6; dmg *= 1.25; }

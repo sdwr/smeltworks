@@ -25,6 +25,7 @@ function boot() {
   UI.bind();
   UI.fresh();
   if (!saved) UI.welcome();
+  const ico = document.createElement('link'); ico.rel = 'icon'; ico.href = SW.sprites.url('hammer', 'ember', 2); document.head.appendChild(ico);
 
   let last = performance.now(), saveT = 0, hiddenAt = 0;
   function frame(now) {

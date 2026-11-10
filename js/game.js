@@ -15,7 +15,7 @@ G.fresh = function () {
     hero: { level: 1, xp: 0, ranks: { strike: 1 }, bar: ['strike', null, null, null, null], paragon: {}, plevel: 0, pxp: 0, bonusPts: 1 },
     gear: {}, bag: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, codex: {},
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
-    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6 },
+    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false, false], sound: true, vol: 0.6 },
     stats: { kills: 0, deaths: 0, leg: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
     seen: {}, uid: 1,
   };
@@ -141,7 +141,7 @@ G.makeSpec = function (c) {
     return out;
   };
   const affixes = n => U.shuffle(D.ELITE_IDS.slice()).slice(0, n);
-  const spec = { waves: [], lvl, shrine: W.shrineN > 0 ? W.shrine : null, type: c.type };
+  const spec = { waves: [], lvl, tier, shrine: W.shrineN > 0 ? W.shrine : null, type: c.type };
   if (c.type === 'boss' && area.final) {
     spec.waves.push([{ id: act.boss, lvl, boss: true }]); spec.boss = act.boss;
   } else if (c.type === 'boss') {
@@ -187,7 +187,7 @@ G.addItem = function (it) {
   const S = G.S;
   if (it.rar === 3) S.stats.leg++; if (it.rar === 4) S.stats.uniq++;
   it.upg = G.isUpgrade(it) ? 1 : 0;
-  if (it.rar <= 2 && S.opts.salv[it.rar] && !it.upg) { G.salvageItem(it, true); return 'salvaged'; }
+  if (it.rar <= 3 && S.opts.salv[it.rar] && !it.upg) { G.salvageItem(it, true); return 'salvaged'; }
   if (G.bagCount() >= D.BAG_SIZE) {
     // make room: melt the least valuable unlocked piece
     let worst = null;
@@ -283,7 +283,8 @@ G.autoPick = function () {
   const rank = { shrine: 0, chest: 1, fight: 2, elite: 3, boss: 9 };
   const score = c => {
     const d = Math.abs(c.x - pos.x) + Math.abs(c.y - pos.y);
-    if (!opts.full && !map.bossDone) return (c.type === 'boss' ? -100 : 0) + (Math.abs(c.x - boss.x) + Math.abs(c.y - boss.y)) * 10 + d + c.deaths * 50;
+    // heading straight for the boss, unless it has already beaten us: then gather strength from the rest of the map first
+    if (!opts.full && !map.bossDone && !boss.deaths) return (c.type === 'boss' ? -100 : 0) + (Math.abs(c.x - boss.x) + Math.abs(c.y - boss.y)) * 10 + d + c.deaths * 50;
     return c.deaths * 200 + rank[c.type] * 30 + c.lvl * 4 + d;
   };
   return cands.reduce((a, b) => (score(b) < score(a) ? b : a));
@@ -331,9 +332,13 @@ G.update = function (dt) {
     if (G.phaseT <= 0) {
       const bs = G.battle.summary(); G.persist = G.battle.persist(); G.battle = null; G.phase = 'idle'; G.phaseT = 0.3; G.emit('battleEnd', { win: false, bs });
       if (S.opts.auto && G.deathStreak >= 3) {
+        // three falls in a row: stop banging on the same door. If only the boss is too much, run this area again
+        // for its loot; if the ordinary packs are too much, step back an area.
         G.deathStreak = 0;
-        if (W.area > 0) { G.emit('fallback', { to: D.AREAS[W.area - 1].name }); G.startExpedition(W.area - 1, W.tier); }
-        else { S.opts.auto = false; G.emit('autoOff'); }
+        const bossOnly = G.target && G.target.type === 'boss' && map.cells.filter(c => c.type !== 'wall' && c.state !== 'done').length <= 3;
+        const to = bossOnly || W.area === 0 ? W.area : W.area - 1;
+        G.emit('fallback', { to: D.AREAS[to].name, same: to === W.area });
+        G.startExpedition(to, W.tier);
       }
       G.save();
     }
