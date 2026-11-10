@@ -10,8 +10,9 @@ H.xpNeed = function (lvl) {
 };
 H.paragonNeed = function (p, lvl) { return Math.round(D.mobXp(50) * 75 * Math.pow(1.11, p)); };
 D.mobXp = l => 10 * Math.pow(1.085, l - 1);
-D.mobHp = l => 32 * Math.pow(D.MOB_HP_G, l - 1) * (1 + Math.min(l, 50) * 0.055);
-D.mobDmg = l => 12 * Math.pow(D.MOB_DMG_G, l - 1) * (1 + Math.min(l, 50) * 0.022);
+/* the first dozen levels ramp in gently so the opening fights are quick */
+D.mobHp = l => 32 * Math.pow(D.MOB_HP_G, l - 1) * (1 + Math.min(l, 50) * 0.055) * Math.min(1, 0.5 + l / 24);
+D.mobDmg = l => 12 * Math.pow(D.MOB_DMG_G, l - 1) * (1 + Math.min(l, 50) * 0.022) * Math.min(1, 0.62 + l / 32);
 D.mobGold = l => 2.2 * Math.pow(1.08, l - 1);
 
 H.baseLife = lvl => Math.round(85 * Math.pow(1.06, lvl - 1) + 15 * lvl);

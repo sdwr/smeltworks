@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smeltworks</title>
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand">Smeltworks</div>
+    <button id="btn-travel" class="where" title="Choose where to fight">
+      <span id="where-act"></span><b id="where-area"></b><span id="where-lvl"></span>
+    </button>
+    <div class="lvl" id="lvl-box">
+      <div class="lvl-num"><span>Level</span><b id="hud-level">1</b></div>
+      <div class="xp"><i id="xp-fill"></i><span id="xp-text"></span></div>
+    </div>
+    <div class="purse">
+      <span class="cur gold" data-tip="Gold. Dropped by everything. Pays for forge work and commissions."><i></i><b id="cur-gold">0</b></span>
+      <span class="cur scrap" data-tip="Scrap. From salvaging Common and Magic gear. Used for early upgrades."><i></i><b id="cur-scrap">0</b></span>
+      <span class="cur dust" data-tip="Ember dust. From salvaging Rare gear and killing elites. Used to upgrade, enchant and imprint."><i></i><b id="cur-dust">0</b></span>
+      <span class="cur soul" data-tip="Soulsteel. From salvaging Legendaries and killing bosses. Used to imprint aspects and for the last upgrades."><i></i><b id="cur-soul">0</b></span>
+    </div>
+    <div class="ctl">
+      <div class="seg" id="speed">
+        <button data-speed="0" title="Pause (Space)">❚❚</button>
+        <button data-speed="1">1×</button>
+        <button data-speed="2">2×</button>
+        <button data-speed="4">4×</button>
+      </div>
+      <button id="btn-auto" class="toggle" title="Explore and fight without waiting for you (A)">Auto</button>
+      <button id="btn-sound" class="icon" title="Sound">♪</button>
+      <button id="btn-menu" class="icon" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="left">
+      <div id="arena">
+        <canvas id="cv"></canvas>
+        <div id="banner"></div>
+        <div id="feed"></div>
+        <div id="bossbar" class="hidden"><div class="bb-name"></div><div class="bb-bar"><i></i><em></em></div><div class="bb-tags"></div></div>
+        <div id="hud">
+          <div class="orb hp" id="orb-hp" data-tip="Life. It refills between battles."><i></i><u></u><span></span></div>
+          <div id="bar"></div>
+          <div class="orb heat" id="orb-heat" data-tip="Heat. Basic skills build it, Core skills spend it."><i></i><span></span></div>
+        </div>
+        <div id="buffs"></div>
+      </div>
+      <div id="mapwrap">
+        <div id="mapbar">
+          <div class="map-title"><b id="map-name"></b><span id="map-sub"></span></div>
+          <div class="map-opts">
+            <label class="chk" data-tip="Clear every tile before moving on. More loot and experience; turn it off to head straight for the boss."><input type="checkbox" id="opt-full"><span>Clear everything</span></label>
+            <label class="chk" data-tip="When Auto finishes an area: push on to the furthest area you have unlocked, or run this one again."><input type="checkbox" id="opt-advance"><span>Push forward</span></label>
+            <button id="btn-restart" class="small" data-tip="Abandon this map and start the area again with a new layout.">New map</button>
+          </div>
+        </div>
+        <div id="map"></div>
+        <div id="hint"></div>
+      </div>
+    </section>
+
+    <aside id="right">
+      <nav id="tabs">
+        <button data-tab="gear" class="on">Gear</button>
+        <button data-tab="skills">Skills<i id="pts-badge"></i></button>
+        <button data-tab="forge">Forge</button>
+        <button data-tab="codex">Codex</button>
+      </nav>
+      <div id="panel">
+        <div id="tab-gear" class="tab"></div>
+        <div id="tab-skills" class="tab hidden"></div>
+        <div id="tab-forge" class="tab hidden"></div>
+        <div id="tab-codex" class="tab hidden"></div>
+      </div>
+      <div id="bagwrap">
+        <div id="baghead"></div>
+        <div id="bag"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div id="tooltip" class="hidden"></div>
+<div id="tooltip2" class="hidden"></div>
+<div id="modal" class="hidden"><div id="modal-box"></div></div>
+<div id="toasts"></div>
+
+<script src="js/data.js"></script>
+<script src="js/items.js"></script>
+<script src="js/hero.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/game.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

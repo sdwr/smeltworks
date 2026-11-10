@@ -119,7 +119,7 @@ G.startExpedition = function (area, tier, quiet) {
   W.area = area; W.tier = tier;
   W.map = G.genMap(area, tier);
   W.pos = { x: 0, y: 2 }; W.shrine = null; W.shrineN = 0;
-  G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null;
+  G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.wish = null;
   if (!quiet) G.emit('expedition');
   G.emit('map');
 };
@@ -277,6 +277,8 @@ G.autoPick = function () {
   const map = G.S.world.map, pos = G.S.world.pos, opts = G.S.opts;
   const cands = map.cells.filter(G.canEnter);
   if (!cands.length) return null;
+  if (G.wish && cands.includes(G.wish)) { const w = G.wish; G.wish = null; return w; }
+  G.wish = null;
   const boss = map.cells.find(c => c.type === 'boss');
   const rank = { shrine: 0, chest: 1, fight: 2, elite: 3, boss: 9 };
   const score = c => {
@@ -298,6 +300,7 @@ G.update = function (dt) {
   S.stats.time += dt;
   if (G.phase === 'idle') {
     if (G.phaseT > 0) { G.phaseT -= dt; return; }
+    if (G.wish && !S.opts.auto) { const w = G.wish; G.wish = null; if (G.canEnter(w)) G.enterCell(w); return; }
     if (!S.opts.auto) return;
     const done = map.bossDone && (map.allDone || !S.opts.full);
     if (done) { G.finishArea(); return; }

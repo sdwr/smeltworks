@@ -58,9 +58,9 @@ D.SLOT_WEIGHT = { weapon: 14, offhand: 9, helm: 10, chest: 10, gloves: 10, pants
 
 /* base item types. dmg/aps for weapons, armor multiplier for armour, imp = implicit stats */
 D.BASES = {
-  sword:   { slot: 'weapon',  name: 'Sword',   dmg: 1.00, aps: 1.20, imp: { crit: 5 },      spr: 'sword' },
-  axe:     { slot: 'weapon',  name: 'Axe',     dmg: 1.20, aps: 1.02, imp: { dmgPct: 12 },   spr: 'axe' },
-  hammer:  { slot: 'weapon',  name: 'Hammer',  dmg: 1.52, aps: 0.84, imp: { critDmg: 30 },  spr: 'hammer' },
+  sword:   { slot: 'weapon',  name: 'Sword',   dmg: 1.00, aps: 1.30, imp: { crit: 5 },      spr: 'sword' },
+  axe:     { slot: 'weapon',  name: 'Axe',     dmg: 1.20, aps: 1.10, imp: { dmgPct: 12 },   spr: 'axe' },
+  hammer:  { slot: 'weapon',  name: 'Hammer',  dmg: 1.52, aps: 0.90, imp: { critDmg: 30 },  spr: 'hammer' },
   shield:  { slot: 'offhand', name: 'Shield',  armor: 1.3, imp: { dr: 6 },                  spr: 'shield' },
   lantern: { slot: 'offhand', name: 'Lantern', imp: { dmgPct: 10, heat: 10 },               spr: 'lantern' },
   helm:    { slot: 'helm',    name: 'Helm',    armor: 0.7, spr: 'helm' },
