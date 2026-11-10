@@ -246,9 +246,11 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 .aim { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 9px; flex-wrap: wrap; } .aim button.small { padding-inline: 6px; } .aim button { --c: #fff; border-bottom: 2px solid var(--c); } .aim button.on { background: #2c2636; border-color: var(--c); color: var(--c); }
 .aff-list li u { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 2px; }
 .cube-say { margin: 7px auto 2px; max-width: 46ch; min-height: 17px; color: #e9d7b0; font-size: 12.5px; line-height: 1.35; } .cube-say.no { color: var(--dim); }
+.cube-list { list-style: none; margin: 5px 0 4px; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 5px; } .cube-list li { padding: 2px 7px 2px 6px; font-size: 12.5px; color: #e9dfcd; background: rgba(0,0,0,.38); border: 1px solid #4a3a1c; border-radius: 3px; white-space: nowrap; }
+.cube-list u { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 2px; } .cube-list.remove li { border-color: #2f5a70; }
 .orbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
 .orb-btn { --c: #fff; position: relative; display: flex; flex-direction: column; align-items: center; padding: 6px 2px 5px; line-height: 1.2; }
-.orb-btn img { width: 34px; } .orb-btn b { font: 600 12.5px var(--serif); color: var(--c); } .orb-btn span { font-size: 10px; color: var(--dim); }
+.orb-btn img { width: 34px; } .orb-btn b { font: 600 14px/1.15 var(--serif); color: var(--c); margin: 1px 0 2px; } .orb-btn span { font-size: 10.5px; color: var(--dim); }
 .orb-btn i { position: absolute; right: 5px; top: 3px; font: 700 13px var(--sans); font-style: normal; } .orb-btn.on { border-color: var(--c); background: #2c2636; box-shadow: inset 0 0 12px color-mix(in srgb, var(--c) 30%, transparent); }
 .cube-item { border: 1px solid var(--line2); border-radius: 3px; background: #100e15; padding: 8px 10px; margin-bottom: 8px; }
 .aff-list li.fresh span { color: var(--good); } .aff-list li em { font-style: normal; font-size: 11px; color: var(--good); } .aff-list li.gone span { text-decoration: line-through; color: var(--dimmer); } .aff-list li.gone em { color: var(--bad); }

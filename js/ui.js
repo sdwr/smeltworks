@@ -412,9 +412,24 @@ function renderCraft() {
       return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" data-tip="${esc(aimTip(c))}">${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
     }).join('') + '</div>';
   }
-  const say = why || (cat ? (orb === 'add' ? `Adds one random ${D.AFFIX_CAT[cat].name} affix.` : `Removes one random ${D.AFFIX_CAT[cat].name} affix.`) : orb === 'add' ? 'Adds one random affix of any type.' : orb === 'remove' ? 'Removes one random affix of any type.' : O.desc);
-  h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p></div>`;
-  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].name}</b><span>${D.ORBS[k].short}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
+  let say = why || O.desc, list = '';
+  if (aims) {
+    // spell out what the orb could do to this piece: the affixes it might add, or the ones it might take
+    const kind = cat ? D.AFFIX_CAT[cat].name + ' affix' : 'affix', dot = k => `<u style="background:${D.AFFIX_CAT[D.AFFIX[k].cat].color}"></u>`;
+    const able = f && !I.cubeCheck(f.it, orb, cat);
+    let opts = [];
+    if (able && orb === 'add') opts = I.affixPool(I.poolKey(f.it), f.it.affixes.map(a => a.k), cat).map(a => dot(a.id) + affName(a.id));
+    if (able && orb === 'remove') opts = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !cat || D.AFFIX[o.a.k].cat === cat).map(o => dot(o.a.k) + I.affixText(f.it, o.a, o.i));
+    if (!why || able) {
+      const n = opts.length, of = n > 1 ? ` One of these ${n}:` : '';
+      say = orb === 'add' ? (n === 1 ? `Adds the one ${kind} this piece can still take:` : `Adds one random ${kind}${cat ? '' : ' of any type'}.${of}`)
+        : (n === 1 ? `Removes the only ${kind} on it:` : `Removes one random ${kind}${cat ? '' : ' of any type'}.${of}`);
+      if (why) say = why + ' ' + say;
+    }
+    if (opts.length) list = `<ul class="cube-list ${orb}">${opts.map(o => `<li>${o}</li>`).join('')}</ul>`;
+  }
+  h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p>${list}</div>`;
+  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].short}</b><span>${D.ORBS[k].name}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
   // ---- the forge
   h += '<h4 class="sect">The forge</h4>';
   if (!f) h += '<p class="note">Upgrades, legendary aspects and salvage appear here once a piece is on the bench.</p>';
