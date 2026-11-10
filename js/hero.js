@@ -37,7 +37,7 @@ H.skillNums = function (sk, rank) {
 /* Build the full combat sheet from the save state. gearOverride lets the UI ask "what if". */
 H.compute = function (S, gearOverride) {
   const gear = gearOverride || S.gear, lvl = H.gearLevel(gear);
-  const st = { dmg: 0, aps: 1, dmgPct: 0, physPct: 0, firePct: 0, lightPct: 0, dot: 0, crit: 5, critDmg: 50, aspd: 0, vuln: 0, elite: 0,
+  const st = { dmg: 0, aps: 1, str: 0, dmgPct: 0, physPct: 0, firePct: 0, lightPct: 0, dot: 0, crit: 5, critDmg: 50, aspd: 0, vuln: 0, elite: 0,
     life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0, flask: 0, move: 0, orbFind: 0, barrier: 0,
     skHammer: 0, skEmber: 0, skStorm: 0, skAll: 0 };
   const mods = {};
@@ -80,7 +80,7 @@ H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * 
 /* A rough offence × defence estimate from the stat sheet, used for the upgrade arrow and the tooltip comparison.
    It counts stats only. Aspect and unique powers are left out on purpose: most are conditional, and a guess at
    their worth would let a legendary look like more damage than a piece that simply has more damage on it.
-   Damage   = weapon damage × attacks per second × (1 + additive damage %) × crit × Vulnerable uptime × skill ranks,
+   Damage   = weapon damage × attacks per second × (1 + additive damage %) × (1 + Strength %) × crit × Vulnerable uptime × skill ranks,
               with small credit for cooldown reduction and Heat generation when the bar has skills that use them.
    Toughness = life ÷ (what armor, damage reduction and dodge let through), plus a few seconds of healing. */
 H.rating = function (C) {
@@ -97,7 +97,7 @@ H.rating = function (C) {
   const crit = Math.min(80, st.crit + (m.burnCritCh || 0) * 0.5) / 100;
   let off = st.dmg * st.aps * (1 + st.aspd / 100)
     * (1 + (st.dmgPct + elPct + st.elite * 0.3 + (burn ? st.dot * 0.35 * burn / C.bar.length : 0)) / 100)
-    * (1 + crit * st.critDmg / 100) * (1 + (20 + st.vuln) / 100 * 0.35)
+    * (1 + st.str / 100) * (1 + crit * st.critDmg / 100) * (1 + (20 + st.vuln) / 100 * 0.35)
     * (1 + st.cdr / 100 * 0.12 * cds) * (1 + st.heat / 100 * 0.12 * Math.min(2, cores));
   let rk = 0, rn = 0;
   for (const id of C.bar) { rk += Math.min(C.ranks[id], 12); rn++; }

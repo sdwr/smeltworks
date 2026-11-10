@@ -150,7 +150,7 @@ class Battle {
   }
   estDps() {
     const st = this.st;
-    return st.dmg * st.aps * (1 + st.aspd / 100) * 1.5 * (1 + st.dmgPct / 100) * (1 + st.crit / 100 * st.critDmg / 100);
+    return st.dmg * st.aps * (1 + st.aspd / 100) * 1.5 * (1 + st.dmgPct / 100) * (1 + st.str / 100) * (1 + st.crit / 100 * st.critDmg / 100);
   }
   worth() {
     const live = this.alive();
@@ -302,7 +302,7 @@ class Battle {
   dotAdd(m, list, pct, dur, el, rawDps) {
     const st = this.st, mods = this.mods;
     let dps = rawDps != null ? rawDps
-      : st.dmg * pct / 100 * (1 + (st.dmgPct + st[el + 'Pct'] + st.dot + (m.elite || m.boss ? st.elite : 0) + this.buffDmg()) / 100) / dur;
+      : st.dmg * pct / 100 * (1 + (st.dmgPct + st[el + 'Pct'] + st.dot + (m.elite || m.boss ? st.elite : 0) + this.buffDmg()) / 100) * (1 + st.str / 100) / dur;
     if (rawDps == null && list === 'burns' && mods.burnMult) dps *= 1 + mods.burnMult / 100;
     const arr = m[list];
     if (arr.length >= 6) { let w = 0; for (let i = 1; i < arr.length; i++) if (arr[i].dps * arr[i].t < arr[w].dps * arr[w].t) w = i; arr.splice(w, 1); }
@@ -331,7 +331,7 @@ class Battle {
     if (mods.opener && frac > 0.8) add += mods.opener;
     if (mods.stunDmg && m.stunT > 0) add += mods.stunDmg;
     if (mods.crush && (m.vulnT > 0 || m.stunT > 0)) add += mods.crush;
-    let dmg = st.dmg * U.rand(0.9, 1.1) * mult / 100 * (1 + add / 100);
+    let dmg = st.dmg * U.rand(0.9, 1.1) * mult / 100 * (1 + add / 100) * (1 + st.str / 100);      // Strength is its own multiplier
     let cc = st.crit + (o.skill === 'jab' ? 10 : 0);
     if (mods.hotCrit && h.heat >= 70) cc += mods.hotCrit;
     if (mods.burnCritCh && m.burns.length) cc += mods.burnCritCh;
@@ -456,7 +456,7 @@ class Battle {
     if (m.def.poison || el.includes('venomous')) { if (h.poison.length < 5) h.poison.push({ dps: m.dmg * (m.def.poison || 0.5) / 4, t: 4 }); else h.poison[0].t = 4; }
     if (m.def.slow || el.includes('chilling') || (o && o.slow)) { h.slowT = (o && o.slow) || 2.5; this.emit({ e: 'slowed' }); }
     if (st.thorns > 0 && !m.dead) {
-      const td = st.thorns * (1 + (st.dmgPct + st.physPct) / 100);
+      const td = st.thorns * (1 + (st.dmgPct + st.physPct) / 100) * (1 + st.str / 100);
       this.apply(m, td, 'phys', false, { proc: 1, thorns: 1 });
       if (mods.thornsAll) for (const x of this.alive()) if (x !== m) this.apply(x, td * mods.thornsAll / 100, 'phys', false, { proc: 1 });
     }

@@ -49,7 +49,7 @@ the skill bar to drink it.
 - **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
   for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,
   3-4 on Rare, 4 on Legendary. Skill ranks come from "+ to skills" affixes.
-- **Loot.** Ten gear slots, five rarities, 30 affixes, 30 legendary aspects and 12 uniques. Item level follows
+- **Loot.** Ten gear slots, five rarities, 27 affixes, 30 legendary aspects and 12 uniques. Item level follows
   monster level up to 50, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
 - **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
@@ -87,42 +87,43 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 
 | Slot | Offence | Defence | Utility | Skills |
 | --- | --- | --- | --- | --- |
-| Weapon | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Elites | Life, Life on hit, Life per second | | |
-| Shield | Thorns, Damage, Elites | Life, Armor, % Armor, Damage reduction, Barrier | Cooldown, Flask healing, Gold find | |
-| Lantern | Damage, Physical, Fire, Lightning, Crit chance, Elites | | Cooldown, Heat, Magic find, Orb find | |
-| Helm | Thorns, Elites, Burn/Bleed | Life, Armor, Life per second, Barrier | Cooldown, Magic find, Orb find | yes |
-| Chest | Thorns, Elites, Burn/Bleed | Life, % Life, Armor, Damage reduction, Life per second, Barrier | Flask healing, Heat, Gold find | |
-| Gloves | Crit chance, Crit damage, Attack speed, Vulnerable | Life, Armor, Life on hit | Heat, Gold find, Orb find | yes |
-| Pants | Thorns, Elites, Burn/Bleed | Life, Armor, Dodge, Damage reduction, Life per second, Barrier | Flask healing, Gold find, Magic find | |
-| Boots | | Life, Armor, Dodge | Movement speed, Gold find, Magic find, Orb find | |
-| Amulet | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat, Gold find, Magic find, Orb find | yes |
-| Ring | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat, Magic find, Orb find | |
+| Weapon | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Elites | Life, Life on hit, Life per second |  |  |
+| Shield | Strength, Damage, Elites, Thorns | Life, Armor, % Armor, Damage reduction, Barrier | Cooldown |  |
+| Lantern | Strength, Damage, Physical, Fire, Lightning, Crit chance, Elites | Barrier | Cooldown, Heat |  |
+| Helm | Strength, Burn/Bleed, Elites, Thorns | Life, Armor, Life per second, Barrier | Cooldown | yes |
+| Chest | Strength, Burn/Bleed, Elites, Thorns | Life, % Life, Armor, Damage reduction, Life per second, Barrier | Heat |  |
+| Gloves | Strength, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable, Elites, Thorns | Life, Armor, Life on hit | Heat | yes |
+| Pants | Strength, Burn/Bleed, Elites, Thorns | Life, Armor, Dodge, Damage reduction, Life per second, Barrier |  |  |
+| Boots | Strength | Life, Armor, Dodge, Life per second | Heat, Movement speed |  |
+| Amulet | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat | yes |
+| Ring | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat |  |
 
-A slot does not have every family, but any family it has offers at least three affixes.
+Each affix is listed under its family, which is also its colour in the game. Strength is the main stat: it can roll
+on every slot, and each point multiplies all damage by 1%, separately from the other damage affixes. Walking from
+one room to the next takes three seconds; Movement Speed (boots only) shortens it. A room that has to be fought for
+is approached as far as its doorway, fought from there, and walked into once it is won.
+
+The reasoning is in the comment above `D.AFFIX` in `js/data.js`. Uniques ignore these pools.
 
 ### Cube types
 
-The four columns above are the families: every affix belongs to exactly one. The cube can also be aimed at six
-narrower types that cut across them, and these overlap on purpose, as Diablo 4's tuning prisms do. Aiming a narrow
-type shrinks the pool the orb rolls from, so there is usually more than one way to chase an affix, and a way to
-remove one affix without risking the one beside it.
+Kindling and Quenching Orbs can be aimed at one of four types, after Diablo 4's tuning prisms. They are the four
+families above, except that four affixes sit in two types:
 
-| Type | Affixes | What it is for |
-| --- | --- | --- |
-| Elemental | Physical, Fire, Lightning, Burn/Bleed | your damage type, without crit or speed |
-| Precision | Crit chance, Crit damage, Attack speed, Vulnerable | how you hit, without the damage types |
-| Mitigation | Armor, % Armor, Dodge, Damage reduction, Barrier | taking less damage, without life or healing |
-| Sustain | Life, % Life, Life on hit, Life per second, Flask healing, Barrier | life and getting it back |
-| Tempo | Attack speed, Cooldown, Heat, Movement speed | how often skills come round |
-| Fortune | Gold find, Magic find, Orb find | what monsters drop |
+| Affix | Types |
+| --- | --- |
+| Strength | Offence and Skills |
+| Thorns | Offence and Utility |
+| Life per second | Defence and Utility |
+| Barrier | Defence and Utility |
 
-So Maximum Life can be reached through Defence or Sustain, Attack Speed through Offence, Precision or Tempo, and
-Barrier through Defence, Mitigation or Sustain. A piece only offers a type its slot has at least two affixes for,
-and a narrow type that would offer exactly what a family already does on that slot is left out. Walking from one room to the
-next takes three seconds; Movement Speed (boots only) shortens it. A room that has to be fought for is approached
-as far as its doorway, fought from there, and walked into once it is won.
+So Utility is Cooldown, Heat, Movement speed, Thorns, Life per second and Barrier, and Skills is the three
+disciplines plus Strength.
 
-The reasoning is in the comment above `D.AFFIX` in `js/data.js`. Uniques ignore these pools.
+Two rules shape the types. No type on any slot holds only affixes a build wants, so aiming narrows a roll without
+making it safe. And the overlap is where the skill is: an unwanted Life per second on a chest shares Defence with
+the life and armor you mean to keep, but in Utility it may stand alone, so a Quenching Orb aimed at Utility takes
+it cleanly. A piece only offers a type its slot has at least two affixes for.
 
 ## Code
 

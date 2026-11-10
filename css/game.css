@@ -278,11 +278,14 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 .tt-imp { color: var(--dim); border-bottom: 1px solid var(--line); padding-bottom: 5px !important; margin-bottom: 5px !important; }
 .tt-aff li { font-size: 15px; padding-top: 2px; padding-bottom: 2px; } .tt-aff li::before { top: 6px !important; }
 .rng { color: var(--dimmer); font-size: .86em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tt-aff li small { display: block; color: var(--dim); font-size: 11.5px; line-height: 1.25; }
 .tt-aff li.great { color: #ffe9a8; } .tt-aff li.great::before { content: '★'; color: var(--hot); font-size: 11px; top: 3px !important; } .tt-aff li.mw { color: #9be3ff; } .tt-aff li.ench::before { color: #9be3ff; }
 .tt-aff i { font-size: 10.5px; color: var(--dim); margin-left: 4px; }
 .tt-asp { margin-top: 7px; padding: 6px 0 0 13px; border-top: 1px solid var(--line); color: var(--r3); position: relative; line-height: 1.35; } .tt-asp::before { content: '✦'; position: absolute; left: 0; } .tt-asp span { color: var(--dimmer); white-space: nowrap; } .tt-asp.uq { color: var(--r4); }
 .tt-flavor { margin-top: 7px; font: italic 12.5px var(--serif); color: #b09a78; }
 .tt-cmp { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: baseline; font-size: 12px; white-space: nowrap; } .tt-cmp b { margin-right: auto; font-size: 13px; }
+.tt-vs { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 12px; color: var(--dim); } .tt-vs i { float: right; font-size: 10.5px; color: var(--dimmer); } .tt-cmp.vs { margin-top: 2px; padding-top: 0; border-top: 0; }
+.tt-stack { display: flex; flex-direction: column; gap: 6px; }
 .tt-note { margin-top: 4px; font-size: 11px; color: var(--dimmer); font-style: italic; }
 .tt-hint { margin-top: 7px; font-size: 11px; color: var(--dimmer); }
 .tt.skill { --c: #c9ccd6; } .tt.skill.d-ember { --c: #ff8a2a; } .tt.skill.d-storm { --c: #7fd4ff; }

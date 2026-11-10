@@ -19,7 +19,7 @@ const RARE_SUF = {
   amulet: ['Heart', 'Eye', 'Tear', 'Locket', 'Charm', 'Star', 'Knot'],
   ring: ['Band', 'Loop', 'Coil', 'Circle', 'Signet', 'Spiral'],
 };
-const MAGIC_PRE = { dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', lightPct: 'Crackling', dot: 'Festering', crit: 'Keen', critDmg: 'Savage', aspd: 'Quick',
+const MAGIC_PRE = { str: 'Mighty', dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', lightPct: 'Crackling', dot: 'Festering', crit: 'Keen', critDmg: 'Savage', aspd: 'Quick',
   vuln: 'Exposing', elite: 'Slaying', life: 'Stout', lifePct: 'Hale', armor: 'Sturdy', armorPct: 'Plated', dodge: 'Nimble', dr: 'Warding', loh: 'Thirsting', regen: 'Mending',
   thorns: 'Barbed', flask: 'Brimming', barrier: 'Shielding', move: 'Fleet', orbFind: 'Seeking', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
 
@@ -49,6 +49,15 @@ I.greaterCount = it => it.affixes.reduce((n, a) => n + (a.g ? 1 : 0), 0);
 /* the affixes a slot can still gain, optionally of one type */
 I.poolKey = it => (it.slot === 'offhand' ? it.base : it.slot);      // shields and lanterns roll different affixes
 I.inCat = (k, cat) => D.AFFIX[k].cats.includes(cat);
+/* a save may hold affixes that no longer exist (Flask Healing, Gold Find, Magic Find and Orb Find were removed):
+   each is rerolled into one the slot can still take. Returns how many were replaced. */
+I.fixAffixes = function (it) {
+  let n = 0;
+  it.affixes.forEach((a, i) => { if (D.AFFIX[a.k]) return; const have = it.affixes.filter(x => D.AFFIX[x.k]).map(x => x.k); const pool = I.affixPool(I.poolKey(it), have); if (pool.length) { it.affixes[i] = { k: U.wpick(pool, x => x.w).id, r: a.r, g: a.g }; n++; } });
+  const m = it.affixes.length; it.affixes = it.affixes.filter(a => D.AFFIX[a.k]);
+  if (it.affixes.length !== m) { it.mw = []; it.ench = -1; }
+  return n;
+};
 I.affixPool = (key, have, cat) => Object.values(D.AFFIX).filter(a => a.slots.includes(key) && !have.includes(a.id) && (!cat || a.cats.includes(cat)));
 /* The types the cube can be aimed at for this piece: those its slot has at least two affixes for. A narrow type that
    would offer exactly what a type before it does (Precision on gloves is all of their Offence) is left out. */

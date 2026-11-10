@@ -30,19 +30,19 @@ function skillIcon(id, cls) {
 function costHtml(c) {
   return Object.keys(c).map(k => `<span class="cost ${G.canPay({ [k]: c[k] }) ? '' : 'short'}"><i class="ci ${k}"></i>${U.fmt(c[k])}</span>`).join('');
 }
+/* How wearing this piece would change the estimate. A ring is compared against each ring you are wearing, since
+   it could replace either: both lines are shown, the better swap first (that is the one right-click makes). */
 function compareHtml(it) {
   const S = G.S, slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
-  let best = null;
-  for (const s of slots) {
-    const g = Object.assign({}, S.gear); g[s] = it;
-    const r = Hr.compute(S, g).rating;
-    if (!best || r.power > best.r.power) best = { r, s };
-  }
   const cur = G.C.rating, d = (a, b) => (b ? (a / b - 1) * 100 : 100);
   const line = (label, v) => `<span class="${v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'zero'}">${label} ${v > 0 ? '+' : ''}${v.toFixed(Math.abs(v) < 10 ? 1 : 0)}%</span>`;
-  const dp = d(best.r.power, cur.power), worn = S.gear[best.s];
-  const note = it.aspect || it.uniq || (worn && (worn.aspect || worn.uniq)) ? '<div class="tt-note">From stats and your current skills only. Aspect and unique powers are not counted.</div>' : '';
-  return `<div class="tt-cmp"><b class="${dp > 0.5 ? 'pos' : dp < -0.5 ? 'neg' : 'zero'}">${dp > 0.5 ? '▲ Upgrade' : dp < -0.5 ? '▼ Weaker' : '◆ Sidegrade'}</b>${line('Damage', d(best.r.off, cur.off))}${line('Toughness', d(best.r.def, cur.def))}</div>${note}`;
+  let rows = slots.map(s => { const g = Object.assign({}, S.gear); g[s] = it; const r = Hr.compute(S, g).rating; return { s, r, dp: d(r.power, cur.power), worn: S.gear[s] }; });
+  rows.sort((a, b) => b.r.power - a.r.power);
+  const both = rows.length === 2 && rows[0].worn && rows[1].worn;
+  if (!both) rows = rows.slice(0, 1);                       // an empty ring slot is simply where it would go
+  const note = it.aspect || it.uniq || rows.some(o => o.worn && (o.worn.aspect || o.worn.uniq)) ? '<div class="tt-note">From stats and your current skills only. Aspect and unique powers are not counted.</div>' : '';
+  return rows.map((o, i) => (both ? `<div class="tt-vs">In place of <b style="color:${RC(o.worn.rar)}">${esc(o.worn.name)}</b>${i === 0 ? ' <i>right-click does this</i>' : ' <i>drag onto that ring to do this</i>'}</div>` : '') +
+    `<div class="tt-cmp ${both ? 'vs' : ''}"><b class="${o.dp > 0.5 ? 'pos' : o.dp < -0.5 ? 'neg' : 'zero'}">${o.dp > 0.5 ? '▲ Upgrade' : o.dp < -0.5 ? '▼ Weaker' : '◆ Sidegrade'}</b>${line('Damage', d(o.r.off, cur.off))}${line('Toughness', d(o.r.def, cur.def))}</div>`).join('') + note;
 }
 function itemTooltip(it, o) {
   o = o || {};
@@ -60,7 +60,7 @@ function itemTooltip(it, o) {
   if (it.affixes.length) {
     h += '<ul class="tt-aff">' + it.affixes.map((a, i) => {
       const mw = I.masterworked(it, i);
-      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked</i>' : ''}</li>`;
+      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked</i>' : ''}${D.AFFIX[a.k].note ? `<small>${D.AFFIX[a.k].note}</small>` : ''}</li>`;
     }).join('') + '</ul>';
   }
   if (it.aspect) { const a = D.ASPECT[it.aspect.id], r = I.aspectRange(a, it.slot); h += `<div class="tt-asp">${I.powerText(it)} <span>[${r[0]}–${r[1]}]</span></div>`; }
@@ -114,10 +114,10 @@ function tipFor(el, x, y) {
     if (f.where === 'bag' || f.where === 'stash') {
       const hint = f.where === 'stash' ? 'Click to craft · Right-click to equip · Ctrl-click to move it to the bag'
         : `Click to craft · Right-click to equip · Shift-right-click to salvage · Ctrl-click to stash · Alt-click to ${it.lock ? 'unlock' : 'lock'}`;
-      let cmp = null;
-      if (it.slot === 'ring') { cmp = S.gear.ring1 && S.gear.ring2 ? (Hr.compute(S, Object.assign({}, S.gear, { ring1: null })).rating.power > Hr.compute(S, Object.assign({}, S.gear, { ring2: null })).rating.power ? S.gear.ring1 : S.gear.ring2) : null; }
-      else cmp = S.gear[it.slot];
-      showTip(itemTooltip(it, { compare: 1, hint }), x, y, cmp ? itemTooltip(cmp, { label: 'Equipped' }) : null);
+      // beside it: what you are wearing in that slot. For a ring, both rings, since it could replace either
+      const worn = (it.slot === 'ring' ? [S.gear.ring1, S.gear.ring2] : [S.gear[it.slot]]).filter(Boolean);
+      const side = worn.map((w, i) => itemTooltip(w, { label: worn.length > 1 ? `Equipped · ring ${i + 1} of 2` : 'Equipped' })).join('');
+      showTip(itemTooltip(it, { compare: 1, hint }), x, y, side ? `<div class="tt-stack">${side}</div>` : null);
       if (it.isNew) { it.isNew = 0; el.classList.remove('new'); }
     } else showTip(itemTooltip(it, { label: f.where === 'gear' ? 'Equipped' : null, hint: f.where === 'gear' ? 'Click to craft · Right-click to take it off' : null }), x, y);
   } else if (el.dataset.skill) showTip(skillTooltip(el.dataset.skill, { tree: el.dataset.tree }), x, y);
@@ -307,6 +307,7 @@ function renderGear() {
   h = '<div class="stats"><div class="scol"><h4>Offence</h4>';
   h += row('Damage per hit', U.fmt(st.dmg), 'Weapon damage. Every skill is a percentage of this.');
   h += row('Attacks / sec', (st.aps * (1 + st.aspd / 100)).toFixed(2));
+  if (st.str) h += row('Strength', `${U.fmt(st.str)} <i>×${(1 + st.str / 100).toFixed(2)}</i>`, 'Your main stat. Each point is +1% to all damage, multiplying everything else.');
   h += row('Damage', '+' + pct(st.dmgPct));
   for (const k of ['physPct', 'firePct', 'lightPct', 'dot', 'elite']) if (st[k]) h += row(D.STAT_LABEL[k], '+' + pct(st[k]));
   h += row('Crit chance', pct(st.crit)) + row('Crit damage', '+' + pct(st.critDmg));
@@ -410,15 +411,12 @@ function renderCraft() {
       const keys = (c ? D.AFFIX_CAT[c].keys : Object.keys(D.AFFIX)).filter(k => !f || (D.AFFIX[k].slots.includes(I.poolKey(f.it)) && !f.it.affixes.some(a => a.k === k)));
       return (f ? `Can roll on this ${D.BASES[f.it.base].name.toLowerCase()}: ` : 'Can roll: ') + (keys.map(affName).join(', ') || 'nothing');
     };
-    // the families on one row, the narrower types that cut across them on the next
     const offered = f ? I.slotCats(f.it) : Object.keys(D.AFFIX_CAT);
     const btn = c => {
       const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
       return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" data-tip="${esc((c ? `<b style="color:${D.AFFIX_CAT[c].color}">${D.AFFIX_CAT[c].name}.</b> ${D.AFFIX_CAT[c].desc}<br>` : '') + aimTip(c))}">${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
     };
-    const narrow = offered.filter(c => !D.AFFIX_CAT[c].fam);
-    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null].concat(offered.filter(c => D.AFFIX_CAT[c].fam)).map(btn).join('') + '</div>';
-    if (narrow.length) h += '<div class="aim narrow">' + narrow.map(btn).join('') + '</div>';
+    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null].concat(offered).map(btn).join('') + '</div>';
   }
   let say = why || O.desc, list = '';
   if (aims) {

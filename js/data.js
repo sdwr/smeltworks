@@ -104,31 +104,33 @@ D.material = l => D.MATERIALS.find(m => l <= m.to);
    dp: decimals shown. w: roll weight.
 
    Which slot can roll what follows Diablo's logic. Offhands are split by type (shield / lantern).
+   - Strength is the main stat and can roll on every slot: each point multiplies all damage by 1%. It is the one
+     offensive affix body armour and boots can carry, so those slots are a real choice between hitting and surviving.
    - The big damage multipliers (crit chance, crit damage, attack speed) roll on the pieces that strike or adorn
      the hands: weapon, gloves, rings, amulet (crit chance on the lantern too). Vulnerable is gloves and rings only.
-   - Body armour (helm, chest, pants) and shields are where life, armor and mitigation live. Their offence is the
-     lesser kind: Thorns, damage to Elites, damage over time.
-   - Boots are the travel slot: Movement Speed rolls nowhere else. They carry no offence.
+     Gloves also roll Thorns, damage to Elites and damage over time, so their Offence is not all prizes.
+   - Body armour (helm, chest, pants) and shields are where life, armor and mitigation live. Their other offence is
+     the lesser kind: Thorns, damage to Elites, damage over time.
+   - Boots are the travel slot: Movement Speed rolls nowhere else.
    - Damage Reduction is chest, pants and shield. Dodge is pants, boots and amulet. % Total Armor is amulet and shield.
-   - Cooldown Reduction is helm, amulet and offhand. Heat (the resource) is gloves, rings, amulet, lantern and chest.
-     Flask healing is shield, chest and pants. The fortune stats (gold, magic find, orb find) are spread thin.
+   - Cooldown Reduction is helm, amulet and offhand. Heat (the resource) is gloves, rings, amulet, lantern, chest and boots.
    - Skill ranks are helm, gloves and amulet.
    - The amulet is the wildcard: something from nearly every group, but no flat life or armor.
-   A slot does not need every type, but any type it has offers at least three affixes, so aiming the cube is
-   always a real roll. Uniques ignore all this. */
+   Uniques ignore all this. */
 D.AFFIX = {
   // offence
+  str:     { t: '+{v} Strength',                lo: 3,  hi: 7,   sc: 'none', w: 9,  note: '+1% to all damage per point, multiplying everything else', slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'gloves', 'pants', 'boots', 'amulet', 'ring'] },
   dmgPct:  { t: '+{v}% Damage',                 lo: 6,  hi: 10,  sc: 'pct',  w: 10, slots: ['weapon', 'shield', 'lantern', 'ring', 'amulet'] },
   physPct: { t: '+{v}% Physical Damage',        lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   firePct: { t: '+{v}% Fire Damage',            lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   lightPct:{ t: '+{v}% Lightning Damage',       lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
-  dot:     { t: '+{v}% Burn and Bleed Damage',  lo: 12, hi: 20,  sc: 'pct',  w: 6,  slots: ['weapon', 'helm', 'chest', 'pants', 'ring', 'amulet'] },
+  dot:     { t: '+{v}% Burn and Bleed Damage',  lo: 12, hi: 20,  sc: 'pct',  w: 6,  slots: ['weapon', 'helm', 'chest', 'gloves', 'pants', 'ring', 'amulet'] },
   crit:    { t: '+{v}% Critical Strike Chance', lo: 2,  hi: 4.5, sc: 'none', w: 8,  dp: 1, slots: ['weapon', 'gloves', 'lantern', 'ring', 'amulet'] },
   critDmg: { t: '+{v}% Critical Strike Damage', lo: 10, hi: 18,  sc: 'pct',  w: 8,  slots: ['weapon', 'gloves', 'ring', 'amulet'] },
   aspd:    { t: '+{v}% Attack Speed',           lo: 3,  hi: 7,   sc: 'none', w: 8,  dp: 1, slots: ['weapon', 'gloves', 'ring', 'amulet'] },
   vuln:    { t: '+{v}% Vulnerable Damage',      lo: 8,  hi: 14,  sc: 'pct',  w: 6,  slots: ['gloves', 'ring'] },
-  elite:   { t: '+{v}% Damage to Elites',       lo: 10, hi: 16,  sc: 'pct',  w: 6,  slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'pants'] },
-  thorns:  { t: '+{v} Thorns',                  lo: 5,  hi: 9,   sc: 'flat', w: 6,  slots: ['shield', 'helm', 'chest', 'pants'] },
+  elite:   { t: '+{v}% Damage to Elites',       lo: 10, hi: 16,  sc: 'pct',  w: 6,  slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'gloves', 'pants'] },
+  thorns:  { t: '+{v} Thorns',                  lo: 5,  hi: 9,   sc: 'flat', w: 6,  slots: ['shield', 'helm', 'chest', 'gloves', 'pants'] },
   // defence
   life:    { t: '+{v} Maximum Life',            lo: 14, hi: 22,  sc: 'flat', w: 12, slots: ['weapon', 'shield', 'helm', 'chest', 'gloves', 'pants', 'boots', 'ring'] },
   lifePct: { t: '+{v}% Maximum Life',           lo: 3,  hi: 6,   sc: 'none', w: 5,  dp: 1, slots: ['chest', 'amulet'] },
@@ -137,52 +139,41 @@ D.AFFIX = {
   dodge:   { t: '+{v}% Dodge Chance',           lo: 2,  hi: 4,   sc: 'none', w: 6,  dp: 1, slots: ['pants', 'boots', 'amulet'] },
   dr:      { t: '+{v}% Damage Reduction',       lo: 2,  hi: 4,   sc: 'none', w: 5,  dp: 1, slots: ['shield', 'chest', 'pants'] },
   loh:     { t: '+{v} Life on Hit',             lo: 0.9, hi: 1.6, sc: 'flat', w: 6, slots: ['weapon', 'gloves', 'ring'] },
-  regen:   { t: '+{v} Life per Second',         lo: 1.2, hi: 2.2, sc: 'flat', w: 6, slots: ['weapon', 'helm', 'chest', 'pants', 'ring'] },
-  barrier: { t: '+{v}% Barrier Strength',       lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['shield', 'helm', 'chest', 'pants', 'amulet'] },
+  regen:   { t: '+{v} Life per Second',         lo: 1.2, hi: 2.2, sc: 'flat', w: 6, slots: ['weapon', 'helm', 'chest', 'pants', 'boots', 'ring'] },
+  barrier: { t: '+{v}% Barrier Strength',       lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['shield', 'lantern', 'helm', 'chest', 'pants', 'amulet'] },
   // utility
   cdr:     { t: '+{v}% Cooldown Reduction',     lo: 3,  hi: 6,   sc: 'none', w: 6,  dp: 1, slots: ['shield', 'lantern', 'helm', 'amulet'] },
-  heat:    { t: '+{v}% Heat Generation',        lo: 5,  hi: 10,  sc: 'none', w: 6,  slots: ['lantern', 'chest', 'gloves', 'ring', 'amulet'] },
-  flask:   { t: '+{v}% Flask Healing',          lo: 10, hi: 20,  sc: 'none', w: 5,  slots: ['shield', 'chest', 'pants'] },
+  heat:    { t: '+{v}% Heat Generation',        lo: 5,  hi: 10,  sc: 'none', w: 6,  slots: ['lantern', 'chest', 'gloves', 'boots', 'ring', 'amulet'] },
   move:    { t: '+{v}% Movement Speed',         lo: 15, hi: 30,  sc: 'none', w: 9,  slots: ['boots'] },
-  gold:    { t: '+{v}% Gold Find',              lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['shield', 'chest', 'gloves', 'pants', 'boots', 'amulet'] },
-  mf:      { t: '+{v}% Magic Find',             lo: 4,  hi: 8,   sc: 'none', w: 4,  slots: ['lantern', 'helm', 'pants', 'boots', 'ring', 'amulet'] },
-  orbFind: { t: '+{v}% Orb Find',               lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['lantern', 'helm', 'gloves', 'boots', 'ring', 'amulet'] },
   // skills
   skHammer:{ t: '+{v} to Hammer Skills',        lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
   skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
   skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
 };
-/* Affix types: what a Kindling or Quenching Orb can be aimed at in the cube.
-   The first four are the families. Every affix belongs to exactly one (D.AFFIX[k].cat), which also gives it its colour.
-   The rest are narrower types that cut across the families, and they overlap on purpose, the way Diablo 4's tuning
-   prisms do: Maximum Life is both Defence and Sustain, Attack Speed is Offence, Precision and Tempo, Flask Healing is
-   Utility and Sustain, Barrier is Defence, Mitigation and Sustain. The overlap is the point. Aiming a narrow type
-   shrinks the pool an orb rolls from, so there is usually more than one way to chase an affix and a way to remove
-   one without risking its neighbour:
-     Elemental   your damage type, without the crit and speed affixes
-     Precision   crit, speed and Vulnerable, without the damage types
-     Mitigation  taking less damage, without life or healing
-     Sustain     life and getting it back
-     Tempo       how often skills come round
-     Fortune     what monsters drop
-   A slot only offers a type it has at least two affixes for (I.slotCats), so no aim is ever a sure thing by design. */
+/* Affix types: what a Kindling or Quenching Orb can be aimed at in the cube. Four of them, after Diablo 4's tuning
+   prisms (Aggressive, Protector's, Pragmatic, Adept's), and a few affixes sit in two:
+     Strength             Offence and Skills
+     Thorns               Offence and Utility
+     Life per Second      Defence and Utility
+     Barrier Strength     Defence and Utility
+   Two rules shape them. No type holds only affixes a build wants: Offence carries the damage types you do not use,
+   Skills carries the two disciplines you do not play, Utility carries Thorns and regen beside cooldown and Heat.
+   So aiming an orb narrows the roll but never makes it safe. And the overlap is where the cleverness is: an unwanted
+   Life per Second on a chest shares Defence with the life and armor you mean to keep, but in Utility it may stand
+   alone, so a Quenching Orb aimed at Utility takes it cleanly.
+   Each affix's first type is its family (D.AFFIX[k].cat), which gives it its colour.
+   A slot only offers a type it has at least two affixes for (I.slotCats). */
 D.AFFIX_CAT = {
-  off:   { name: 'Offence',    color: '#ff8a6a', desc: 'Anything that adds damage.', fam: 1, keys: ['dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite', 'thorns'] },
-  def:   { name: 'Defence',    color: '#8fd0ff', desc: 'Anything that keeps you alive.', fam: 1, keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen', 'barrier'] },
-  util:  { name: 'Utility',    color: '#9be36a', desc: 'Everything else: tempo, flask, movement and fortune.', fam: 1, keys: ['cdr', 'heat', 'flask', 'move', 'gold', 'mf', 'orbFind'] },
-  skill: { name: 'Skills',     color: '#ffd27a', desc: 'Ranks for one discipline.', fam: 1, keys: ['skHammer', 'skEmber', 'skStorm'] },
-  elem:  { name: 'Elemental',  color: '#ffb347', desc: 'Your damage type, without crit or speed.', keys: ['physPct', 'firePct', 'lightPct', 'dot'] },
-  prec:  { name: 'Precision',  color: '#ff7ad1', desc: 'Crit, speed and Vulnerable, without the damage types.', keys: ['crit', 'critDmg', 'aspd', 'vuln'] },
-  mit:   { name: 'Mitigation', color: '#b9c4ff', desc: 'Taking less damage, without life or healing.', keys: ['armor', 'armorPct', 'dodge', 'dr', 'barrier'] },
-  sust:  { name: 'Sustain',    color: '#6fe0b0', desc: 'Life, and getting it back.', keys: ['life', 'lifePct', 'loh', 'regen', 'flask', 'barrier'] },
-  tempo: { name: 'Tempo',      color: '#7fe3e3', desc: 'How often your skills come round.', keys: ['aspd', 'cdr', 'heat', 'move'] },
-  fort:  { name: 'Fortune',    color: '#ffe08a', desc: 'What monsters drop.', keys: ['gold', 'mf', 'orbFind'] },
+  off:   { name: 'Offence', color: '#ff8a6a', desc: 'Anything that adds damage, wanted or not.', keys: ['str', 'dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite', 'thorns'] },
+  def:   { name: 'Defence', color: '#8fd0ff', desc: 'Life, armor and everything else that keeps you standing.', keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen', 'barrier'] },
+  util:  { name: 'Utility', color: '#9be36a', desc: 'Cooldowns, Heat and movement, with Thorns, regeneration and Barrier mixed in.', keys: ['cdr', 'heat', 'move', 'thorns', 'regen', 'barrier'] },
+  skill: { name: 'Skills',  color: '#ffd27a', desc: 'Strength, and ranks for one of the three disciplines.', keys: ['skHammer', 'skEmber', 'skStorm', 'str'] },
 };
 for (const k in D.AFFIX) D.AFFIX[k].cats = [];
-for (const c in D.AFFIX_CAT) for (const k of D.AFFIX_CAT[c].keys) { D.AFFIX[k].cats.push(c); if (D.AFFIX_CAT[c].fam) D.AFFIX[k].cat = c; }
+for (const c in D.AFFIX_CAT) for (const k of D.AFFIX_CAT[c].keys) { if (!D.AFFIX[k].cats.length) D.AFFIX[k].cat = c; D.AFFIX[k].cats.push(c); }
 for (const k in D.AFFIX) D.AFFIX[k].id = k;
 /* labels for the stat sheet */
-D.STAT_LABEL = { dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
+D.STAT_LABEL = { str: 'Strength', dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
   aspd: 'Attack speed', vuln: 'Vulnerable', elite: 'vs Elites', life: 'Life', armor: 'Armor', dodge: 'Dodge', dr: 'Dmg reduction', loh: 'Life on hit',
   regen: 'Life / sec', thorns: 'Thorns', flask: 'Flask healing', barrier: 'Barrier strength', move: 'Movement speed', orbFind: 'Orb find', cdr: 'Cooldown red.', heat: 'Heat gen', gold: 'Gold find', mf: 'Magic find' };
 
