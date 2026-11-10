@@ -193,7 +193,7 @@ test('Movement Speed on boots shortens the walk between tiles', (SW, G, D, I) =>
   assert.ok(G.C.st.move >= 29); assert.ok(G.stepTime() < base * 0.8, 'at least a fifth faster');
   // walking three tiles really does take less game time
   const walk = () => { G.startExpedition(0, 0); const m = S.world.map; for (const c of m.cells) if (c.y === 2 && c.x <= 3) { c.type = c.x ? 'fight' : 'start'; c.state = c.x < 3 ? 'done' : 'seen'; }
-    G.phaseT = 0; assert.ok(G.enterCell(G.cell(3, 2))); let t = 0; while (G.phase === 'travel' && t < 20) { G.update(0.01); t += 0.01; } return t; };
+    G.phaseT = 0; assert.ok(G.enterCell(G.cell(3, 2))); let t = 0; while (G.phase === 'travel' && t < 60) { G.update(0.01); t += 0.01; } return t; };
   const fast = walk(); S.gear.boots = null; G.recompute(); const slow = walk();
   assert.ok(fast < slow * 0.82, `${fast.toFixed(2)}s with boots against ${slow.toFixed(2)}s without`);
 });
@@ -361,12 +361,12 @@ test('Saves survive an export and import', (SW, G, D, I) => {
 });
 test('Auto-explore clears the first area without help, and never stalls', () => {
   const SW = load();
-  const r = play(SW, { build: 'hammer', seed: 5, maxT: 900, until: g => g.S.world.cleared[0] >= 1 });
-  assert.ok(r.S.world.cleared[0] >= 1, 'first area not cleared in 15 minutes');
+  const r = play(SW, { build: 'hammer', seed: 5, maxT: 2400, until: g => g.S.world.cleared[0] >= 1 });
+  assert.ok(r.S.world.cleared[0] >= 1, 'first area not cleared in 40 minutes');
 });
 test('A rushing, forge-less player still finishes Act I through the fallback loop', () => {
   const SW = load();
-  const r = play(SW, { build: 'ember', seed: 9, maxT: 2400, full: false, casual: true, until: g => g.S.world.cleared[0] >= 3 });
-  assert.ok(r.S.world.cleared[0] >= 3, 'Act I not finished in 40 minutes');
+  const r = play(SW, { build: 'ember', seed: 9, maxT: 6000, full: false, casual: true, until: g => g.S.world.cleared[0] >= 3 });
+  assert.ok(r.S.world.cleared[0] >= 3, 'Act I not finished in 100 minutes');
 });
 console.log(n + ' checks passed.');

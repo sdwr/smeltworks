@@ -73,8 +73,8 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 | Amulet | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat, Gold find, Magic find, Orb find | yes |
 | Ring | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat, Magic find, Orb find | |
 
-A slot does not have every type, but any type it has offers at least three affixes. Movement Speed (boots only)
-shortens the walk between tiles.
+A slot does not have every type, but any type it has offers at least three affixes. Walking from one room to the
+next takes five seconds; Movement Speed (boots only) shortens it.
 
 The reasoning is in the comment above `D.AFFIX` in `js/data.js`. Uniques ignore these pools.
 

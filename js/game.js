@@ -281,7 +281,7 @@ G.autoPick = function () {
     const d = Math.abs(c.x - pos.x) + Math.abs(c.y - pos.y);
     // heading straight for the boss, unless it has already beaten us: then gather strength from the rest of the map first
     if (!opts.full && !map.bossDone && !boss.deaths) return (c.type === 'boss' ? -100 : 0) + (Math.abs(c.x - boss.x) + Math.abs(c.y - boss.y)) * 10 + d + c.deaths * 50;
-    return c.deaths * 200 + rank[c.type] * 30 + c.lvl * 4 + d;
+    return c.deaths * 200 + rank[c.type] * 30 + c.lvl * 4 + d * 20;     // every room walked costs time, so nearer wins
   };
   return cands.reduce((a, b) => (score(b) < score(a) ? b : a));
 };
