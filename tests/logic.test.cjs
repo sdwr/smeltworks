@@ -349,6 +349,27 @@ test('Strength is the main stat: every slot can roll it and each point multiplie
   const withStr = swing(); S.gear.helm = null; G.recompute(); const without = swing();
   assert.ok(without > 0 && Math.abs(withStr / without - (1 + v / 100)) < 0.03, `${withStr} against ${without}`);
 });
+test('Affix values depend on the slot: defence pays more where offence competes, amulets beat rings', (SW, G, D, I) => {
+  const val = (base, k, r) => { const it = I.roll(50, Object.assign({ rar: 2 }, base)); it.affixes = [{ k, r: r == null ? 0.5 : r, g: 0 }]; return I.affixValue(it, it.affixes[0], 0); };
+  const near = (a, b, f, msg) => assert.ok(Math.abs(a - b * f) <= Math.max(0.6, b * f * 0.035),      // within rounding of a whole number
+    `${msg}: ${a} / ${b} = ${(a / b).toFixed(3)}, wanted ${f}`);
+  near(val({ slot: 'gloves' }, 'life'), val({ slot: 'chest' }, 'life'), 1.5, 'life on gloves'); near(val({ slot: 'gloves' }, 'armor'), val({ slot: 'chest' }, 'armor'), 1.5, 'armor on gloves');
+  near(val({ slot: 'weapon' }, 'life'), val({ slot: 'chest' }, 'life'), 2, 'life on a weapon'); near(val({ slot: 'weapon' }, 'str', 0.9999), val({ slot: 'helm' }, 'str', 0.9999), 2, 'Strength on a weapon');
+  near(val({ slot: 'ring' }, 'life'), val({ slot: 'chest' }, 'life'), 1.25, 'life on a ring');
+  for (const k of ['dmgPct', 'firePct', 'critDmg', 'dot']) near(val({ slot: 'amulet' }, k), val({ slot: 'ring' }, k), 1.5, k + ' on an amulet against a ring');
+  near(val({ slot: 'amulet' }, 'str', 0.9999), val({ slot: 'ring' }, 'str', 0.9999), 1.5, 'Strength on an amulet'); near(val({ slot: 'amulet' }, 'lifePct'), val({ slot: 'chest' }, 'lifePct'), 1.5, '% life on an amulet');
+  // the flat ones are the same wherever they roll
+  for (const r of [0, 0.5, 0.9999]) {
+    assert.equal(val({ slot: 'amulet' }, 'aspd', r), val({ slot: 'ring' }, 'aspd', r)); assert.equal(val({ slot: 'weapon' }, 'aspd', r), val({ slot: 'gloves' }, 'aspd', r));
+    assert.equal(val({ slot: 'amulet' }, 'cdr', r), val({ slot: 'helm' }, 'cdr', r)); assert.equal(val({ slot: 'amulet' }, 'cdr', r), val({ slot: 'offhand', base: 'shield' }, 'cdr', r));
+    assert.equal(val({ slot: 'amulet' }, 'skHammer', r), val({ slot: 'helm' }, 'skHammer', r));
+  }
+  // baseline slots are untouched, and offence on a weapon or ring is not inflated
+  assert.equal(val({ slot: 'helm' }, 'life'), val({ slot: 'chest' }, 'life')); assert.equal(val({ slot: 'weapon' }, 'critDmg'), val({ slot: 'ring' }, 'critDmg')); assert.equal(val({ slot: 'gloves' }, 'critDmg'), val({ slot: 'ring' }, 'critDmg'));
+  // the range shown on the piece moves with it
+  const am = I.roll(50, { rar: 2, slot: 'amulet' }); am.affixes = [{ k: 'dmgPct', r: 0.5, g: 0 }]; const rg = I.roll(50, { rar: 2, slot: 'ring' }); rg.affixes = [{ k: 'dmgPct', r: 0.5, g: 0 }];
+  assert.notEqual(I.affixRange(am, am.affixes[0], 0), I.affixRange(rg, rg.affixes[0], 0));
+});
 test('Flask Healing, Gold Find, Magic Find and Orb Find are gone, and old gear has them rerolled', (SW, G, D, I) => {
   for (const k of ['flask', 'gold', 'mf', 'orbFind']) assert.ok(!D.AFFIX[k], k);
   const S = G.fresh(); delete S.afxv;

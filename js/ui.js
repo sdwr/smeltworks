@@ -424,7 +424,7 @@ function renderCraft() {
     const kind = cat ? D.AFFIX_CAT[cat].name + ' affix' : 'affix', dot = k => `<u style="background:${D.AFFIX_CAT[D.AFFIX[k].cat].color}"></u>`;
     const able = f && !I.cubeCheck(f.it, orb, cat);
     let opts = [];
-    if (able && orb === 'add') opts = I.affixPool(I.poolKey(f.it), f.it.affixes.map(a => a.k), cat).map(a => dot(a.id) + affName(a.id));
+    if (able && orb === 'add') opts = I.affixPool(I.poolKey(f.it), f.it.affixes.map(a => a.k), cat).map(a => dot(a.id) + affName(a.id) + (I.slotMult(f.it, a.id) !== 1 ? ` <em data-tip="Worth ${I.slotMult(f.it, a.id)} times as much on a ${D.BASES[f.it.base].name.toLowerCase()} as on most slots.">×${I.slotMult(f.it, a.id)}</em>` : ''));
     if (able && orb === 'remove') opts = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !cat || I.inCat(o.a.k, cat)).map(o => dot(o.a.k) + I.affixText(f.it, o.a, o.i));
     if (!why || able) {
       const n = opts.length, of = n > 1 ? ` One of these ${n}:` : '';

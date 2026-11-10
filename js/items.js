@@ -119,11 +119,18 @@ I.makeName = function (it) {
 I.upMult = it => 1 + D.MW_STEP * (it.up || 0);        // it.up is the masterwork rank, 0 to 25
 I.maxUp = () => D.MW_MAX;
 I.masterworked = (it, idx) => !!it.mw && it.mw.includes(idx);   // it.mw holds the index of the one masterworked affix
+/* how much more an affix is worth on this piece's slot than on the baseline (see D.SLOT_MULT) */
+I.slotMult = function (it, k) {
+  const m = D.SLOT_MULT[I.poolKey(it)];
+  if (!m || D.SLOT_FLAT.includes(k)) return 1;
+  return m[k] || m[D.AFFIX[k].cat] || 1;
+};
 I.affixValue = function (it, a, idx) {
   const def = D.AFFIX[a.k];
   let v = U.lerp(def.lo, def.hi, a.r);
   if (def.int) return Math.floor(v) + (a.g ? 1 : 0) + (idx != null && I.masterworked(it, idx) ? 1 : 0);
   if (def.sc === 'flat') v *= D.flat(it.ilvl); else if (def.sc === 'pct') v *= D.pct(it.ilvl);
+  v *= I.slotMult(it, a.k);
   if (a.g) v *= 1.5;
   v *= I.upMult(it);
   if (idx != null && I.masterworked(it, idx)) v *= D.MW_BONUS;

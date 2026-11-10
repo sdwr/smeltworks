@@ -105,6 +105,22 @@ is approached as far as its doorway, fought from there, and walked into once it 
 
 The reasoning is in the comment above `D.AFFIX` in `js/data.js`. Uniques ignore these pools.
 
+### Affix values by slot
+
+The same affix is worth more on some slots than others. The idea is opportunity cost: a slot that could have
+rolled a strong offensive affix has to be paid more to carry a defensive one.
+
+| Slot | What is worth more there |
+| --- | --- |
+| Weapon | Defence affixes ×2, Strength ×2 |
+| Gloves | Defence affixes ×1.5 |
+| Ring | Defence affixes ×1.25 |
+| Amulet | everything ×1.5 |
+
+Body armour, boots and offhands are the baseline. Cooldown Reduction, Attack Speed, Movement Speed and skill ranks
+are the same on every slot. The range shown beside each affix on a piece already includes its slot's multiplier,
+and the cube marks boosted affixes (×1.5) in its list of what it could add.
+
 ### Cube types
 
 Kindling and Quenching Orbs can be aimed at one of four types, after Diablo 4's tuning prisms. They are the four

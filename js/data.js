@@ -42,8 +42,8 @@ D.MOB_DMG_G = 1.075;   // monster damage per level
 D.GEAR_CAP = 50;
 D.ANC_LEVEL = 55;
 D.ANC_CHANCE = [0, 0.03, 0.06, 0.10, 0.15];   // chance for a Torment drop to be Ancestral, by tier
-D.MOB_HP_G2 = 1.042;   // ...and past level 50
-D.MOB_DMG_G2 = 1.047;
+D.MOB_HP_G2 = 1.046;   // ...and past level 50
+D.MOB_DMG_G2 = 1.052;
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
 /* gold from monsters and the price of forge work: 8% a level to 50, then 3% a level, since gear no longer grows with it */
 D.goldScale = l => Math.pow(1.08, Math.min(l, D.GEAR_CAP) - 1) * Math.pow(1.03, Math.max(0, l - D.GEAR_CAP));
@@ -150,6 +150,23 @@ D.AFFIX = {
   skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
   skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
 };
+/* The same affix is worth more on some slots than others. The reasoning is opportunity cost: a slot that could
+   have rolled a strong offensive affix has to be paid more to carry a defensive one, or nobody would take it.
+     weapon   Defence and Strength x2. A weapon has ten offensive affixes competing for four places, so life on it
+              has to be worth giving one up; and the weapon is where the main stat belongs.
+     gloves   Defence x1.5. They are the crit and speed slot, so life and armor there come dear.
+     ring     Defence x1.25. The same argument, more gently, so that an amulet still beats a ring.
+     amulet   everything x1.5. The one-of-a-kind slot, as with its aspects.
+   Body armour, boots and offhands are the baseline. Cooldown Reduction, Attack Speed, Movement Speed and skill ranks
+   are the same on every slot: they are capped or counted in whole steps, and a bigger roll on one slot would just
+   make that slot the only place to take them. */
+D.SLOT_MULT = {
+  weapon: { def: 2, str: 2 },
+  gloves: { def: 1.5 },
+  ring:   { def: 1.25 },
+  amulet: { off: 1.5, def: 1.5, util: 1.5 },
+};
+D.SLOT_FLAT = ['cdr', 'aspd', 'move', 'skHammer', 'skEmber', 'skStorm'];
 /* Affix types: what a Kindling or Quenching Orb can be aimed at in the cube. Four of them, after Diablo 4's tuning
    prisms (Aggressive, Protector's, Pragmatic, Adept's), and a few affixes sit in two:
      Strength             Offence and Skills
