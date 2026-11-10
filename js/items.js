@@ -140,10 +140,10 @@ I.affixValue = function (it, a, idx) {
   if (def.dp) return Math.round(v * 10) / 10;
   return Math.max(1, Math.round(v));
 };
-/* the lowest and highest this affix could have rolled on this item, as "[lo–hi]". A Greater affix has no range: it is the maximum */
+/* the lowest and highest this affix can roll on this item, as "[lo–hi]". It is the ordinary range even for a Greater
+   affix, so a Greater affix visibly sits above the top of it */
 I.affixRange = function (it, a, idx) {
-  if (a.g) return '[max]';
-  const lo = I.affixValue(it, { k: a.k, r: 0, g: a.g }, idx), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g }, idx);
+  const lo = I.affixValue(it, { k: a.k, r: 0, g: 0 }, idx), hi = I.affixValue(it, { k: a.k, r: I.MAX_ROLL, g: 0 }, idx);
   return '[' + U.fmt1(lo) + '–' + U.fmt1(hi) + ']';
 };
 I.affixText = function (it, a, idx) {

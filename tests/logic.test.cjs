@@ -44,7 +44,7 @@ test('Every affix value sits inside the range shown for it', (SW, G, D, I) => {
   for (let i = 0; i < 800; i++) {
     const it = I.roll(1 + (i % 150), { rar: 1 + (i % 4), tier: i % 5 }); it.up = i % 26; if (it.up >= 25 && it.affixes.length) it.mw = [0];
     it.affixes.forEach((a, k) => {
-      if (a.g) { assert.equal(I.affixRange(it, a, k), '[max]'); return; }
+      if (a.g) { const g = I.affixRange(it, a, k).match(/^\[(.+)–(.+)\]$/); assert.ok(g && I.affixValue(it, a, k) > I.affixValue(it, { k: a.k, r: 0.9999, g: 0 }, k), `a Greater ${a.k} shows the ordinary range and sits above it`); return; }
       const m = I.affixRange(it, a, k).match(/^\[(.+)–(.+)\]$/); assert.ok(m, I.affixRange(it, a, k));
       const v = I.affixValue(it, a, k), lo = I.affixValue(it, { k: a.k, r: 0, g: a.g }, k), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g }, k);
       assert.ok(lo <= v && v <= hi, `${a.k}: ${lo} <= ${v} <= ${hi}`);
