@@ -44,6 +44,7 @@ test('Every affix value sits inside the range shown for it', (SW, G, D, I) => {
   for (let i = 0; i < 800; i++) {
     const it = I.roll(1 + (i % 150), { rar: 1 + (i % 4), tier: i % 5 }); it.up = i % 26; if (it.up >= 25 && it.affixes.length) it.mw = [0];
     it.affixes.forEach((a, k) => {
+      if (a.g) { assert.equal(I.affixRange(it, a, k), '[max]'); return; }
       const m = I.affixRange(it, a, k).match(/^\[(.+)–(.+)\]$/); assert.ok(m, I.affixRange(it, a, k));
       const v = I.affixValue(it, a, k), lo = I.affixValue(it, { k: a.k, r: 0, g: a.g }, k), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g }, k);
       assert.ok(lo <= v && v <= hi, `${a.k}: ${lo} <= ${v} <= ${hi}`);
@@ -429,7 +430,11 @@ test('Greater affixes come from drops only: no cube orb and no forge reroll can 
   assert.ok(I.greaterChance(3) > I.greaterChance(0) * 2, 'likelier in Torment');
   const it = I.roll(20, { rar: 1, slot: 'ring' }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }];
   const plain = I.affixValue(it, it.affixes[0], 0); it.affixes[0].g = 1;
-  assert.ok(Math.abs(I.affixValue(it, it.affixes[0], 0) / plain - 1.5) < 0.02, 'Greater is half again as strong');
+  const top = I.affixValue(it, { k: 'life', r: 0.9999, g: 0 }, 0);
+  assert.ok(Math.abs(I.affixValue(it, it.affixes[0], 0) / top - 1.5) < 0.02, 'Greater is the maximum roll and half again');
+  const vals = new Set(); for (const r of [0, 0.2, 0.5, 0.8, 0.9999]) { it.affixes[0].r = r; vals.add(I.affixValue(it, it.affixes[0], 0)); } assert.equal(vals.size, 1, 'one value only: ' + [...vals]);
+  for (let i = 0; i < 3000; i++) { const d = I.roll(50, { rar: 2, tier: 4 }); d.affixes.forEach((a, k) => { if (a.g && !D.AFFIX[a.k].int) { const mx = I.affixValue(d, { k: a.k, r: 0.9999, g: 0 }, k); assert.ok(I.affixValue(d, a, k) >= mx * 1.5 - Math.max(0.6, mx * 0.05), `${a.k} dropped Greater at ${I.affixValue(d, a, k)}, max ordinary ${mx}`); } }); }
+  it.affixes[0].r = 0.5;
   // crafting with dice that always crit
   S.bag[0] = it; S.orbs = { add: 9, remove: 9, chaos: 9, divine: 9 }; it.affixes[0].g = 0;
   const real = SW.util.rng; SW.util.rng = () => 0.001;

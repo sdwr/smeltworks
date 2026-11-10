@@ -55,7 +55,8 @@ the skill bar to drink it.
 - **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
   so it is where you park pieces between trips to the crafting bench.
 - **Greater affixes.** When a piece drops or is commissioned, each affix has a small chance to crit and come out
-  Greater: half again as strong, marked with a gold star. The chance rises in Torment. Greater affixes are found,
+  Greater: the maximum roll for that affix, and then half again on top, marked with a gold star. A Greater affix
+  never rolls low. The chance rises in Torment. Greater affixes are found,
   never crafted: the forge's reroll and every cube orb roll ordinary affixes. A Tempering Orb leaves a Greater
   affix Greater, but rerolling one at the forge or melting it with a Slag Orb gives it up.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.

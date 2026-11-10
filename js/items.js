@@ -126,9 +126,11 @@ I.slotMult = function (it, k) {
   if (!m || D.SLOT_FLAT.includes(k)) return 1;
   return m[k] || m[D.AFFIX[k].cat] || 1;
 };
+/* A Greater affix is always the top of its range, and then half again on top: it never rolls low. */
+I.MAX_ROLL = 0.9999;
 I.affixValue = function (it, a, idx) {
   const def = D.AFFIX[a.k];
-  let v = U.lerp(def.lo, def.hi, a.r);
+  let v = U.lerp(def.lo, def.hi, a.g ? I.MAX_ROLL : a.r);
   if (def.int) return Math.floor(v) + (a.g ? 1 : 0) + (idx != null && I.masterworked(it, idx) ? 1 : 0);
   if (def.sc === 'flat') v *= D.flat(it.ilvl); else if (def.sc === 'pct') v *= D.pct(it.ilvl);
   v *= I.slotMult(it, a.k);
@@ -138,8 +140,9 @@ I.affixValue = function (it, a, idx) {
   if (def.dp) return Math.round(v * 10) / 10;
   return Math.max(1, Math.round(v));
 };
-/* the lowest and highest this affix could have rolled on this item, as "[lo–hi]" */
+/* the lowest and highest this affix could have rolled on this item, as "[lo–hi]". A Greater affix has no range: it is the maximum */
 I.affixRange = function (it, a, idx) {
+  if (a.g) return '[max]';
   const lo = I.affixValue(it, { k: a.k, r: 0, g: a.g }, idx), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g }, idx);
   return '[' + U.fmt1(lo) + '–' + U.fmt1(hi) + ']';
 };
@@ -287,7 +290,7 @@ I.cube = function (it, orb, tier, cat) {
     for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, null, true));
     it.ench = -1;
   } else if (orb === 'divine') {
-    for (const a of it.affixes) a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();      // new numbers only: what is Greater stays Greater, and nothing becomes Greater
+    for (const a of it.affixes) a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();      // new numbers only: what is Greater stays Greater (and so stays at its maximum), and nothing becomes Greater
   }
   if (!it.uniq && it.rar < 3) it.name = I.makeName(it);
   return res;
