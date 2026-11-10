@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><body style="background:#1a1a22;margin:0;padding:8px;font:11px sans-serif;color:#ccc">
+<div id="o" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+<script src="../js/data.js"></script><script src="../js/sprites.js"></script>
+<script>
+const SP=SW.sprites,D=SW.data,o=document.getElementById('o');
+function add(n,p,s,label){const d=document.createElement('div');d.style.cssText='text-align:center;background:#23232e;padding:4px';d.innerHTML=`<img src="${SP.url(n,p,s)}"><br>${label||n}`;o.appendChild(d);}
+const q=new URLSearchParams(location.search).get('set')||'mobs';
+if(q==='mobs'){for(const m of D.MOBS)add(m.spr,m.pal,6,m.id);add('hero','hero',6);for(const k in D.BOSSES)add(D.BOSSES[k].spr,D.BOSSES[k].pal,7,k);}
+if(q==='gear'){for(const b of ['sword','axe','hammer','shield','lantern','helm','chest','gloves','pants','boots','amulet','ring'])for(const m of ['rust','steel','rune','void','u_fire'])add(b,m,4,b+' '+m);for(const i of ['i_fight','i_elite','i_boss','i_chest','i_shrine','i_start','i_flask'])add(i,i==='i_shrine'?'shrine':i==='i_boss'?'boss':'icon',4);}
+if(q==='glyph'){document.body.style.background='#555';for(const k in SP.DEF)if(k.startsWith('g_'))add(k,'glyph',5);}
+</script>

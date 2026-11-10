@@ -1,0 +1,522 @@
+/* Smeltworks — game state, the expedition map, loot, progression and the main update loop. No DOM here. */
+(function () {
+'use strict';
+const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero;
+const SAVE_KEY = 'smeltworks.autobattler.v1';
+const G = SW.game = { S: null, C: null, battle: null, phase: 'idle', phaseT: 0, path: [], target: null, persist: {}, deathStreak: 0, listeners: [], log: [] };
+
+G.on = fn => G.listeners.push(fn);
+G.emit = (type, data) => { for (const fn of G.listeners) fn(type, data || {}); };
+
+/* ------------------------------------------------------------------ state */
+G.fresh = function () {
+  const S = {
+    v: 1,
+    hero: { level: 1, xp: 0, ranks: { strike: 1 }, bar: ['strike', null, null, null, null], paragon: {}, plevel: 0, pxp: 0, bonusPts: 1 },
+    gear: {}, bag: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, codex: {},
+    world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
+    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6 },
+    stats: { kills: 0, deaths: 0, leg: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
+    seen: {}, uid: 1,
+  };
+  for (const s of D.SLOTS) S.gear[s] = null;
+  const w = I.roll(1, { slot: 'weapon', base: 'hammer', rar: 0 }); w.name = "Apprentice's Hammer"; w.isNew = 0; w.br = 0.5;
+  const c = I.roll(1, { slot: 'chest', rar: 0 }); c.name = 'Singed Apron'; c.isNew = 0; c.br = 0.3;
+  S.gear.weapon = w; S.gear.chest = c;
+  return S;
+};
+G.init = function (saved) {
+  G.S = saved || G.fresh();
+  const S = G.S;
+  let mx = 1;
+  for (const s of D.SLOTS) if (S.gear[s]) mx = Math.max(mx, S.gear[s].id);
+  for (const it of S.bag) if (it) mx = Math.max(mx, it.id);
+  I.setUid(mx + 1);
+  G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = {}; G.deathStreak = 0;
+  G.recompute();
+  if (!S.world.map) G.startExpedition(S.world.area, S.world.tier, true);
+};
+G.save = function () {
+  if (typeof localStorage === 'undefined') return;
+  try { G.S.uid = I.getUid(); localStorage.setItem(SAVE_KEY, JSON.stringify(G.S)); } catch (e) { /* storage full or blocked */ }
+};
+G.load = function () {
+  if (typeof localStorage === 'undefined') return null;
+  try { const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null; const S = JSON.parse(raw); return S && S.v === 1 && S.hero && S.world ? S : null; } catch (e) { return null; }
+};
+G.wipe = function () { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} };
+G.exportSave = () => btoa(unescape(encodeURIComponent(JSON.stringify(G.S))));
+G.importSave = function (str) {
+  try { const S = JSON.parse(decodeURIComponent(escape(atob(str.trim())))); if (S && S.v === 1 && S.hero && S.world) { G.init(S); G.save(); return true; } } catch (e) {}
+  return false;
+};
+G.recompute = function () {
+  G.C = Hr.compute(G.S);
+  if (G.battle && !G.battle.over) G.battle.setHero(G.C);
+  G.S.stats.best = Math.max(G.S.stats.best || 0, G.C.rating.power);
+  G.emit('stats');
+};
+
+/* -------------------------------------------------------------------- map */
+const NAMES = ['Gorefang', 'Ashmaw', 'Varo the Cruel', 'Old Cinder', 'Skarn', 'Mother Soot', 'The Quarryman', 'Brakk Ironjaw', 'Sister Pyre', 'Hollow Jack', 'The Tallowman', 'Vex', 'Red Molly', 'Grist', 'The Stoker'];
+G.areaLevel = () => D.areaLevel(G.S.world.area, G.S.world.tier);
+G.genMap = function (area, tier) {
+  const W = D.MAP_W, H = D.MAP_H, base = D.areaLevel(area, tier), first = area === 0 && tier === 0;
+  const cells = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) cells.push({ x, y, type: 'fight', state: 'hidden', lvl: base + Math.round(x / (W - 1) * 3), deaths: 0 });
+  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? null : cells[y * W + x]);
+  const start = at(0, 2), boss = at(W - 1, U.irand(0, H - 1));
+  start.type = 'start'; boss.type = 'boss';
+  const reach = () => {
+    const seen = new Set([start]), q = [start];
+    while (q.length) { const c = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = at(c.x + dx, c.y + dy); if (n && n.type !== 'wall' && !seen.has(n)) { seen.add(n); q.push(n); } } }
+    return seen.size;
+  };
+  let walls = 0; const want = first ? 5 : U.irand(6, 9);
+  for (const c of U.shuffle(cells.filter(c => c.type === 'fight' && !(c.x <= 1 && c.y === 2)))) {
+    if (walls >= want) break;
+    c.type = 'wall';
+    if (reach() === cells.length - walls - 1) walls++; else c.type = 'fight';
+  }
+  const free = U.shuffle(cells.filter(c => c.type === 'fight'));
+  const take = (n, type, minX) => { let k = 0; for (const c of free) { if (k >= n) break; if (c.type === 'fight' && c.x >= minX) { c.type = type; k++; } } };
+  take(first ? 2 : 3 + (tier > 0 ? 1 : 0), 'elite', first ? 3 : 2);
+  take(2, 'chest', 1);
+  take(2, 'shrine', 1);
+  const map = { w: W, h: H, cells, area, tier, bossDone: false, allDone: false, name: null };
+  if (!D.AREAS[area].final) map.name = U.pick(NAMES);
+  start.state = 'done';
+  boss.state = 'seen';
+  G.reveal(map, start);
+  return map;
+};
+G.cell = (x, y) => { const m = G.S.world.map; return x < 0 || y < 0 || x >= m.w || y >= m.h ? null : m.cells[y * m.w + x]; };
+G.neighbors = function (map, c) {
+  const out = [];
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const x = c.x + dx, y = c.y + dy; if (x >= 0 && y >= 0 && x < map.w && y < map.h) out.push(map.cells[y * map.w + x]); }
+  return out;
+};
+G.reveal = function (map, c) { for (const n of G.neighbors(map, c)) if (n.state === 'hidden') n.state = 'seen'; };
+G.canEnter = function (c) {
+  const map = G.S.world.map;
+  return c && c.type !== 'wall' && c.state === 'seen' && G.neighbors(map, c).some(n => n.state === 'done');
+};
+/* path through cleared cells from the hero to a cell next to (or at) the target */
+G.findPath = function (to) {
+  const map = G.S.world.map, pos = G.S.world.pos, from = map.cells[pos.y * map.w + pos.x];
+  const prev = new Map([[from, null]]), q = [from];
+  while (q.length) {
+    const c = q.shift();
+    if (c === to) break;
+    for (const n of G.neighbors(map, c)) if (!prev.has(n) && (n.state === 'done' || n === to)) { prev.set(n, c); q.push(n); }
+  }
+  if (!prev.has(to)) return null;
+  const path = []; for (let c = to; c && c !== from; c = prev.get(c)) path.unshift(c);
+  return path;
+};
+G.startExpedition = function (area, tier, quiet) {
+  const W = G.S.world;
+  W.area = area; W.tier = tier;
+  W.map = G.genMap(area, tier);
+  W.pos = { x: 0, y: 2 }; W.shrine = null; W.shrineN = 0;
+  G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null;
+  if (!quiet) G.emit('expedition');
+  G.emit('map');
+};
+G.isUnlocked = (area, tier) => G.S.world.cleared[tier] != null && area <= G.S.world.cleared[tier] && area < D.AREAS.length;
+
+/* ------------------------------------------------------------ battle spec */
+G.makeSpec = function (c) {
+  const W = G.S.world, area = D.AREAS[W.area], act = D.ACTS[area.act], tier = W.tier, lvl = c.lvl;
+  const pool = act.mobs.map(id => D.MOB[id]);
+  const first = W.area === 0 && tier === 0;
+  const cost = m => (m.swarm ? 0.55 : m.hp > 1.4 ? 1.7 : m.ranged ? 1.1 : 1);
+  const pack = budget => {
+    const main = U.pick(pool), out = [];
+    while (budget > 0.3 && out.length < 5) {
+      const m = out.length === 0 || U.chance(0.65) ? main : U.pick(pool);
+      if ((m.heal || m.summon) && out.filter(x => x.id === m.id).length >= 1) { budget -= 0.2; continue; }
+      out.push({ id: m.id, lvl }); budget -= cost(m);
+    }
+    return out;
+  };
+  const affixes = n => U.shuffle(D.ELITE_IDS.slice()).slice(0, n);
+  const spec = { waves: [], lvl, shrine: W.shrineN > 0 ? W.shrine : null, type: c.type };
+  if (c.type === 'boss' && area.final) {
+    spec.waves.push([{ id: act.boss, lvl, boss: true }]); spec.boss = act.boss;
+  } else if (c.type === 'boss') {
+    const m = U.pick(pool.filter(m => !m.swarm && !m.heal && !m.summon));
+    spec.waves.push(pack(1.2 + tier * 0.5));
+    spec.waves.push([{ id: m.id, lvl, champ: true, elite: affixes(lvl >= 20 ? 2 : 1), name: W.map.name }, ...pack(1.1)]);
+    spec.champ = W.map.name;
+  } else if (c.type === 'elite') {
+    const m = U.pick(pool.filter(m => !m.swarm));
+    spec.waves.push([{ id: m.id, lvl, elite: affixes(1 + (lvl >= 24 ? 1 : 0) + (tier >= 2 ? 1 : 0)) }, ...pack(first ? 0.6 : 1.2)]);
+  } else {
+    const nW = first && c.x < 2 ? 1 : (U.chance(0.45) ? 2 : 1) + (tier > 0 && U.chance(0.3) ? 1 : 0);
+    for (let i = 0; i < nW; i++) spec.waves.push(pack(first ? 0.9 + c.x * 0.32 + U.rand(0, 0.5) : 1.7 + c.x * 0.2 + U.rand(0, 1.2) + (tier ? 0.5 : 0)));
+    if (lvl >= 3 && U.chance(0.045)) spec.waves[0].push({ id: 'goblin', lvl });
+  }
+  return spec;
+};
+
+/* ------------------------------------------------------------------- loot */
+G.bagCount = () => G.S.bag.filter(Boolean).length;
+G.isUpgrade = function (it) {
+  const S = G.S, slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
+  for (const s of slots) {
+    if (!S.gear[s]) return true;
+    const g = Object.assign({}, S.gear); g[s] = it;
+    if (Hr.compute(S, g).rating.power > G.C.rating.power * 1.005) return true;
+  }
+  return false;
+};
+G.gainMats = function (y) { for (const k in y) G.S.mats[k] = (G.S.mats[k] || 0) + y[k]; };
+G.salvageItem = function (it, quiet) {
+  const y = I.salvageYield(it);
+  G.gainMats(y);
+  if (it.aspect) {
+    const cur = G.S.codex[it.aspect.id];
+    if (cur == null || it.aspect.r > cur) { G.S.codex[it.aspect.id] = it.aspect.r; G.emit('codex', { id: it.aspect.id, isNew: cur == null }); }
+  }
+  if (!quiet) G.emit('salvage', { it, y });
+  return y;
+};
+/* put an item in the bag, honouring the auto-salvage filter. returns 'bag' | 'salvaged' */
+G.addItem = function (it) {
+  const S = G.S;
+  if (it.rar === 3) S.stats.leg++; if (it.rar === 4) S.stats.uniq++;
+  it.upg = G.isUpgrade(it) ? 1 : 0;
+  if (it.rar <= 2 && S.opts.salv[it.rar] && !it.upg) { G.salvageItem(it, true); return 'salvaged'; }
+  if (G.bagCount() >= D.BAG_SIZE) {
+    // make room: melt the least valuable unlocked piece
+    let worst = null;
+    for (const b of S.bag) if (b && !b.lock && (!worst || b.rar < worst.rar || (b.rar === worst.rar && b.ilvl < worst.ilvl))) worst = b;
+    if (!worst || worst.rar > it.rar || (worst.rar === it.rar && worst.ilvl >= it.ilvl && !it.upg)) { G.salvageItem(it, true); G.emit('bagfull'); return 'salvaged'; }
+    S.bag[S.bag.indexOf(worst)] = null; G.salvageItem(worst, true); G.emit('bagfull');
+  }
+  let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length;
+  S.bag[i] = it;
+  return 'bag';
+};
+G.dropsFor = function (m) {
+  const S = G.S, st = G.C.st, tier = S.world.tier, greed = G.battle && G.battle.shrine === 'greed';
+  const mf = st.mf + (greed ? 60 : 0);
+  const out = { gold: 0, items: [], xp: 0 };
+  const weight = m.boss ? 45 : m.champ ? 16 : m.elite ? 6 : m.def.flee ? 30 : m.minion ? 0.3 : m.def.hp;
+  out.gold = Math.max(1, Math.round(D.mobGold(m.lvl) * weight * U.rand(0.7, 1.3) * (1 + st.gold / 100) * (greed ? 3 : 1)));
+  let n = 0, boost = 1, minRar = 0;
+  if (m.boss) { n = 4; boost = 6; minRar = 2; }
+  else if (m.champ) { n = 3; boost = 4; minRar = 1; }
+  else if (m.elite) { n = 1 + (U.chance(0.5) ? 1 : 0); boost = 3; minRar = 1; }
+  else if (m.def.flee) { n = 3; boost = 4; minRar = 1; }
+  else if (U.chance((m.minion ? 0.03 : 0.12 + (m.def.hp > 1.4 ? 0.06 : 0)) * (1 + mf / 300))) n = 1;
+  for (let i = 0; i < n; i++) out.items.push(I.roll(Math.max(1, m.lvl + U.irand(-1, 1)), { mf, tier, boost, minRar }));
+  if (m.boss) {
+    const key = m.id + tier;
+    if (!S.stats.bosses[key]) {
+      S.stats.bosses[key] = 1; out.first = true;
+      out.items.push(I.roll(m.lvl + 1, { rar: 3, tier }));
+      if (tier === 0) { S.hero.bonusPts++; out.point = true; }
+    } else S.stats.bosses[key]++;
+    out.mats = { soul: 1 + tier, dust: 3 };
+  } else if (m.champ) out.mats = { dust: 2 };
+  else if (m.elite && U.chance(0.4)) out.mats = { dust: 1 };
+  return out;
+};
+G.onKill = function (m) {
+  const S = G.S, d = G.dropsFor(m);
+  S.stats.kills++; if (m.elite) S.stats.elites++;
+  S.gold += d.gold;
+  if (d.mats) G.gainMats(d.mats);
+  d.fate = d.items.map(it => G.addItem(it));
+  d.xp = G.addXp(m.xp, m.lvl);
+  if (d.point) G.emit('point');
+  return d;
+};
+G.addXp = function (x, mobLvl) {
+  const S = G.S, h = S.hero;
+  const diff = h.level - mobLvl;
+  let mult = 1 + G.C.st.xp / 100;
+  if (h.level < D.MAX_LEVEL && diff > 3) mult *= Math.max(0.15, 1 - 0.12 * (diff - 3));
+  x = Math.max(1, Math.round(x * mult));
+  if (h.level < D.MAX_LEVEL) {
+    h.xp += x;
+    let up = false;
+    while (h.level < D.MAX_LEVEL && h.xp >= Hr.xpNeed(h.level)) { h.xp -= Hr.xpNeed(h.level); h.level++; up = true; }
+    if (h.level >= D.MAX_LEVEL) { h.pxp += h.xp; h.xp = 0; }
+    if (up) { G.recompute(); if (G.battle && !G.battle.over) G.battle.h.hp = G.battle.h.max; G.emit('levelup', { level: h.level }); }
+  } else {
+    h.pxp += x;
+    let up = false;
+    while (h.pxp >= Hr.paragonNeed(h.plevel)) { h.pxp -= Hr.paragonNeed(h.plevel); h.plevel++; up = true; }
+    if (up) G.emit('levelup', { level: h.level, paragon: h.plevel });
+  }
+  return x;
+};
+G.openChest = function (c) {
+  const S = G.S, st = G.C.st, items = [];
+  const n = U.irand(2, 3);
+  for (let i = 0; i < n; i++) items.push(I.roll(c.lvl, { mf: st.mf, tier: S.world.tier, boost: 2, minRar: 1 }));
+  const gold = Math.round(D.mobGold(c.lvl) * 14 * U.rand(0.8, 1.3) * (1 + st.gold / 100));
+  S.gold += gold;
+  const fate = items.map(it => G.addItem(it));
+  G.emit('chest', { c, items, gold, fate });
+};
+
+/* -------------------------------------------------------------- game loop */
+G.enterCell = function (c) {
+  if (G.phase !== 'idle' || !G.canEnter(c)) return false;
+  const path = G.findPath(c);
+  if (!path) return false;
+  G.path = path; G.target = c; G.phase = 'travel'; G.phaseT = 0;
+  G.emit('travel', { path });
+  return true;
+};
+G.autoPick = function () {
+  const map = G.S.world.map, pos = G.S.world.pos, opts = G.S.opts;
+  const cands = map.cells.filter(G.canEnter);
+  if (!cands.length) return null;
+  const boss = map.cells.find(c => c.type === 'boss');
+  const rank = { shrine: 0, chest: 1, fight: 2, elite: 3, boss: 9 };
+  const score = c => {
+    const d = Math.abs(c.x - pos.x) + Math.abs(c.y - pos.y);
+    if (!opts.full && !map.bossDone) return (c.type === 'boss' ? -100 : 0) + (Math.abs(c.x - boss.x) + Math.abs(c.y - boss.y)) * 10 + d + c.deaths * 50;
+    return c.deaths * 200 + rank[c.type] * 30 + c.lvl * 4 + d;
+  };
+  return cands.reduce((a, b) => (score(b) < score(a) ? b : a));
+};
+G.finishArea = function () {
+  const S = G.S, W = S.world, map = W.map;
+  if (!S.opts.auto) return;
+  let area = W.area;
+  if (S.opts.onClear === 'advance') area = Math.min(W.cleared[W.tier], D.AREAS.length - 1);
+  G.startExpedition(area, W.tier);
+};
+G.update = function (dt) {
+  const S = G.S, W = S.world, map = W.map;
+  S.stats.time += dt;
+  if (G.phase === 'idle') {
+    if (G.phaseT > 0) { G.phaseT -= dt; return; }
+    if (!S.opts.auto) return;
+    const done = map.bossDone && (map.allDone || !S.opts.full);
+    if (done) { G.finishArea(); return; }
+    const c = G.autoPick();
+    if (c) G.enterCell(c); else if (map.bossDone) G.finishArea();
+    return;
+  }
+  if (G.phase === 'travel') {
+    G.phaseT += dt;
+    const step = 0.2;
+    while (G.path.length > 1 && G.phaseT >= step) { G.phaseT -= step; const c = G.path.shift(); W.pos = { x: c.x, y: c.y }; G.emit('moved'); }
+    if (G.path.length <= 1 && G.phaseT >= step) { G.arrive(G.target); }
+    return;
+  }
+  if (G.phase === 'battle') {
+    let left = dt;
+    while (left > 1e-6 && !G.battle.over) { const s = Math.min(0.05, left); G.battle.step(s); left -= s; }
+    if (G.battle.over) { G.phase = G.battle.over === 'win' ? 'won' : 'dead'; G.phaseT = G.battle.over === 'win' ? 0.9 : 2.4; if (G.phase === 'dead') { S.stats.deaths++; G.target.deaths++; G.deathStreak++; G.emit('death'); } }
+    return;
+  }
+  if (G.phase === 'won') {
+    G.phaseT -= dt;
+    if (G.phaseT <= 0) G.winCell();
+    return;
+  }
+  if (G.phase === 'dead') {
+    G.phaseT -= dt;
+    if (G.phaseT <= 0) {
+      const bs = G.battle.summary(); G.persist = G.battle.persist(); G.battle = null; G.phase = 'idle'; G.phaseT = 0.3; G.emit('battleEnd', { win: false, bs });
+      if (S.opts.auto && G.deathStreak >= 3) {
+        G.deathStreak = 0;
+        if (W.area > 0) { G.emit('fallback', { to: D.AREAS[W.area - 1].name }); G.startExpedition(W.area - 1, W.tier); }
+        else { S.opts.auto = false; G.emit('autoOff'); }
+      }
+      G.save();
+    }
+    return;
+  }
+};
+G.arrive = function (c) {
+  const S = G.S, W = S.world;
+  if (c.type === 'chest') { W.pos = { x: c.x, y: c.y }; G.openChest(c); G.completeCell(c); G.phase = 'idle'; G.phaseT = 0.7; return; }
+  if (c.type === 'shrine') {
+    W.pos = { x: c.x, y: c.y };
+    const id = U.pick(Object.keys(D.SHRINES)); W.shrine = id; W.shrineN = D.SHRINE_FIGHTS;
+    G.emit('shrine', { id, c }); G.completeCell(c); G.phase = 'idle'; G.phaseT = 0.7; return;
+  }
+  const spec = G.makeSpec(c);
+  G.battle = new SW.Battle(G.C, G.persist, spec, { onKill: G.onKill }, !SW.headless);
+  G.phase = 'battle';
+  G.emit('battleStart', { c, spec });
+};
+G.completeCell = function (c) {
+  const S = G.S, W = S.world, map = W.map;
+  c.state = 'done'; W.pos = { x: c.x, y: c.y };
+  G.reveal(map, c);
+  if (c.type === 'boss') {
+    map.bossDone = true; S.stats.clears++;
+    const first = W.cleared[W.tier] === W.area;
+    if (first) {
+      W.cleared[W.tier] = W.area + 1;
+      if (W.area === D.AREAS.length - 1 && W.tier < D.TIERS.length - 1 && W.cleared[W.tier + 1] == null) { W.cleared[W.tier + 1] = 0; G.emit('tierUnlock', { tier: W.tier + 1 }); }
+    }
+    G.emit('areaClear', { first, area: W.area, tier: W.tier });
+  }
+  if (!map.allDone && map.cells.every(x => x.type === 'wall' || x.state === 'done')) {
+    map.allDone = true;
+    const items = [I.roll(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 5, minRar: 2 }), I.roll(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 3, minRar: 1 })];
+    const gold = Math.round(D.mobGold(c.lvl) * 40 * (1 + G.C.st.gold / 100)); S.gold += gold;
+    const fate = items.map(it => G.addItem(it));
+    G.emit('fullClear', { items, gold, fate });
+  }
+  G.emit('map');
+};
+G.winCell = function () {
+  const S = G.S, W = S.world, c = G.target;
+  const bs = G.battle.summary();
+  G.persist = G.battle.persist(); G.battle = null; G.deathStreak = 0;
+  if (W.shrineN > 0) { W.shrineN--; if (!W.shrineN) W.shrine = null; }
+  G.phase = 'idle'; G.phaseT = 0.25;
+  G.emit('battleEnd', { win: true, bs });
+  G.completeCell(c);
+  G.recompute();
+  G.save();
+};
+
+/* -------------------------------------------------------- player actions */
+G.findItem = function (id) {
+  const S = G.S;
+  for (const s of D.SLOTS) if (S.gear[s] && S.gear[s].id === id) return { it: S.gear[s], where: 'gear', slot: s };
+  const i = S.bag.findIndex(b => b && b.id === id);
+  return i >= 0 ? { it: S.bag[i], where: 'bag', idx: i } : null;
+};
+G.equip = function (id, slotHint) {
+  const S = G.S, f = G.findItem(id);
+  if (!f || f.where !== 'bag') return false;
+  const it = f.it;
+  let slot = it.slot;
+  if (slot === 'ring') {
+    if (slotHint === 'ring1' || slotHint === 'ring2') slot = slotHint;
+    else if (!S.gear.ring1) slot = 'ring1'; else if (!S.gear.ring2) slot = 'ring2';
+    else {
+      // replace whichever ring gains more
+      const g1 = Object.assign({}, S.gear, { ring1: it }), g2 = Object.assign({}, S.gear, { ring2: it });
+      slot = Hr.compute(S, g1).rating.power >= Hr.compute(S, g2).rating.power ? 'ring1' : 'ring2';
+    }
+  }
+  const old = S.gear[slot];
+  S.gear[slot] = it; it.isNew = 0; it.upg = 0;
+  S.bag[f.idx] = old || null;
+  G.recompute(); G.refreshUpgrades(); G.emit('equip', { it }); G.save();
+  return true;
+};
+G.unequip = function (slot) {
+  const S = G.S, it = S.gear[slot];
+  if (!it || G.bagCount() >= D.BAG_SIZE) return false;
+  let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length;
+  S.bag[i] = it; S.gear[slot] = null;
+  G.recompute(); G.refreshUpgrades(); G.emit('equip', { it }); G.save();
+  return true;
+};
+G.refreshUpgrades = function () { for (const b of G.S.bag) if (b) b.upg = G.isUpgrade(b) ? 1 : 0; };
+G.salvage = function (id) {
+  const f = G.findItem(id);
+  if (!f || f.where !== 'bag' || f.it.lock) return false;
+  G.S.bag[f.idx] = null; G.salvageItem(f.it); G.save();
+  return true;
+};
+G.salvageAll = function (maxRar) {
+  const S = G.S; let n = 0; const tot = {};
+  S.bag.forEach((b, i) => { if (b && !b.lock && b.rar <= maxRar && !b.upg) { S.bag[i] = null; const y = G.salvageItem(b, true); for (const k in y) tot[k] = (tot[k] || 0) + y[k]; n++; } });
+  if (n) { G.emit('salvageAll', { n, y: tot }); G.save(); }
+  return n;
+};
+G.toggleLock = function (id) { const f = G.findItem(id); if (f) { f.it.lock = f.it.lock ? 0 : 1; G.emit('bag'); } };
+G.sortBag = function () {
+  const S = G.S, order = D.ITEM_SLOTS;
+  const items = S.bag.filter(Boolean).sort((a, b) => b.rar - a.rar || order.indexOf(a.slot) - order.indexOf(b.slot) || b.ilvl - a.ilvl);
+  S.bag = items; G.emit('bag');
+};
+G.canPay = c => Object.keys(c).every(k => (k === 'gold' ? G.S.gold : G.S.mats[k] || 0) >= c[k]);
+G.pay = function (c) { if (!G.canPay(c)) return false; for (const k in c) { if (k === 'gold') G.S.gold -= c[k]; else G.S.mats[k] -= c[k]; } return true; };
+G.upgrade = function (id) {
+  const f = G.findItem(id); if (!f) return null;
+  const it = f.it;
+  if ((it.up || 0) >= I.maxUp(it) || !G.pay(I.upgradeCost(it))) return null;
+  const mw = I.upgrade(it);
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'upgrade', it, mw }); G.save();
+  return { mw };
+};
+G.enchant = function (id, idx) {
+  const f = G.findItem(id); if (!f) return null;
+  const it = f.it;
+  if (!I.canEnchant(it, idx) || !G.pay(I.enchantCost(it))) return null;
+  const a = I.enchant(it, idx, G.S.world.tier);
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a }); G.save();
+  return a;
+};
+G.imprint = function (id, aspectId) {
+  const f = G.findItem(id); if (!f) return false;
+  const it = f.it, r = G.S.codex[aspectId];
+  if (r == null || !I.canImprint(it, aspectId) || !G.pay(I.imprintCost(it))) return false;
+  I.imprint(it, aspectId, r);
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'imprint', it }); G.save();
+  return true;
+};
+G.commission = function (slot) {
+  const S = G.S, cost = { gold: I.commissionCost(S.hero.level) };
+  if (G.bagCount() >= D.BAG_SIZE || !G.pay(cost)) return null;
+  const ilvl = Math.max(S.hero.level, Math.min(G.areaLevel(), S.hero.level + 5));
+  const it = I.roll(ilvl, { slot, mf: G.C.st.mf + 40, tier: S.world.tier, minRar: 1, boost: 1.5 });
+  it.upg = G.isUpgrade(it) ? 1 : 0;
+  if (it.rar === 3) S.stats.leg++; if (it.rar === 4) S.stats.uniq++;
+  let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length; S.bag[i] = it;
+  G.emit('forge', { kind: 'commission', it }); G.save();
+  return it;
+};
+
+/* skills */
+G.pointsLeft = () => Hr.skillPoints(G.S) - Hr.spentPoints(G.S);
+G.learn = function (id) {
+  const S = G.S, sk = D.SKILL[id], r = S.hero.ranks[id] || 0;
+  if (!sk || S.hero.level < sk.lvl || r >= sk.max || G.pointsLeft() < 1) return false;
+  S.hero.ranks[id] = r + 1;
+  if (r === 0 && sk.type !== 'passive' && !S.hero.bar.includes(id)) G.barAdd(id, true);
+  G.recompute(); G.emit('skills'); G.save();
+  return true;
+};
+G.unlearn = function (id) {
+  const S = G.S, r = S.hero.ranks[id] || 0;
+  if (!r) return false;
+  if (r === 1) { delete S.hero.ranks[id]; const i = S.hero.bar.indexOf(id); if (i >= 0) S.hero.bar[i] = null; } else S.hero.ranks[id] = r - 1;
+  G.recompute(); G.emit('skills'); G.save();
+  return true;
+};
+G.respec = function () { const S = G.S; S.hero.ranks = {}; S.hero.bar = [null, null, null, null, null]; G.recompute(); G.emit('skills'); G.save(); };
+G.barAdd = function (id, soft) {
+  const S = G.S, bar = S.hero.bar, sk = D.SKILL[id];
+  if (!S.hero.ranks[id] || sk.type === 'passive' || bar.includes(id)) return false;
+  if (sk.type === 'basic' || sk.type === 'ult') {
+    const i = bar.findIndex(x => x && D.SKILL[x].type === sk.type);
+    if (i >= 0) { if (soft && sk.type === 'basic') return false; bar[i] = id; return true; }
+  }
+  const i = bar.indexOf(null);
+  if (i < 0) return false;
+  bar[i] = id; return true;
+};
+G.barToggle = function (id) {
+  const S = G.S, i = S.hero.bar.indexOf(id);
+  let ok = true;
+  if (i >= 0) S.hero.bar[i] = null; else ok = G.barAdd(id);
+  G.recompute(); G.emit('skills'); G.save();
+  return ok;
+};
+G.paragonLeft = () => G.S.hero.plevel - Hr.paragonSpent(G.S);
+G.paragon = function (id) {
+  if (G.paragonLeft() < 1) return false;
+  G.S.hero.paragon[id] = (G.S.hero.paragon[id] || 0) + 1;
+  G.recompute(); G.emit('skills'); G.save();
+  return true;
+};
+})();
