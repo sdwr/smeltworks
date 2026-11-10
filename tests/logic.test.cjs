@@ -142,6 +142,45 @@ test('Ordinary monsters drop Kindling and Quenching Orbs, and only those', (SW, 
   assert.equal(G.dropsFor({ def, id: def.id, lvl: 20, minion: 1 }).orbs.length, 0, 'summoned minions carry none');
   const el = G.dropsFor({ def, id: def.id, lvl: 20, elite: ['fast'] }).orbs; assert.ok(el.length >= 1 && D.ORB_BASIC.includes(el[0]), 'an elite always carries one');
 });
+test('A clicked route is followed in order, with Auto on or off, and can be laid through fog', (SW, G, D, I) => {
+  const S = G.S, W = S.world, map = W.map; S.opts.auto = false;
+  // carve a straight corridor of ordinary fights east of the camp so the walk is predictable
+  const row = [1, 2, 3, 4].map(x => G.cell(x, 2)); row.forEach(c => { c.type = 'fight'; });
+  assert.equal(G.routeToggle(row[2]), null, 'a tile out in the fog with nothing leading to it cannot be added');
+  assert.equal(G.routeToggle(row[0]), 'added'); assert.equal(G.routeToggle(row[1]), 'added', 'next to a routed tile is enough'); assert.equal(G.routeToggle(row[2]), 'added');
+  assert.equal(G.route.map(c => c.x).join(), '1,2,3');
+  assert.equal(G.routeToggle(row[1]), 'removed'); assert.equal(G.route.map(c => c.x).join(), '1', 'what hung off the removed tile goes with it');
+  G.routeToggle(row[1]); G.routeToggle(row[2]);
+  S.gear.weapon = I.roll(50, { slot: 'weapon', rar: 2 }); S.gear.chest = I.roll(50, { slot: 'chest', rar: 2 }); G.recompute();
+  const order = []; G.on((t, d) => { if (t === 'battleEnd' && d.win) order.push(G.target.x); });
+  G.phase = 'idle'; G.phaseT = 0;
+  for (let i = 0; i < 40000 && (G.route.length || G.phase !== 'idle'); i++) { if (G.battle) G.battle.h.hp = G.battle.h.max; G.update(0.05); }
+  assert.equal(order.join(), '1,2,3', 'visited in the order clicked, without Auto'); assert.equal(G.route.length, 0); assert.equal(W.pos.x, 3);
+  for (let i = 0; i < 200; i++) G.update(0.05); assert.equal(G.phase, 'idle', 'and then stops, because Auto is off');
+  assert.equal(G.routeToggle(row[3]), 'added'); G.update(0.05); assert.equal(G.phase, 'travel'); assert.equal(G.routeToggle(row[3]), 'busy');
+});
+test('With no route, clicking a room while walking sends the smith there instead', (SW, G, D, I) => {
+  const S = G.S, W = S.world; S.opts.auto = false;
+  const near = (a, b) => Math.abs(a - b) < 1e-6, pos = () => G.tokenPos();
+  // the camp is at (0,2); open two rooms, one above and one to the right
+  const up = G.cell(0, 1), right = G.cell(1, 2); up.type = 'fight'; up.state = 'seen'; right.type = 'fight'; right.state = 'seen';
+  assert.ok(G.enterCell(right)); assert.equal(G.route.length, 0, 'travelling with an empty route, as Auto does');
+  const step = G.stepTime(); G.phaseT = step * 0.3; const before = pos(); assert.ok(near(before.x, 0.3));
+  assert.equal(G.routeToggle(up), 'redirected'); assert.equal(G.target, up); assert.ok(G.route.length === 1 && G.route[0] === up);
+  const after = pos(); assert.ok(near(after.x, before.x) && near(after.y, before.y), 'no jump when the course changes');
+  G.update(step * 0.1); assert.ok(pos().x < before.x, 'walking back the way it came');
+  for (let i = 0; i < 400 && G.phase === 'travel'; i++) G.update(0.05);
+  assert.equal(G.phase, 'battle'); assert.equal(G.target, up); assert.ok(near(pos().x, 0) && near(pos().y, 2 - D.DOOR), 'at the doorway of the new room');
+  assert.equal(right.state, 'seen', 'the first room was left alone');
+});
+test('Falling clears the route', (SW, G, D, I) => {
+  const S = G.S; S.opts.auto = false; const a = G.cell(1, 2), b = G.cell(2, 2); a.type = b.type = 'fight'; a.state = 'seen';
+  G.routeToggle(a); G.routeToggle(b); assert.equal(G.route.length, 2);
+  for (let i = 0; i < 4000 && G.phase !== 'battle'; i++) G.update(0.05);
+  G.battle.h.hp = 0; G.battle.over = 'lose';
+  for (let i = 0; i < 4000 && (G.phase === 'battle' || G.phase === 'dead'); i++) G.update(0.05);
+  assert.equal(G.S.stats.deaths, 1); assert.equal(G.route.length, 0); assert.equal(G.phase, 'idle');
+});
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
   let prev = first;

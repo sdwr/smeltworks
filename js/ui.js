@@ -135,10 +135,13 @@ function tileTip(c) {
   const desc = { fight: 'A fight. Gold, experience and the odd piece of gear.', elite: 'An empowered monster with special powers. Always drops Magic gear or better.',
     boss: G.S.world.map.name ? `${G.S.world.map.name} guards the way on. Beat it to open the next area.` : 'The master of this act. Bring your best gear.',
     chest: 'Free loot. No fight.', shrine: `A blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
-  if (c.state === 'hidden') return '<div class="tt plain"><b>Unexplored</b><br>Clear a neighbouring tile to see what is here.</div>';
+  const stop = G.route.indexOf(c);
+  const plan = stop >= 0 ? `<br><i class="hot">Stop ${stop + 1} on your route. Click to take it off.</i>` : G.canRoute(c) ? `<br><i>Click to ${G.route.length ? 'add it to your route' : G.phase === 'travel' && G.canEnter(c) ? 'head here instead' : 'go here'}.</i>` : '';
+  if (c.state === 'hidden') return `<div class="tt plain"><b>Unexplored</b><br>Clear a neighbouring tile to see what is here.${plan}</div>`;
   let h = `<div class="tt plain"><b>${names[c.type]}</b>` + (c.type !== 'start' && c.type !== 'wall' && c.type !== 'shrine' ? ` <span class="${lvlCls(c.lvl, G.S.world.tier, true)}">Level ${c.lvl}</span>` : '') + `<br>${desc[c.type]}`;
   if (c.state === 'done') h += '<br><i>Cleared.</i>';
-  else if (!G.canEnter(c) && c.type !== 'wall') h += '<br><i>Clear a path to it first.</i>';
+  else if (!plan && c.type !== 'wall') h += '<br><i>Clear a path to it first.</i>';
+  h += plan;
   if (c.deaths) h += `<br><span class="neg">You have fallen here ${c.deaths === 1 ? 'once' : c.deaths + ' times'}.</span>`;
   return h + '</div>';
 }
@@ -239,14 +242,15 @@ function renderMap() {
   const S = G.S, map = S.world.map, area = D.AREAS[map.area];
   let h = '';
   for (const c of map.cells) {
-    const can = G.canEnter(c);
-    let cls = `tile t-${c.type} s-${c.state}${can ? ' can' : ''}${c.deaths ? ' died' : ''}${G.target === c && G.phase !== 'idle' ? ' now' : ''}`;
+    const can = G.canEnter(c), stop = G.route.indexOf(c);
+    let cls = `tile t-${c.type} s-${c.state}${can ? ' can' : ''}${c.deaths ? ' died' : ''}${G.target === c && G.phase !== 'idle' ? ' now' : ''}${stop >= 0 ? ' rt' : !can && G.canRoute(c) ? ' cr' : ''}`;
     let inner = '';
     if (c.type !== 'wall' && c.state !== 'hidden') {
       const ic = TILE_ICON[c.type];
       inner = `<img src="${SP.url(ic[0], ic[1], 3)}" alt="">`;
       if (c.state !== 'done' && c.type !== 'chest' && c.type !== 'shrine') inner += `<span class="lv ${lvlCls(c.lvl, map.tier)}">${c.lvl}</span>`;
     }
+    if (stop >= 0) inner += `<b class="stop">${stop + 1}</b>`;
     h += `<div class="${cls}" data-tile="${c.x},${c.y}" style="grid-column:${c.x + 1};grid-row:${c.y + 1}">${inner}</div>`;
   }
   h += `<div id="token"><img src="${SP.url('hero', 'hero', 3)}" alt=""></div>`;
@@ -255,6 +259,7 @@ function renderMap() {
   $('map-name').textContent = area.name;
   const left = map.cells.filter(c => c.type !== 'wall' && c.state !== 'done').length;
   $('map-sub').textContent = map.bossDone ? (map.allDone ? 'Cleared out. Nothing left here.' : `Boss down. ${left} tile${left === 1 ? '' : 's'} left.`) : `${D.ACTS[area.act].name}${S.world.tier ? ' · ' + D.TIERS[S.world.tier].name : ''}`;
+  const rb = $('btn-route'); rb.classList.toggle('hidden', !G.route.length); rb.textContent = `Clear route (${G.route.length})`;
   renderHint();
 }
 /* The token is placed from the game state every frame (G.tokenPos): while travelling it sits part-way between the tile it left and the
@@ -272,6 +277,8 @@ function renderHint() {
   const S = G.S, map = S.world.map;
   let t = '';
   if (!S.seen.fought) t = 'Click a glowing tile on the map to fight there.';
+  else if (G.route.length > 1) t = 'The smith follows your route in order. Click a numbered tile to take it off.';
+  else if (!S.seen.route && S.stats.kills > 6 && emptySlots() === 0) t = 'Click several tiles to plan a route: the smith visits them in the order shown, with Auto on or off.';
   else if (emptySlots() > 0) t = `You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}. Open Skills and fill them: every skill is free.`;
   else if (S.bag.some(b => b && b.upg)) t = 'Something in your bag is better than what you are wearing. Look for the green arrow.';
   else if (!S.opts.auto && S.stats.kills > 12 && !S.seen.auto) t = 'Tired of clicking tiles? Turn on Auto and the smith explores alone.';
@@ -588,8 +595,9 @@ UI.onGame = function (type, d) {
       else if (d.spec.champ) UI.banner(d.spec.champ, 'Champion of ' + D.AREAS[S.world.area].name, 'boss', 2200);
       break;
     case 'travel': mark('map'); break;
+    case 'route': mark('map'); break;
     case 'battleEnd': if (!d.win) SW.fx.clear(); mark('bag', 'map', 'top', 'skills', 'forge', 'gear'); break;
-    case 'death': UI.banner('You fell', 'Nothing is lost. Catch your breath and try again.', 'dead', 2400); break;
+    case 'death': UI.banner('You fell', d && d.route > 1 ? 'Nothing is lost, but your route is cleared.' : 'Nothing is lost. Catch your breath and try again.', 'dead', 2400); mark('map'); break;
     case 'areaClear':
       A.play('clear'); UI.banner(D.AREAS[d.area].name + ' cleared', d.first ? 'The way on is open' : '', 'clear', 2400);
       if (d.first && d.area === D.AREAS.length - 1 && d.tier === 0) setTimeout(() => UI.victory(), 1600);
@@ -706,11 +714,15 @@ UI.bind = function () {
     if (t.closest('#btn-menu')) return UI.settings();
     if (t.closest('#btn-sound')) { S.opts.sound = !S.opts.sound; A.on = S.opts.sound; mark('top'); return; }
     if (t.closest('#btn-restart')) { G.startExpedition(S.world.area, S.world.tier); return; }
+    if (t.closest('#btn-route')) { G.clearRoute(); A.play('click'); return; }
     if ((el = t.closest('[data-tile]'))) {
       const [x, y] = el.dataset.tile.split(',').map(Number), c = G.cell(x, y);
-      if (!G.canEnter(c)) { if (c.state === 'seen' && c.type !== 'wall') deny('Clear a path to that tile first.'); return; }
-      if (G.phase !== 'idle') { G.wish = c; UI.toast('Heading there next.'); return; }
-      G.phaseT = 0; if (G.enterCell(c)) { A.play('click'); hideTip(); }
+      const r = G.routeToggle(c);
+      if (r === 'added' || r === 'redirected') { A.play('click'); if (G.phase === 'idle') G.phaseT = 0; if (G.route.length > 1) S.seen.route = 1; }
+      else if (r === 'removed') A.play('click');
+      else if (r === 'busy') deny('The smith is already on the way there.');
+      else if (c.type !== 'wall' && c.state !== 'done') deny('That tile is not connected yet. Pick one next to a cleared tile, or next to a tile already on your route.');
+      tipKey = ''; hideTip();
       return;
     }
     if ((el = t.closest('[data-usecodex]'))) {

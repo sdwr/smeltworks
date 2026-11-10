@@ -117,8 +117,8 @@ G.canEnter = function (c) {
   return c && c.type !== 'wall' && c.state === 'seen' && G.neighbors(map, c).some(n => n.state === 'done');
 };
 /* path through cleared cells from the hero to a cell next to (or at) the target */
-G.findPath = function (to) {
-  const map = G.S.world.map, pos = G.S.world.pos, from = map.cells[pos.y * map.w + pos.x];
+G.findPath = function (to, from) {
+  const map = G.S.world.map, pos = G.S.world.pos; from = from || map.cells[pos.y * map.w + pos.x];
   const prev = new Map([[from, null]]), q = [from];
   while (q.length) {
     const c = q.shift();
@@ -134,7 +134,7 @@ G.startExpedition = function (area, tier, quiet) {
   W.area = area; W.tier = tier;
   W.map = G.genMap(area, tier);
   W.pos = { x: 0, y: 2 }; W.shrine = null; W.shrineN = 0;
-  G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.wish = null;
+  G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.route = [];
   if (!quiet) G.emit('expedition');
   G.emit('map');
 };
@@ -280,6 +280,44 @@ G.openChest = function (c) {
 /* -------------------------------------------------------------- game loop */
 /* seconds to walk one tile: Movement Speed (boots) shortens it */
 G.stepTime = () => D.TRAVEL_STEP / (1 + G.C.st.move / 100);
+/* ---- the route: tiles the player has clicked, visited in the order they were clicked ---- */
+G.route = [];
+/* a tile can join the route if it touches a cleared tile or one already on the route, so a path can be laid through fog */
+G.canRoute = function (c) {
+  if (!c || c.type === 'wall' || c.state === 'done' || G.route.includes(c)) return false;
+  return G.neighbors(G.S.world.map, c).some(n => n.state === 'done' || G.route.includes(n));
+};
+/* Click a tile: add it to the route, or take it off again. Returns 'added', 'redirected', 'removed', 'busy' or null. */
+G.routeToggle = function (c) {
+  const i = G.route.indexOf(c);
+  if (i >= 0) {
+    if (c === G.target && G.phase !== 'idle') return 'busy';              // already walking there or fighting for it
+    G.route.splice(i, 1);
+    // anything further along that was only reachable through the removed tile goes too
+    const keep = []; for (const x of G.route) if (G.neighbors(G.S.world.map, x).some(n => n.state === 'done' || keep.includes(n))) keep.push(x);
+    G.route = keep; G.emit('route'); return 'removed';
+  }
+  if (!G.canRoute(c)) return null;
+  const turn = !G.route.length && G.phase === 'travel' && c !== G.target && G.canEnter(c);    // on the move with no route: go there now
+  G.route.push(c);
+  const res = turn && G.redirect(c) ? 'redirected' : 'added';
+  G.emit('route'); return res;
+};
+G.clearRoute = function () { G.route = G.phase !== 'idle' && G.route[0] === G.target ? [G.target] : []; G.emit('route'); };
+/* Change course mid-walk. The smith either finishes the step under way and goes on from that tile, or turns round,
+   whichever gets to the new room sooner. */
+G.redirect = function (c) {
+  const W = G.S.world, step = G.stepTime(), next = G.path[0], from = G.cell(W.pos.x, W.pos.y);
+  if (G.phase !== 'travel' || !next) return false;
+  const f = U.clamp(G.phaseT / step, 0, 1);
+  const on = G.path.length > 1 ? G.findPath(c, next) : null;           // carry on to the next tile (only if it is a cleared one)
+  const back = from.state === 'done' ? G.findPath(c, from) : null;     // turn back to the tile just left
+  if (!on && !back) return false;
+  if (on && (!back || (1 - f) + on.length <= f + back.length)) G.path = [next].concat(on);
+  else { W.pos = { x: next.x, y: next.y }; G.phaseT = step - G.phaseT; G.path = [from].concat(back); }     // same spot, now walking the other way
+  G.target = c; G.emit('travel', { path: G.path });
+  return true;
+};
 G.isFight = c => !!c && c.type !== 'chest' && c.type !== 'shrine';
 /* Where the smith stands on the map right now, in tile units. Walking: part-way to the next tile. Fighting: in the
    doorway of the room being fought for. After a win: walking the rest of the way in. After a fall: back where they came from. */
@@ -303,8 +341,6 @@ G.autoPick = function () {
   const map = G.S.world.map, pos = G.S.world.pos, opts = G.S.opts;
   const cands = map.cells.filter(G.canEnter);
   if (!cands.length) return null;
-  if (G.wish && cands.includes(G.wish)) { const w = G.wish; G.wish = null; return w; }
-  G.wish = null;
   const boss = map.cells.find(c => c.type === 'boss');
   const rank = { shrine: 0, chest: 1, fight: 2, elite: 3, boss: 9 };
   const score = c => {
@@ -327,7 +363,13 @@ G.update = function (dt) {
   S.stats.time += dt;
   if (G.phase === 'idle') {
     if (G.phaseT > 0) { G.phaseT -= dt; return; }
-    if (G.wish && !S.opts.auto) { const w = G.wish; G.wish = null; if (G.canEnter(w)) G.enterCell(w); return; }
+    // the player's route comes first, whether Auto is on or off; Auto only chooses when the route is empty
+    if (G.route.length) {
+      const n = G.route.length;
+      while (G.route.length && !G.canEnter(G.route[0])) G.route.shift();      // cleared already, or the way to it never opened
+      if (G.route.length !== n) G.emit('route');
+      if (G.route.length) { G.enterCell(G.route[0]); return; }
+    }
     if (!S.opts.auto) return;
     const done = map.bossDone && (map.allDone || !S.opts.full);
     if (done) { G.finishArea(); return; }
@@ -348,7 +390,7 @@ G.update = function (dt) {
     let left = dt;
     while (left > 1e-6 && !G.battle.over) { const s = Math.min(0.05, left); G.battle.step(s); left -= s; }
     // after a win the smith walks the rest of the way in, at walking pace (never less than the 0.9s victory beat)
-    if (G.battle.over) { G.phase = G.battle.over === 'win' ? 'won' : 'dead'; G.phaseT = G.wonT = G.battle.over === 'win' ? Math.max(0.9, G.stepTime() * (1 - D.DOOR)) : 2.4; if (G.phase === 'dead') { S.stats.deaths++; G.target.deaths++; G.deathStreak++; G.emit('death'); } }
+    if (G.battle.over) { G.phase = G.battle.over === 'win' ? 'won' : 'dead'; G.phaseT = G.wonT = G.battle.over === 'win' ? Math.max(0.9, G.stepTime() * (1 - D.DOOR)) : 2.4; if (G.phase === 'dead') { S.stats.deaths++; G.target.deaths++; G.deathStreak++; const lost = G.route.length; G.route = []; G.emit('death', { route: lost }); } }
     return;
   }
   if (G.phase === 'won') {
@@ -390,6 +432,7 @@ G.arrive = function (c) {
 G.completeCell = function (c) {
   const S = G.S, W = S.world, map = W.map;
   c.state = 'done'; W.pos = { x: c.x, y: c.y };
+  if (G.route.includes(c)) { G.route = G.route.filter(x => x !== c); G.emit('route'); }
   G.reveal(map, c);
   if (c.type === 'boss') {
     map.bossDone = true; S.stats.clears++;

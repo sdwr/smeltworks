@@ -25,7 +25,10 @@ text, load one back in, or wipe it.
 The screen is three panes. Left: Skills, Crafting, Commission and the Codex. Middle: your character, bag and
 stash, centred. Right: the fight and the map, the same width as the left pane. On a window narrower than 1240px they stack instead.
 
-Mouse: click a glowing tile to fight there. Click any piece of gear to put it on the crafting bench. Right-click
+Mouse: click a glowing tile to fight there. Click more tiles to lay a route: they are numbered 1, 2, 3 and visited
+in that order whether Auto is on or off (Auto only chooses when the route is empty). A route can run through
+unexplored tiles, a click on a numbered tile takes it off, and falling clears it. If the smith is walking with no
+route set, a click sends them to that room instead. Click any piece of gear to put it on the crafting bench. Right-click
 a piece to equip it, or to take it off if you are wearing it. The bench's Clear button only empties the bench. Shift-right-click salvages it, Alt-click locks it,
 Ctrl-click sends it to the stash (or back). Drag items to rearrange the bag and stash, onto the paper doll to
 equip, or off it to unequip. In Skills, click a skill to use it and click again to drop it. Click the flask on
