@@ -23,7 +23,7 @@ text, load one back in, or wipe it.
 | T | Travel |
 
 The screen is three panes. Left: Skills, Crafting, Commission and the Codex. Middle: your character, bag and
-stash. Right: the fight and the map. On a window narrower than 1240px they stack instead.
+stash, centred. Right: the fight and the map, the same width as the left pane. On a window narrower than 1240px they stack instead.
 
 Mouse: click a glowing tile to fight there. Click any piece of gear to put it on the crafting bench. Right-click
 a piece to equip it, or to take it off if you are wearing it. The bench's Clear button only empties the bench. Shift-right-click salvages it, Alt-click locks it,
