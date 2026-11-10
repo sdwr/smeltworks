@@ -135,6 +135,7 @@ function tileTip(c) {
   const desc = { fight: 'A fight. Gold, experience and the odd piece of gear.', elite: 'An empowered monster with special powers. Always drops Magic gear or better.',
     boss: G.S.world.map.name ? `${G.S.world.map.name} guards the way on. Beat it to open the next area.` : 'The master of this act. Bring your best gear.',
     chest: 'Free loot. No fight.', shrine: `A blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
+  if (c.type === 'wall') return '<div class="tt plain"><b>Impassable rock</b><br>Solid stone. There is no way through: the smith has to go round.</div>';
   const stop = G.route.indexOf(c);
   const plan = stop >= 0 ? `<br><i class="hot">Stop ${stop + 1} on your route. Click to take it off.</i>` : G.canRoute(c) ? `<br><i>Click to ${G.route.length ? 'add it to your route' : G.phase === 'travel' && G.canEnter(c) ? 'head here instead' : 'go here'}.</i>` : '';
   if (c.state === 'hidden') return `<div class="tt plain"><b>Unexplored</b><br>Clear a neighbouring tile to see what is here.${plan}</div>`;
@@ -245,7 +246,8 @@ function renderMap() {
     const can = G.canEnter(c), stop = G.route.indexOf(c);
     let cls = `tile t-${c.type} s-${c.state}${can ? ' can' : ''}${c.deaths ? ' died' : ''}${G.target === c && G.phase !== 'idle' ? ' now' : ''}${stop >= 0 ? ' rt' : !can && G.canRoute(c) ? ' cr' : ''}`;
     let inner = '';
-    if (c.type !== 'wall' && c.state !== 'hidden') {
+    if (c.type === 'wall') inner = `<img src="${SP.url('i_rock', 'stone', 3)}" alt="">`;      // rock is always in plain sight, explored or not
+    else if (c.state !== 'hidden') {
       const ic = TILE_ICON[c.type];
       inner = `<img src="${SP.url(ic[0], ic[1], 3)}" alt="">`;
       if (c.state !== 'done' && c.type !== 'chest' && c.type !== 'shrine') inner += `<span class="lv ${lvlCls(c.lvl, map.tier)}">${c.lvl}</span>`;

@@ -736,6 +736,24 @@ def('i_boss', { m: 1 }, [
 '........',
 '........',
 '........']);
+/* impassable rock on the map: a pile of boulders, painted with the 'stone' palette */
+def('i_rock', {}, [
+'................',
+'................',
+'......kkkk......',
+'.....kccbbk.....',
+'....kccbbbbk....',
+'...kccbbbbbak...',
+'...kcbbbbbaak...',
+'..kkbbbbbaaakk..',
+'.kcckbbbaaakbbk.',
+'kccbbkaaakkcbbak',
+'kcbbbbkkkccbbbak',
+'kcbbbbakcbbbbaak',
+'kbbbbaakbbbbaaak',
+'kbbaaaakbbaaaaak',
+'.kkkkkkkkkkkkkk.',
+'................']);
 def('i_chest', { m: 1 }, [
 '........',
 '........',
