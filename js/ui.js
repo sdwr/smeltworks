@@ -31,19 +31,24 @@ function costHtml(c) {
   return Object.keys(c).map(k => `<span class="cost ${G.canPay({ [k]: c[k] }) ? '' : 'short'}"><i class="ci ${k}"></i>${U.fmt(c[k])}</span>`).join('');
 }
 /* How wearing this piece would change the estimate. A ring is compared against each ring you are wearing, since
-   it could replace either: both lines are shown, the better swap first (that is the one right-click makes). */
+   it could replace either: both lines are shown, the better swap first (that is the one right-click makes).
+   The numbers are shown even when the piece cannot be worn because its legendary power is already on another piece:
+   they say what it would do in its slot, and the line under them says what is in the way. */
 function compareHtml(it) {
-  const S = G.S, slots = G.equipSlots(it);
-  if (!slots.length) { const w = S.gear[G.twinOf(it)]; return `<div class="tt-cmp"><b class="neg">✕ Cannot be worn</b><span class="neg">with ${w ? esc(w.name) : 'what you wear'}</span></div><div class="tt-note">${it.uniq ? 'You are already wearing this Unique.' : 'You are already wearing this aspect.'} Each legendary power can only be worn once.</div>`; }
+  const S = G.S, all = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot], ok = G.equipSlots(it);
   const cur = G.C.rating, d = (a, b) => (b ? (a / b - 1) * 100 : 100);
   const line = (label, v) => `<span class="${v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'zero'}">${label} ${v > 0 ? '+' : ''}${v.toFixed(Math.abs(v) < 10 ? 1 : 0)}%</span>`;
-  let rows = slots.map(s => { const g = Object.assign({}, S.gear); g[s] = it; const r = Hr.compute(S, g).rating; return { s, r, dp: d(r.power, cur.power), worn: S.gear[s] }; });
-  rows.sort((a, b) => b.r.power - a.r.power);
+  let rows = all.map(s => { const g = Object.assign({}, S.gear); g[s] = it; const r = Hr.compute(S, g).rating; return { s, r, dp: d(r.power, cur.power), worn: S.gear[s], ok: ok.includes(s) }; });
+  rows.sort((a, b) => (b.ok - a.ok) || (b.r.power - a.r.power));           // swaps that are allowed first, the better one on top
   const both = rows.length === 2 && rows[0].worn && rows[1].worn;
-  if (!both) rows = rows.slice(0, 1);                       // an empty ring slot is simply where it would go
-  const note = it.aspect || it.uniq || rows.some(o => o.worn && (o.worn.aspect || o.worn.uniq)) ? '<div class="tt-note">From stats and your current skills only. Aspect and unique powers are not counted.</div>' : '';
-  return rows.map((o, i) => (both ? `<div class="tt-vs">In place of <b style="color:${RC(o.worn.rar)}">${esc(o.worn.name)}</b>${i === 0 ? ' <i>right-click does this</i>' : ' <i>drag onto that ring to do this</i>'}</div>` : '') +
-    `<div class="tt-cmp ${both ? 'vs' : ''}"><b class="${o.dp > 0.5 ? 'pos' : o.dp < -0.5 ? 'neg' : 'zero'}">${o.dp > 0.5 ? '▲ Upgrade' : o.dp < -0.5 ? '▼ Weaker' : '◆ Sidegrade'}</b>${line('Damage', d(o.r.off, cur.off))}${line('Toughness', d(o.r.def, cur.def))}</div>`).join('') + note;
+  if (!both) rows = rows.filter(o => o.ok).concat(rows.filter(o => !o.ok)).slice(0, 1);       // an empty ring slot is simply where it would go
+  const twin = !ok.length || rows.some(o => !o.ok) ? S.gear[G.twinOf(it, ok[0])] || S.gear[G.twinOf(it)] : null;
+  const how = (o, i) => !o.ok ? ' <i class="neg">not possible</i>' : i === 0 ? ' <i>right-click does this</i>' : ' <i>drag onto that ring to do this</i>';
+  let h = rows.map((o, i) => (both ? `<div class="tt-vs">In place of <b style="color:${RC(o.worn.rar)}">${esc(o.worn.name)}</b>${how(o, i)}</div>` : '') +
+    `<div class="tt-cmp ${both ? 'vs' : ''} ${o.ok ? '' : 'blocked'}"><b class="${o.dp > 0.5 ? 'pos' : o.dp < -0.5 ? 'neg' : 'zero'}">${o.dp > 0.5 ? '▲ Upgrade' : o.dp < -0.5 ? '▼ Weaker' : '◆ Sidegrade'}</b>${line('Damage', d(o.r.off, cur.off))}${line('Toughness', d(o.r.def, cur.def))}</div>`).join('');
+  if (twin) h += `<div class="tt-block"><b>✕ ${ok.length ? 'Cannot replace the other ring' : 'Cannot be worn'}</b> while you wear ${esc(twin.name)}: ${it.uniq ? 'it is the same Unique' : 'it has the same aspect'}, and each legendary power can only be worn once.${ok.length ? '' : ' Take that piece off first.'}</div>`;
+  if (it.aspect || it.uniq || rows.some(o => o.worn && (o.worn.aspect || o.worn.uniq))) h += '<div class="tt-note">From stats and your current skills only. Aspect and unique powers are not counted.</div>';
+  return h;
 }
 function itemTooltip(it, o) {
   o = o || {};
