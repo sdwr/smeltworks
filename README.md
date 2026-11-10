@@ -71,8 +71,8 @@ the skill bar to drink it.
   itself below 35% Life, so Auto can run unattended; Settings turns that off.
 - **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
   affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
-  reroll them all, Tempering Orbs reroll the numbers. Kindling and Quenching can be aimed at a type (Offence,
-  Defence, Utility or Skills); the affix within the type is still random. Legendaries and Uniques cannot
+  reroll them all, Tempering Orbs reroll the numbers. Kindling and Quenching can be aimed at an affix type (see
+  "Cube types" below); the affix within the type is still random. Legendaries and Uniques cannot
   be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on a Legendary. Kindling and Quenching Orbs are everyday materials: ordinary monsters drop them (5% a kill), and every elite and boss carries some. Slag and Tempering Orbs come from elites, bosses, chests and full clears.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
   available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
@@ -98,7 +98,27 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 | Amulet | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat, Gold find, Magic find, Orb find | yes |
 | Ring | Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat, Magic find, Orb find | |
 
-A slot does not have every type, but any type it has offers at least three affixes. Walking from one room to the
+A slot does not have every family, but any family it has offers at least three affixes.
+
+### Cube types
+
+The four columns above are the families: every affix belongs to exactly one. The cube can also be aimed at six
+narrower types that cut across them, and these overlap on purpose, as Diablo 4's tuning prisms do. Aiming a narrow
+type shrinks the pool the orb rolls from, so there is usually more than one way to chase an affix, and a way to
+remove one affix without risking the one beside it.
+
+| Type | Affixes | What it is for |
+| --- | --- | --- |
+| Elemental | Physical, Fire, Lightning, Burn/Bleed | your damage type, without crit or speed |
+| Precision | Crit chance, Crit damage, Attack speed, Vulnerable | how you hit, without the damage types |
+| Mitigation | Armor, % Armor, Dodge, Damage reduction, Barrier | taking less damage, without life or healing |
+| Sustain | Life, % Life, Life on hit, Life per second, Flask healing, Barrier | life and getting it back |
+| Tempo | Attack speed, Cooldown, Heat, Movement speed | how often skills come round |
+| Fortune | Gold find, Magic find, Orb find | what monsters drop |
+
+So Maximum Life can be reached through Defence or Sustain, Attack Speed through Offence, Precision or Tempo, and
+Barrier through Defence, Mitigation or Sustain. A piece only offers a type its slot has at least two affixes for,
+and a narrow type that would offer exactly what a family already does on that slot is left out. Walking from one room to the
 next takes three seconds; Movement Speed (boots only) shortens it. A room that has to be fought for is approached
 as far as its doorway, fought from there, and walked into once it is won.
 

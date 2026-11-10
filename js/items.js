@@ -48,7 +48,20 @@ I.greaterChance = tier => 0.04 + 0.03 * (tier || 0);
 I.greaterCount = it => it.affixes.reduce((n, a) => n + (a.g ? 1 : 0), 0);
 /* the affixes a slot can still gain, optionally of one type */
 I.poolKey = it => (it.slot === 'offhand' ? it.base : it.slot);      // shields and lanterns roll different affixes
-I.affixPool = (key, have, cat) => Object.values(D.AFFIX).filter(a => a.slots.includes(key) && !have.includes(a.id) && (!cat || a.cat === cat));
+I.inCat = (k, cat) => D.AFFIX[k].cats.includes(cat);
+I.affixPool = (key, have, cat) => Object.values(D.AFFIX).filter(a => a.slots.includes(key) && !have.includes(a.id) && (!cat || a.cats.includes(cat)));
+/* The types the cube can be aimed at for this piece: those its slot has at least two affixes for. A narrow type that
+   would offer exactly what a type before it does (Precision on gloves is all of their Offence) is left out. */
+I.slotCats = function (it) {
+  const key = I.poolKey(it), out = [], seen = [];
+  for (const c in D.AFFIX_CAT) {
+    const ks = D.AFFIX_CAT[c].keys.filter(k => D.AFFIX[k].slots.includes(key));
+    if (ks.length < 2) continue;
+    const sig = ks.slice().sort().join();
+    if (!seen.includes(sig)) { seen.push(sig); out.push(c); }
+  }
+  return out;
+};
 function rollAffix(slot, have, tier, cat, plain) {
   const a = U.wpick(I.affixPool(slot, have, cat), x => x.w);
   return { k: a.id, r: U.rng(), g: !plain && U.chance(I.greaterChance(tier)) ? 1 : 0 };   // plain: cube rolls never crit
@@ -228,13 +241,14 @@ I.cubeCheck = function (it, orb, cat) {
   const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
   if (orb === 'divine') return n ? null : 'It has no affixes to reroll.';
   if (I.fixed(it)) return it.uniq ? 'A Unique is fixed. Only a Tempering Orb works on it.' : 'A Legendary cannot be cubed. A Tempering Orb can reroll its numbers, and the forge can enchant one affix.';
+  if (C && I.affixPool(I.poolKey(it), [], cat).length < 2) return `A ${D.BASES[it.base].name.toLowerCase()} cannot be aimed at ${C.name}.`;
   if (orb === 'add') {
     if (n >= D.MAX_AFFIXES) return 'It already has ' + D.MAX_AFFIXES + ' affixes.';
     if (C && !I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat).length) return `No ${C.name} affix is left that fits a ${D.BASES[it.base].name.toLowerCase()}.`;
     return null;
   }
   if (!n) return 'It has no affixes.';
-  if (orb === 'remove' && C && !it.affixes.some(a => D.AFFIX[a.k].cat === cat)) return `It has no ${C.name} affix to remove.`;
+  if (orb === 'remove' && C && !it.affixes.some(a => I.inCat(a.k, cat))) return `It has no ${C.name} affix to remove.`;
   return null;
 };
 /* cat aims Kindling (what to add) and Quenching (what to remove) at one affix type; the roll inside it is still random */
@@ -246,7 +260,7 @@ I.cube = function (it, orb, tier, cat) {
     const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
     if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
   } else if (orb === 'remove') {
-    const idxs = it.affixes.map((a, k) => k).filter(k => !cat || D.AFFIX[it.affixes[k].k].cat === cat);
+    const idxs = it.affixes.map((a, k) => k).filter(k => !cat || I.inCat(it.affixes[k].k, cat));
     const i = idxs[Math.floor(U.rng() * idxs.length)];
     res.removed = I.affixText(it, it.affixes[i], i);
     it.affixes.splice(i, 1);

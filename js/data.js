@@ -152,14 +152,34 @@ D.AFFIX = {
   skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
   skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
 };
-/* affix types, used to aim Kindling and Quenching Orbs in the cube */
+/* Affix types: what a Kindling or Quenching Orb can be aimed at in the cube.
+   The first four are the families. Every affix belongs to exactly one (D.AFFIX[k].cat), which also gives it its colour.
+   The rest are narrower types that cut across the families, and they overlap on purpose, the way Diablo 4's tuning
+   prisms do: Maximum Life is both Defence and Sustain, Attack Speed is Offence, Precision and Tempo, Flask Healing is
+   Utility and Sustain, Barrier is Defence, Mitigation and Sustain. The overlap is the point. Aiming a narrow type
+   shrinks the pool an orb rolls from, so there is usually more than one way to chase an affix and a way to remove
+   one without risking its neighbour:
+     Elemental   your damage type, without the crit and speed affixes
+     Precision   crit, speed and Vulnerable, without the damage types
+     Mitigation  taking less damage, without life or healing
+     Sustain     life and getting it back
+     Tempo       how often skills come round
+     Fortune     what monsters drop
+   A slot only offers a type it has at least two affixes for (I.slotCats), so no aim is ever a sure thing by design. */
 D.AFFIX_CAT = {
-  off:   { name: 'Offence', color: '#ff8a6a', keys: ['dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite', 'thorns'] },
-  def:   { name: 'Defence', color: '#8fd0ff', keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen', 'barrier'] },
-  util:  { name: 'Utility', color: '#9be36a', keys: ['cdr', 'heat', 'flask', 'move', 'gold', 'mf', 'orbFind'] },
-  skill: { name: 'Skills',  color: '#ffd27a', keys: ['skHammer', 'skEmber', 'skStorm'] },
+  off:   { name: 'Offence',    color: '#ff8a6a', desc: 'Anything that adds damage.', fam: 1, keys: ['dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite', 'thorns'] },
+  def:   { name: 'Defence',    color: '#8fd0ff', desc: 'Anything that keeps you alive.', fam: 1, keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen', 'barrier'] },
+  util:  { name: 'Utility',    color: '#9be36a', desc: 'Everything else: tempo, flask, movement and fortune.', fam: 1, keys: ['cdr', 'heat', 'flask', 'move', 'gold', 'mf', 'orbFind'] },
+  skill: { name: 'Skills',     color: '#ffd27a', desc: 'Ranks for one discipline.', fam: 1, keys: ['skHammer', 'skEmber', 'skStorm'] },
+  elem:  { name: 'Elemental',  color: '#ffb347', desc: 'Your damage type, without crit or speed.', keys: ['physPct', 'firePct', 'lightPct', 'dot'] },
+  prec:  { name: 'Precision',  color: '#ff7ad1', desc: 'Crit, speed and Vulnerable, without the damage types.', keys: ['crit', 'critDmg', 'aspd', 'vuln'] },
+  mit:   { name: 'Mitigation', color: '#b9c4ff', desc: 'Taking less damage, without life or healing.', keys: ['armor', 'armorPct', 'dodge', 'dr', 'barrier'] },
+  sust:  { name: 'Sustain',    color: '#6fe0b0', desc: 'Life, and getting it back.', keys: ['life', 'lifePct', 'loh', 'regen', 'flask', 'barrier'] },
+  tempo: { name: 'Tempo',      color: '#7fe3e3', desc: 'How often your skills come round.', keys: ['aspd', 'cdr', 'heat', 'move'] },
+  fort:  { name: 'Fortune',    color: '#ffe08a', desc: 'What monsters drop.', keys: ['gold', 'mf', 'orbFind'] },
 };
-for (const c in D.AFFIX_CAT) for (const k of D.AFFIX_CAT[c].keys) D.AFFIX[k].cat = c;
+for (const k in D.AFFIX) D.AFFIX[k].cats = [];
+for (const c in D.AFFIX_CAT) for (const k of D.AFFIX_CAT[c].keys) { D.AFFIX[k].cats.push(c); if (D.AFFIX_CAT[c].fam) D.AFFIX[k].cat = c; }
 for (const k in D.AFFIX) D.AFFIX[k].id = k;
 /* labels for the stat sheet */
 D.STAT_LABEL = { dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',

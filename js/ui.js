@@ -391,6 +391,7 @@ function renderCraft() {
     h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.uniq ? '<span>A Unique\'s affixes cannot be rerolled</span>' : it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
   }
   // ---- the cube
+  if (f && UI.cubeCat && !I.slotCats(f.it).includes(UI.cubeCat)) UI.cubeCat = null;      // this piece's slot does not offer the type that was aimed at
   const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
   const why = !f ? 'Bring a piece of gear to the bench first.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from ${D.ORB_BASIC.includes(orb) ? 'ordinary monsters, and always from elites and bosses' : 'elites, bosses and chests'}.` : I.cubeCheck(f.it, orb, cat);
   h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
@@ -399,7 +400,7 @@ function renderCraft() {
     const aimTip = c => {
       if (orb === 'remove') {
         if (!f) return c ? 'Removes one random ' + D.AFFIX_CAT[c].name + ' affix.' : 'Removes one random affix of any type.';
-        const on = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !c || D.AFFIX[o.a.k].cat === c).map(o => I.affixText(f.it, o.a, o.i));
+        const on = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !c || I.inCat(o.a.k, c)).map(o => I.affixText(f.it, o.a, o.i));
         const what = c ? D.AFFIX_CAT[c].name + ' affix' : 'affix';
         const list = on.map(t => '<br>• ' + t).join('');
         return !on.length ? `This piece has no ${what}${c ? '' : 'es'} to remove.` : on.length === 1 ? `The only ${what} on this piece, so it is the one removed:${list}` : `One of these ${on.length} ${what}es is removed at random:${list}`;
@@ -407,10 +408,15 @@ function renderCraft() {
       const keys = (c ? D.AFFIX_CAT[c].keys : Object.keys(D.AFFIX)).filter(k => !f || (D.AFFIX[k].slots.includes(I.poolKey(f.it)) && !f.it.affixes.some(a => a.k === k)));
       return (f ? `Can roll on this ${D.BASES[f.it.base].name.toLowerCase()}: ` : 'Can roll: ') + (keys.map(affName).join(', ') || 'nothing');
     };
-    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null, ...Object.keys(D.AFFIX_CAT)].map(c => {
+    // the families on one row, the narrower types that cut across them on the next
+    const offered = f ? I.slotCats(f.it) : Object.keys(D.AFFIX_CAT);
+    const btn = c => {
       const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
-      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" data-tip="${esc(aimTip(c))}">${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
-    }).join('') + '</div>';
+      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" data-tip="${esc((c ? `<b style="color:${D.AFFIX_CAT[c].color}">${D.AFFIX_CAT[c].name}.</b> ${D.AFFIX_CAT[c].desc}<br>` : '') + aimTip(c))}">${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
+    };
+    const narrow = offered.filter(c => !D.AFFIX_CAT[c].fam);
+    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null].concat(offered.filter(c => D.AFFIX_CAT[c].fam)).map(btn).join('') + '</div>';
+    if (narrow.length) h += '<div class="aim narrow">' + narrow.map(btn).join('') + '</div>';
   }
   let say = why || O.desc, list = '';
   if (aims) {
@@ -419,7 +425,7 @@ function renderCraft() {
     const able = f && !I.cubeCheck(f.it, orb, cat);
     let opts = [];
     if (able && orb === 'add') opts = I.affixPool(I.poolKey(f.it), f.it.affixes.map(a => a.k), cat).map(a => dot(a.id) + affName(a.id));
-    if (able && orb === 'remove') opts = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !cat || D.AFFIX[o.a.k].cat === cat).map(o => dot(o.a.k) + I.affixText(f.it, o.a, o.i));
+    if (able && orb === 'remove') opts = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !cat || I.inCat(o.a.k, cat)).map(o => dot(o.a.k) + I.affixText(f.it, o.a, o.i));
     if (!why || able) {
       const n = opts.length, of = n > 1 ? ` One of these ${n}:` : '';
       say = orb === 'add' ? (n === 1 ? `Adds the one ${kind} this piece can still take:` : `Adds one random ${kind}${cat ? '' : ' of any type'}.${of}`)

@@ -347,16 +347,48 @@ test('The cube can be aimed at an affix type, for adding and for removing', (SW,
   const S = G.S; S.orbs = { add: 999, remove: 99, chaos: 0, divine: 0 };
   for (const cat of ['off', 'def', 'util', 'skill']) for (let i = 0; i < 30; i++) {
     const it = I.roll(30, { rar: 0, slot: 'helm' }); S.bag[0] = it;
-    assert.ok(G.cube(it.id, 'add', cat)); assert.equal(D.AFFIX[it.affixes[0].k].cat, cat, 'asked for ' + cat);
+    assert.ok(G.cube(it.id, 'add', cat)); assert.ok(I.inCat(it.affixes[0].k, cat), 'asked for ' + cat);
     assert.ok(D.AFFIX[it.affixes[0].k].slots.includes('helm'));
   }
   const boots = I.roll(30, { rar: 0, slot: 'boots' }); S.bag[0] = boots;
   assert.equal(G.cube(boots.id, 'add', 'skill'), null, 'boots cannot roll skill ranks'); assert.equal(S.orbs.add, 999 - 120, 'and the orb is not spent');
-  const it = I.roll(30, { rar: 2, slot: 'chest' }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }, { k: 'skEmber', r: 0.5, g: 0 }, { k: 'armor', r: 0.5, g: 0 }]; S.bag[0] = it;
+  const it = I.roll(30, { rar: 2, slot: 'helm' }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }, { k: 'skEmber', r: 0.5, g: 0 }, { k: 'armor', r: 0.5, g: 0 }]; S.bag[0] = it;
   assert.equal(G.cube(it.id, 'remove', 'off'), null, 'nothing offensive to remove');
   assert.ok(G.cube(it.id, 'remove', 'skill')); assert.equal(it.affixes.map(a => a.k).join(), 'life,armor');
   assert.ok(G.cube(it.id, 'remove', 'def')); assert.equal(it.affixes.length, 1);
   for (const k in D.AFFIX) assert.ok(D.AFFIX_CAT[D.AFFIX[k].cat], k + ' has no type');
+});
+test('Cube types overlap, and narrow ones give real control over what is added and removed', (SW, G, D, I) => {
+  const S = G.S; S.orbs = { add: 9999, remove: 9999, chaos: 0, divine: 0 };
+  const cats = base => I.slotCats(I.roll(30, base)).join();
+  // every affix has exactly one family, and several sit in more than one type
+  for (const k in D.AFFIX) assert.equal(D.AFFIX[k].cats.filter(c => D.AFFIX_CAT[c].fam).length, 1, k);
+  for (const k of ['life', 'aspd', 'flask', 'barrier', 'cdr', 'crit', 'firePct']) assert.ok(D.AFFIX[k].cats.length >= 2, k + ' should be reachable through more than one type');
+  assert.equal(D.AFFIX.life.cats.join(), 'def,sust'); assert.equal(D.AFFIX.aspd.cats.join(), 'off,prec,tempo'); assert.equal(D.AFFIX.barrier.cats.join(), 'def,mit,sust');
+  // a slot only offers a type it has two or more affixes for, and never two types that would offer the same thing
+  for (const base of [{ slot: 'weapon' }, { slot: 'offhand', base: 'shield' }, { slot: 'offhand', base: 'lantern' }, { slot: 'helm' }, { slot: 'chest' }, { slot: 'gloves' }, { slot: 'pants' }, { slot: 'boots' }, { slot: 'amulet' }, { slot: 'ring' }]) {
+    const it = I.roll(30, Object.assign({ rar: 0 }, base)), key = I.poolKey(it), sets = [];
+    for (const c of I.slotCats(it)) { const ks = I.affixPool(key, [], c).map(a => a.id).sort().join(); assert.ok(ks.split(',').length >= 2, `${key} ${c}`); assert.ok(!sets.includes(ks), `${key}: ${c} repeats another type`); sets.push(ks); }
+    assert.ok(I.slotCats(it).length >= 3, key + ' offers only ' + I.slotCats(it));
+    for (const c in D.AFFIX_CAT) if (!I.slotCats(it).includes(c) && I.affixPool(key, [], c).length < 2) { S.bag[0] = it; assert.equal(G.cube(it.id, 'add', c), null, `${key} cannot be aimed at ${c}`); }
+  }
+  assert.equal(cats({ slot: 'ring', rar: 0 }), 'off,def,util,elem,prec,tempo,fort'); assert.equal(cats({ slot: 'gloves', rar: 0 }), 'off,def,util,skill,sust,tempo,fort', 'Precision on gloves would be the same as Offence');
+  assert.equal(cats({ slot: 'boots', rar: 0 }), 'def,util,mit,fort');
+  // adding: a narrow aim only ever gives what it names
+  for (let i = 0; i < 60; i++) {
+    const ring = I.roll(40, { rar: 0, slot: 'ring' }); S.bag[0] = ring;
+    assert.ok(G.cube(ring.id, 'add', 'elem')); assert.ok(['physPct', 'firePct', 'lightPct', 'dot'].includes(ring.affixes[0].k));
+    assert.ok(G.cube(ring.id, 'add', 'prec')); assert.ok(['crit', 'critDmg', 'aspd', 'vuln'].includes(ring.affixes[1].k));
+    assert.ok(G.cube(ring.id, 'add', 'fort')); assert.ok(['mf', 'orbFind'].includes(ring.affixes[2].k), 'a ring has two Fortune affixes: ' + ring.affixes[2].k);
+  }
+  // removing: the narrow type takes the affix you do not want and cannot touch the one you do
+  for (let i = 0; i < 40; i++) {
+    const ring = I.roll(40, { rar: 2, slot: 'ring' }); ring.affixes = [{ k: 'crit', r: 0.9, g: 0 }, { k: 'firePct', r: 0.1, g: 0 }, { k: 'life', r: 0.5, g: 0 }]; S.bag[0] = ring;
+    assert.ok(G.cube(ring.id, 'remove', 'elem')); assert.equal(ring.affixes.map(a => a.k).join(), 'crit,life');
+  }
+  const chest = I.roll(40, { rar: 2, slot: 'chest' }); chest.affixes = [{ k: 'life', r: 0.5, g: 0 }, { k: 'armor', r: 0.5, g: 0 }, { k: 'regen', r: 0.5, g: 0 }]; S.bag[0] = chest;
+  assert.ok(G.cube(chest.id, 'remove', 'mit')); assert.equal(chest.affixes.map(a => a.k).join(), 'life,regen', 'Mitigation leaves life and healing alone');
+  assert.equal(G.cube(chest.id, 'remove', 'mit'), null, 'nothing left for it to take');
 });
 test('Affixes can crit into Greater affixes on drops, Tempering and enchanting, never from Kindling or Slag', (SW, G, D, I) => {
   const S = G.S; let n = 0, g = 0;
