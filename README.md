@@ -85,6 +85,22 @@ the skill bar to drink it.
   techniques give a reason to chase Attack Speed, Critical Strike Chance, Critical Strike Damage, Vulnerable Damage,
   Burn/Bleed Damage, Thorns, Cooldown Reduction, Heat Generation and Barrier Strength. The gear comparison leans
   toward the stats your techniques reward, so the upgrade arrows follow the build.
+- **Transfiguring.** The last step, on Legendary and Unique gear. One roll on a table, and then the piece is almost
+  always sealed for good: no more masterworking, rerolling, imprinting or cube. The chances are Diablo 4's, as
+  measured by players for a transfiguration without a Tuning Prism:
+
+  | | Indestructible | Item Quality | Fifth affix | Affix made Greater | Affix replaced | Stays open |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Legendary | 22% | 27% | 38% | – | 13% | 4% |
+  | Unique | 18% | 26% | 44% | – | 13% | 3% |
+  | Ancestral Legendary | 14% | 20% | 28% | 28% | 10% | 4% |
+  | Ancestral Unique | 15% | 22% | 27% | 25% | 11% | 4% |
+
+  Item Quality is +1 to +15% to everything on the piece, on top of masterwork ranks. The fifth affix can be one the
+  slot could never roll. Making an affix Greater is Ancestral only, and is the one way crafting produces a Greater
+  affix. A replaced affix is chosen at random and can be your best. There is no durability in this game, so
+  Indestructible hardens the piece instead: +5% to its main stat. A piece that stays open can be worked on as
+  before, or transfigured again.
 - **One of each legendary power.** The same aspect, or the same Unique, cannot be worn on two pieces. A second
   copy can only replace the first, and an aspect already worn cannot be imprinted onto another worn piece.
 - **Damage meter.** The arena shows measured DPS for the current fight, the average over the last ten, and which

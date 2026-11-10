@@ -117,7 +117,7 @@ I.makeName = function (it) {
 };
 
 /* ------------------------------------------------------------------ stats */
-I.upMult = it => 1 + D.MW_STEP * (it.up || 0);        // it.up is the masterwork rank, 0 to 25
+I.upMult = it => 1 + D.MW_STEP * ((it.up || 0) + (it.tq || 0));        // it.up is the masterwork rank, 0 to 25; it.tq is Item Quality from transfiguring
 I.maxUp = () => D.MW_MAX;
 I.masterworked = (it, idx) => !!it.mw && it.mw.includes(idx);   // it.mw holds the index of the one masterworked affix
 /* how much more an affix is worth on this piece's slot than on the baseline (see D.SLOT_MULT) */
@@ -151,11 +151,11 @@ I.affixText = function (it, a, idx) {
 };
 /* the main stat: fixed by base type and item level, never rolled. Forge upgrades raise it. */
 I.implicit = function (it) {
-  const b = D.BASES[it.base], out = {}, f = D.flat(it.ilvl) * I.upMult(it);
+  const hard = it.indes ? D.INDES_BONUS : 1, b = D.BASES[it.base], out = {}, f = D.flat(it.ilvl) * I.upMult(it) * hard;      // Indestructible: a harder main stat
   if (b.dmg) { out.dmg = Math.max(1, Math.round(D.WEAPON_DMG * b.dmg * f)); out.aps = b.aps; }
   if (b.armor) out.armor = Math.max(1, Math.round(D.ARMOR_BASE * b.armor * f));
   if (b.life) out.life = Math.max(1, Math.round(D.JEWEL_LIFE * b.life * f));
-  if (b.pct) out.dmgPct = Math.round(b.pct * D.pct(it.ilvl) * I.upMult(it));
+  if (b.pct) out.dmgPct = Math.round(b.pct * D.pct(it.ilvl) * I.upMult(it) * hard);
   return out;
 };
 /* every stat the item grants, summed */
@@ -189,7 +189,7 @@ I.aspectRange = function (a, slot) {
   const m = slot === 'amulet' ? 1.5 : 1, f = v => a.hi < 5 ? Math.round(v * m * 100) / 100 : Math.round(v * m);
   return [f(a.lo), f(a.hi)];
 };
-I.itemPower = it => it.ilvl * 10 + (it.up || 0) * 2;
+I.itemPower = it => it.ilvl * 10 + ((it.up || 0) + (it.tq || 0)) * 2;
 I.typeLine = function (it) {
   const b = D.BASES[it.base];
   return (it.anc ? 'Ancestral ' : '') + D.RARITY[it.rar].name + ' ' + (b.slot === 'weapon' || b.slot === 'offhand' ? b.name : D.SLOT_NAME[it.slot]);
@@ -219,6 +219,7 @@ I.upgradeCost = function (it) {
 };
 /* null when a strike would do something, otherwise the reason it would not */
 I.upgradeCheck = function (it) {
+  if (it.sealed) return I.SEALED;
   if ((it.up || 0) < D.MW_MAX) return null;
   if (!it.affixes.length) return 'It has no affixes to masterwork.';
   if (it.affixes.length === 1 && I.masterworked(it, 0)) return 'Its only affix is already masterworked.';
@@ -240,7 +241,7 @@ I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Ma
    reroll their numbers. The forge can still enchant one affix on a Legendary; a Unique's affixes are fixed. */
 I.fixed = it => !!it.uniq || it.rar >= 3;
 /* any piece with affixes, Uniques included: one affix of your choosing, and then only that one */
-I.canEnchant = (it, idx) => it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);
+I.canEnchant = (it, idx) => !it.sealed && it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
   const na = rollAffix(I.poolKey(it), have, tier || 0, null, true);      // plain: crafting never makes a Greater affix, so rerolling a Greater one gives it up
@@ -249,7 +250,7 @@ I.enchant = function (it, idx, tier) {
   return na;
 };
 I.imprintCost = it => ({ gold: Math.round(80 * I.goldScale(it.ilvl)), dust: 4, soul: 1 });
-I.canImprint = (it, aspectId) => !it.uniq && it.rar >= 2 && D.ASPECT_SLOTS[D.ASPECT[aspectId].cat].includes(it.slot);
+I.canImprint = (it, aspectId) => !it.sealed && !it.uniq && it.rar >= 2 && D.ASPECT_SLOTS[D.ASPECT[aspectId].cat].includes(it.slot);
 I.imprint = function (it, aspectId, r) {
   it.aspect = { id: aspectId, r }; it.rar = 3; it.name = I.makeName(it);
 };
@@ -257,10 +258,36 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 
 /* ------------------------------------------------------------------- cube
    Orbs change affixes at random. Returns a reason string when the recipe cannot run. */
+/* ---- transfiguring: the last step (see D.TRANSFIG) ---- */
+I.SEALED = 'It has been transfigured and is sealed: nothing more can be done to it.';
+I.tfKind = it => (it.uniq ? (it.anc ? 'ancUniq' : 'uniq') : it.rar >= 3 ? (it.anc ? 'ancLeg' : 'leg') : null);
+I.transfigCost = it => ({ gold: Math.round(500 * I.goldScale(it.ilvl)), dust: 15, soul: 8 });
+I.transfigCheck = it => (it.sealed ? I.SEALED : I.tfKind(it) ? null : 'Only Legendary and Unique gear can be transfigured.');
+/* Roll the table once. Returns { kind, v?, idx?, was?, open } and changes the piece. */
+I.transfigure = function (it) {
+  const odds = D.TRANSFIG[I.tfKind(it)];
+  let kind = U.wpick(D.TRANSFIG_KINDS, k => odds[k]);
+  const plain = it.affixes.map((a, i) => i).filter(i => !it.affixes[i].g);
+  if (kind === 'greater' && !plain.length) kind = 'quality';                 // nothing left to make Greater
+  if (kind === 'replace' && !it.affixes.length) kind = 'affix';
+  // a transfigured affix can be anything the piece does not already have, whatever its slot normally rolls
+  const fresh = () => { const have = it.affixes.map(a => a.k), pool = Object.values(D.AFFIX).filter(a => !have.includes(a.id)); return { k: U.wpick(pool, a => a.w).id, r: U.rng(), g: 0, t: 1 }; };
+  const res = { kind };
+  if (kind === 'indes') it.indes = 1;
+  else if (kind === 'quality') { res.v = 1 + Math.floor(U.rng() * D.TRANSFIG_QUALITY); it.tq = (it.tq || 0) + res.v; }
+  else if (kind === 'affix') { it.affixes.push(fresh()); res.idx = it.affixes.length - 1; }
+  else if (kind === 'greater') { res.idx = U.pick(plain); it.affixes[res.idx].g = 1; }
+  else { res.idx = Math.floor(U.rng() * it.affixes.length); res.was = I.affixText(it, it.affixes[res.idx], res.idx); res.lostGreater = !!it.affixes[res.idx].g; it.affixes[res.idx] = fresh(); }
+  res.open = U.chance(odds.open / 100);
+  it.sealed = res.open ? 0 : 1;
+  (it.tf = it.tf || []).push(kind);
+  return res;
+};
 /* the affixes a Tempering Orb will touch: not the Greater ones (already at their maximum), and not the one affix
    rerolled at the forge, whose number you chose to keep working on there */
 I.temperable = it => it.affixes.map((a, i) => i).filter(i => !it.affixes[i].g && i !== it.ench);
 I.cubeCheck = function (it, orb, cat) {
+  if (it.sealed) return I.SEALED;
   const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
   if (orb === 'divine') return !n ? 'It has no affixes to reroll.' : I.temperable(it).length ? null : 'Nothing here for it to reroll: Greater affixes and the affix you rerolled at the forge are left alone.';
   if (I.fixed(it)) return it.uniq ? 'A Unique is fixed. Only a Tempering Orb works on it.' : 'A Legendary cannot be cubed. A Tempering Orb can reroll its numbers, and the forge can enchant one affix.';

@@ -321,6 +321,44 @@ test('The same legendary power cannot be worn twice', (SW, G, D, I) => {
   const a = I.roll(40, { rar: 2, slot: 'ring' }), b = I.roll(40, { rar: 2, slot: 'ring' }); b.affixes = JSON.parse(JSON.stringify(a.affixes)); S.gear.ring1 = null; S.gear.ring2 = null; S.bag[8] = a; S.bag[9] = b;
   assert.ok(G.equip(a.id)); assert.ok(G.equip(b.id)); assert.ok(S.gear.ring1 && S.gear.ring2);
 });
+test('Transfiguring: the last step, with Diablo 4\'s odds, and it seals the piece', (SW, G, D, I) => {
+  const S = G.S; S.gold = 1e15; S.mats = { scrap: 1e6, dust: 1e6, soul: 1e6 }; S.orbs = { add: 99, remove: 99, chaos: 99, divine: 99 }; S.codex.twin = 0.5;
+  const leg = anc => { const it = I.roll(50, { rar: 2, slot: 'ring', anc }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }, { k: 'crit', r: 0.5, g: 0 }, { k: 'firePct', r: 0.5, g: 0 }, { k: 'heat', r: 0.5, g: 0 }]; I.imprint(it, D.ASPECTS.find(a => D.ASPECT_SLOTS[a.cat].includes('ring')).id, 0.5); return it; };
+  const uniq = anc => I.roll(50, { unique: 'coil', rar: 4, anc });
+  // who may: Legendary and Unique only, and it costs
+  const rare = I.roll(50, { rar: 2, slot: 'ring' }); S.bag[0] = rare; assert.equal(G.transfigure(rare.id), null); assert.ok(/Legendary and Unique/.test(I.transfigCheck(rare)));
+  const a = leg(false); S.bag[0] = a; const gold = S.gold; assert.ok(G.transfigure(a.id)); assert.ok(S.gold < gold, 'it costs gold'); assert.equal(a.tf.length, 1);
+  // the odds follow the table, for each kind of item
+  const makers = { leg: () => leg(false), uniq: () => uniq(false), ancLeg: () => leg(true), ancUniq: () => uniq(true) };
+  for (const kind in makers) {
+    const n = {}, N = 6000; let open = 0;
+    for (let i = 0; i < N; i++) { const it = makers[kind](); assert.equal(I.tfKind(it), kind); const r = I.transfigure(it); n[r.kind] = (n[r.kind] || 0) + 1; if (r.open) open++; assert.equal(it.sealed, r.open ? 0 : 1); }
+    const odds = D.TRANSFIG[kind], tot = D.TRANSFIG_KINDS.reduce((x, k) => x + odds[k], 0);
+    for (const k of D.TRANSFIG_KINDS) assert.ok(Math.abs((n[k] || 0) / N - odds[k] / tot) < 0.02, `${kind} ${k}: ${((n[k] || 0) / N * 100).toFixed(1)}% against ${odds[k]}%`);
+    assert.ok(Math.abs(open / N - odds.open / 100) < 0.012, `${kind} stays open ${(open / N * 100).toFixed(1)}%`);
+    if (!kind.startsWith('anc')) assert.ok(!n.greater, 'only Ancestral gear can have an affix made Greater');
+  }
+  assert.equal(D.TRANSFIG.leg.greater, 0); assert.equal(D.TRANSFIG.ancLeg.greater, 28); assert.equal(D.TRANSFIG.leg.replace, 13); assert.equal(D.TRANSFIG.leg.open, 4);
+  // what each outcome does (the dice are steered to pick it)
+  const force = (it, kind) => { const real = SW.util.wpick; SW.util.wpick = (arr, wf) => (arr === D.TRANSFIG_KINDS ? kind : real(arr, wf)); const r = I.transfigure(it); SW.util.wpick = real; return r; };
+  let it = leg(false), base = I.implicit(it).life, v0 = I.affixValue(it, it.affixes[0], 0);
+  let r = force(it, 'quality'); assert.ok(r.v >= 1 && r.v <= 15); assert.equal(it.tq, r.v); assert.ok(Math.abs(I.implicit(it).life / base - (1 + r.v / 100)) < 0.01, 'Item Quality lifts the main stat'); assert.ok(I.affixValue(it, it.affixes[0], 0) >= v0);
+  it = leg(false); base = I.implicit(it).life; force(it, 'indes'); assert.ok(it.indes && Math.abs(I.implicit(it).life / base - 1.05) < 0.01, 'Indestructible: +5% main stat');
+  it = leg(false); r = force(it, 'affix'); assert.equal(it.affixes.length, 5); assert.equal(r.idx, 4); assert.ok(it.affixes[4].t && !it.affixes[4].g); assert.equal(new Set(it.affixes.map(x => x.k)).size, 5, 'a fifth affix it did not have');
+  let off = 0; for (let i = 0; i < 300; i++) { const x = leg(false); force(x, 'affix'); if (!D.AFFIX[x.affixes[4].k].slots.includes('ring')) off++; } assert.ok(off > 20, 'and often one a ring could never roll: ' + off);
+  it = leg(true); it.affixes[0].g = 1; r = force(it, 'greater'); assert.ok(r.idx > 0 && it.affixes[r.idx].g === 1, 'an ordinary affix becomes Greater'); assert.equal(I.greaterCount(it), 2);
+  it = leg(true); for (const x of it.affixes) x.g = 1; r = force(it, 'greater'); assert.equal(r.kind, 'quality', 'with nothing left to make Greater it gives quality instead');
+  it = leg(false); const keys = it.affixes.map(x => x.k); r = force(it, 'replace'); assert.equal(it.affixes.length, 4); assert.ok(r.was && it.affixes[r.idx].k !== keys[r.idx] && it.affixes[r.idx].t, 'one affix is swapped for a new one'); assert.equal(it.affixes.filter((x, i) => x.k === keys[i]).length, 3);
+  // sealed means sealed
+  it = leg(false); S.bag[0] = it; it.up = 10; do { it.sealed = 0; it.tf = []; force(it, 'quality'); } while (!it.sealed);
+  assert.equal(G.upgrade(it.id), null, 'no masterworking'); assert.equal(G.enchant(it.id, 0), null, 'no reroll'); assert.equal(G.imprint(it.id, 'twin'), false, 'no imprint');
+  for (const orb of ['add', 'remove', 'chaos', 'divine']) assert.equal(G.cube(it.id, orb), null, 'no ' + orb); assert.equal(G.transfigure(it.id), null, 'and no second transfiguration');
+  assert.ok(/sealed/.test(I.cubeCheck(it, 'divine')) && /sealed/.test(I.upgradeCheck(it)));
+  assert.ok(G.equip(it.id), 'it can still be worn'); assert.ok(G.unequip('ring1')); assert.equal(G.salvage(it.id), true, 'and salvaged');
+  // the rare one that stays open can be worked on and transfigured again
+  it = leg(false); S.bag[0] = it; do { it.sealed = 0; it.tf = []; it.tq = 0; force(it, 'quality'); } while (it.sealed);
+  assert.ok(G.upgrade(it.id), 'still open: masterworking works'); const q = it.tq; assert.ok(G.transfigure(it.id), 'and so does a second transfiguration'); assert.equal(it.tf.length, 2); assert.ok(it.tq >= q);
+});
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
   let prev = first;

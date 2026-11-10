@@ -53,7 +53,8 @@ function itemTooltip(it, o) {
   h += `<div class="tt-name">${esc(it.name)}</div>`;
   h += `<div class="tt-type">${I.typeLine(it)}<span>${I.itemPower(it)} Item Power</span></div>`;
   if (it.anc) h += `<div class="tt-anc">Ancestral<span>item level ${it.ilvl}, above the cap of ${D.GEAR_CAP}</span></div>`;
-  if (it.up) h += `<div class="tt-mw">Masterwork rank ${it.up}/${D.MW_MAX}<span>+${it.up}% to everything on it</span></div>`;
+  if (it.up || it.tq) h += `<div class="tt-mw"><em>Masterwork rank ${it.up || 0}/${D.MW_MAX}${it.tq ? ` <b class="tf">+${it.tq} quality</b>` : ''}</em><span>+${(it.up || 0) + (it.tq || 0)}% to everything on it</span></div>`;
+  if (it.tf && it.tf.length) h += `<div class="tt-tf">✧ Transfigured${it.indes ? ' · Indestructible' : ''}<span>${it.sealed ? 'sealed: it cannot be changed again' : 'still open to change'}</span></div>`;
   if (imp.dmg) h += `<div class="tt-base"><b>${U.fmt(imp.dmg)}</b> damage per hit<span>${imp.aps.toFixed(2)} attacks per second</span></div>`;
   else if (imp.armor) h += `<div class="tt-base"><b>${U.fmt(imp.armor)}</b> armor</div>`;
   else if (imp.life) h += `<div class="tt-base"><b>${U.fmt(imp.life)}</b> life</div>`;
@@ -61,7 +62,7 @@ function itemTooltip(it, o) {
   if (it.affixes.length) {
     h += '<ul class="tt-aff">' + it.affixes.map((a, i) => {
       const mw = I.masterworked(it, i);
-      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked</i>' : ''}${D.AFFIX[a.k].note ? `<small>${D.AFFIX[a.k].note}</small>` : ''}</li>`;
+      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked</i>' : ''}${a.t ? ' <i class="tf">transfigured</i>' : ''}${D.AFFIX[a.k].note ? `<small>${D.AFFIX[a.k].note}</small>` : ''}</li>`;
     }).join('') + '</ul>';
   }
   if (it.aspect) { const a = D.ASPECT[it.aspect.id], r = I.aspectRange(a, it.slot); h += `<div class="tt-asp">${I.powerText(it)} <span>[${r[0]}–${r[1]}]</span></div>`; }
@@ -399,18 +400,18 @@ function renderCraft() {
     it.affixes.forEach((a, i) => {
       const fresh = last.idx === i || last.orb === 'chaos' || (last.orb === 'divine' && (last.idxs || []).includes(i)), ok = I.canEnchant(it, i);
       h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
-        (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
+        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
     h += '</ul>';
     if (it.aspect || it.uniq) h += `<div class="an-asp">✦ ${I.powerText(it)}</div>`;
-    h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
+    h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.sealed ? '<span>✧ Sealed</span>' : it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
   }
   // ---- the cube
   if (f && UI.cubeCat && !I.slotCats(f.it).includes(UI.cubeCat)) UI.cubeCat = null;      // this piece's slot does not offer the type that was aimed at
   const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
-  const why = !f ? 'Bring a piece of gear to the bench first.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from ${D.ORB_BASIC.includes(orb) ? 'ordinary monsters, and always from elites and bosses' : 'elites, bosses and chests'}.` : I.cubeCheck(f.it, orb, cat);
+  const why = !f ? 'Bring a piece of gear to the bench first.' : f.it.sealed ? I.SEALED : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from ${D.ORB_BASIC.includes(orb) ? 'ordinary monsters, and always from elites and bosses' : 'elites, bosses and chests'}.` : I.cubeCheck(f.it, orb, cat);
   h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
   if (aims) {
     // tooltips: a Kindling Orb lists what could roll on this slot, a Quenching Orb lists what is on the piece and could go
@@ -456,6 +457,8 @@ function renderCraft() {
   else {
     const it = f.it, max = D.MW_MAX, up = it.up || 0, c = I.upgradeCost(it), no = I.upgradeCheck(it);
     const gain = UI.mwLast && UI.mwLast.id === it.id && UI.mwLast.ranks ? UI.mwLast.ranks : 0, has = it.mw && it.mw.length ? it.mw[0] : -1;
+    if (it.sealed) h += '<div class="sealed"><b>✧ Sealed</b> This piece has been transfigured. It can still be worn, stashed and salvaged, but nothing more can be done to it at the forge or in the cube.</div>';
+    else {
     h += `<div class="op first"><div class="op-t"><b>Masterwork</b><span>Each strike adds 1 to 3 ranks, and every rank is +1% to everything on the piece. At rank ${max}, strike once more to masterwork one random affix for +25%. Striking again moves it to a different affix.</span></div>`;
     h += `<div class="mw-bar ${up >= max ? 'full' : ''}"><i style="width:${up / max * 100}%"></i><b>Rank ${up}/${max}</b>${gain ? `<em>+${gain}</em>` : ''}</div>`;
     if (up >= max) h += `<div class="mw-aff">${has >= 0 && it.affixes[has] ? '◆ Masterworked: ' + I.affixText(it, it.affixes[has], has) : it.affixes.length ? 'No affix is masterworked yet.' : ''}</div>`;
@@ -479,9 +482,31 @@ function renderCraft() {
       }
       h += '</div>';
     }
+    }
+    h += transfigHtml(it);
     if (f.where === 'bag') { const y = I.salvageYield(it); h += `<div class="op slim"><div class="op-t"><b>Salvage</b><span>Break it down for ${Object.keys(y).map(k => y[k] + ' ' + MAT_NAME[k]).join(', ')}${it.aspect ? '. Its aspect goes into your Codex.' : '.'}</span></div><div class="op-a"><button class="danger" data-act="salvage-one">Salvage</button></div></div>`; }
   }
   $('tab-craft').innerHTML = h;
+}
+/* Transfiguring: the last step. Shows the odds for this kind of piece, and asks twice, because it is final. */
+const TF_TIP = { indes: 'Indestructible: the piece hardens. +5% to its main stat.', quality: `Item Quality: +1 to +${D.TRANSFIG_QUALITY}% to everything on the piece, beyond its masterwork ranks.`, affix: 'A fifth affix. It can be one this slot could never roll.',
+  greater: 'One ordinary affix becomes Greater: its maximum roll, and half again. Ancestral gear only.', replace: 'One affix, chosen at random, is replaced by a new random one. It can take your best affix, a Greater one included.' };
+function transfigHtml(it) {
+  const kind = I.tfKind(it), last = UI.tfLast && UI.tfLast.id === it.id ? UI.tfLast.res : null;
+  let h = '<div class="op tfig"><div class="op-t"><b>Transfigure</b><span>The last step. One roll on the table below, and then the piece is almost always sealed for good: no more masterworking, rerolling, imprinting or cube. Finish everything else first.</span></div>';
+  if (last) {
+    const what = last.kind === 'indes' ? 'The piece hardens: +5% to its main stat.' : last.kind === 'quality' ? `+${last.v}: everything on it is ${last.v}% stronger.` : last.kind === 'affix' ? I.affixText(it, it.affixes[last.idx], last.idx) + '.'
+      : last.kind === 'greater' ? I.affixText(it, it.affixes[last.idx], last.idx) + '.' : `${last.was} became ${I.affixText(it, it.affixes[last.idx], last.idx)}.`;
+    h += `<div class="tf-res ${last.kind === 'replace' ? 'bad' : 'good'}"><b>${D.TRANSFIG_NAME[last.kind]}</b> ${what} ${last.open ? '<i>And it was not sealed: you can keep working on it, or transfigure it again.</i>' : ''}</div>`;
+  }
+  if (!kind) return h + '<div class="op-a"><i>Only Legendary and Unique gear can be transfigured.</i></div></div>';
+  if (it.sealed) return h + '</div>';
+  const odds = D.TRANSFIG[kind], c = I.transfigCost(it), armed = UI.tfArm === it.id, unfinished = (it.up || 0) < D.MW_MAX;
+  h += '<div class="tf-odds">' + D.TRANSFIG_KINDS.filter(k => odds[k]).map(k => `<span class="${k === 'replace' ? 'bad' : ''}" data-tip="${TF_TIP[k]}"><b>${odds[k]}%</b>${D.TRANSFIG_NAME[k]}</span>`).join('') +
+    `<span class="open" data-tip="The chance the piece is not sealed afterwards. It can then be worked on as before, or transfigured again."><b>${odds.open}%</b>Stays open</span></div>`;
+  if (unfinished) h += `<p class="note warn">This piece is at masterwork rank ${it.up || 0} of ${D.MW_MAX}. Once sealed it cannot be masterworked further.</p>`;
+  h += `<div class="op-a">${costHtml(c)}<button class="${armed ? 'danger' : ''}" data-act="transfigure" ${G.canPay(c) ? '' : 'disabled'}>${armed ? 'Yes, transfigure it<small>this cannot be undone</small>' : 'Transfigure'}</button></div></div>`;
+  return h;
 }
 function renderCommission() {
   const S = G.S, lvl = G.areaLevel(), cc = { gold: I.commissionCost(lvl) }, anc = D.ANC_CHANCE[S.world.tier] || 0;
@@ -531,7 +556,7 @@ UI.setTab = function (t) {
 };
 /* bring a piece of gear to the crafting bench */
 UI.craft = function (id) {
-  UI.forgeId = id; UI.forgeAspect = UI.pendingAspect || null; UI.pendingAspect = null; UI.cubeLast = null; UI.mwLast = null;
+  UI.forgeId = id; UI.forgeAspect = UI.pendingAspect || null; UI.pendingAspect = null; UI.cubeLast = null; UI.mwLast = null; UI.tfArm = null; UI.tfLast = null;
   UI.setTab('craft'); mark('forge', 'bag', 'gear');
   // when the panes are stacked (narrow windows), the bench is further down the page: go to it
   if (matchMedia('(max-width: 1240px)').matches) $('craft').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -661,6 +686,7 @@ UI.onGame = function (type, d) {
       S.seen.orb = 1; A.play('shrine', 0.3); mark('cube', 'top'); break; }
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');
+      if (d.kind === 'transfigure') { UI.tfLast = { id: d.it.id, res: d.res }; A.play(d.res.kind === 'replace' ? 'salvage' : 'master'); UI.toast(`Transfigured: ${D.TRANSFIG_NAME[d.res.kind]}${d.res.kind === 'quality' ? ' +' + d.res.v : ''}${d.res.open ? '. It was not sealed.' : ''}`, d.res.kind === 'replace' ? 'bad' : 'good'); }
       if (d.kind === 'upgrade') { UI.mwLast = { id: d.it.id, ranks: d.ranks, t: performance.now() }; if (d.mw >= 0) UI.toast('Masterworked: ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good'); }
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
       break;
@@ -790,6 +816,10 @@ UI.bind = function () {
       else if (act === 'equip-one') { if (!G.equip(UI.forgeId)) deny(G.equipWhy(UI.forgeId) || 'That cannot be equipped.'); }
       else if (act === 'bench-clear') { UI.forgeId = null; UI.forgeAspect = null; UI.cubeLast = null; hideTip(); mark('forge', 'bag', 'gear'); A.play('click'); }
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that.'); }
+      else if (act === 'transfigure') {
+        if (UI.tfArm !== UI.forgeId) { UI.tfArm = UI.forgeId; A.play('click'); mark('forge'); }       // first click arms it, the second does it
+        else { UI.tfArm = null; if (!G.transfigure(UI.forgeId)) deny('You cannot afford that.'); }
+      }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }
       else if (act === 'imprint') { if (!G.imprint(UI.forgeId, UI.forgeAspect)) deny('You cannot afford that imprint.'); else UI.forgeAspect = null; }
       else if (act === 'salvage-one') { const id = UI.forgeId; UI.forgeId = null; G.salvage(id); }

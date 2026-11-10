@@ -331,6 +331,14 @@ input[type=range] { accent-color: var(--ember); width: 220px; }
 .tech-say { margin: 3px 1px 0; font-size: 11.5px; line-height: 1.3; color: #d8cdb8; } .tech-say.none { color: var(--dimmer); }
 .tt-tech { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); display: grid; gap: 5px; font-size: 12px; color: var(--dim); } .tt-tech b { color: var(--text); } .tt-tech i { font-style: normal; font-size: 10.5px; text-transform: uppercase; color: var(--hot); }
 .tt-tech .on { color: #e9dfcd; } .tt-tech .on b { color: var(--ember); }
+.tfig .tf-odds { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; } .tf-odds span { display: flex; flex-direction: column; align-items: center; min-width: 62px; flex: 1; padding: 4px 6px 5px; font-size: 10.5px; line-height: 1.2; text-align: center; color: var(--dim); background: #16131c; border: 1px solid var(--line2); border-radius: 3px; }
+.tf-odds b { font: 700 15px var(--sans); color: #d6c2ff; font-variant-numeric: tabular-nums; } .tf-odds .bad b { color: #ff7a6a; } .tf-odds .bad { border-color: #5a2a26; } .tf-odds .open b { color: var(--good); }
+.tf-res { margin-top: 7px; padding: 6px 9px; font-size: 13px; line-height: 1.35; background: rgba(184,150,255,.09); border-left: 3px solid #b896ff; } .tf-res b { color: #d6c2ff; margin-right: 4px; } .tf-res.bad { background: rgba(255,90,70,.08); border-left-color: #ff7a6a; } .tf-res.bad b { color: #ff9a8a; } .tf-res i { color: var(--good); }
+.sealed { margin: 2px 0 8px; padding: 7px 10px; font-size: 12.5px; line-height: 1.35; color: var(--dim); background: rgba(184,150,255,.07); border: 1px solid #4a3d6a; border-radius: 3px; } .sealed b { color: #d6c2ff; margin-right: 4px; }
+.note.warn { color: var(--warn, #ffb347); margin-top: 6px; }
+.aff-list li em.tft { color: #d6c2ff; white-space: nowrap; } .tt-aff li i.tf, .tt-mw b.tf { color: #d6c2ff; font-style: normal; }
+.tt-mw em { font-style: normal; }
+.tt-tf { display: flex; justify-content: space-between; gap: 10px; margin: -4px 0 7px; font-size: 12px; font-weight: 700; color: #d6c2ff; } .tt-tf span { color: var(--dim); font-weight: 400; }
 .cx.has { cursor: pointer; } .cx.has:hover { background: rgba(255,138,42,.08); }
 .slot.flask { cursor: pointer; } .slot kbd { position: absolute; right: 1px; bottom: 0; padding: 0 3px; font: 700 10px/13px var(--sans); color: #ffd9d9; background: rgba(0,0,0,.72); border-radius: 2px; pointer-events: none; }
 /* the fight pane is the narrowest of the three: compact orbs and skill slots, and the boss bar sits beside the meter */

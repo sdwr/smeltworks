@@ -150,6 +150,25 @@ D.AFFIX = {
   skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
   skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
 };
+/* Transfiguring: the last thing done to a piece. One roll on the table below, and then the piece is almost always
+   sealed: no more masterworking, rerolling, imprinting or cube. The chances are Diablo 4's, as measured by players
+   (no Tuning Prism), per kind of item, in percent:
+     indes    Indestructible. There is no durability here, so it hardens the piece instead: +5% to its main stat
+     quality  Item Quality: +1 to +15% to everything on the piece, on top of its masterwork ranks
+     affix    a fifth affix, which may be one its slot could never roll
+     greater  one ordinary affix becomes Greater (Ancestral gear only). The one way crafting makes a Greater affix
+     replace  one affix, chosen at random, is replaced by a new random one. The gamble: it can take your best
+     open     the chance the piece is NOT sealed and can still be worked on, or transfigured again */
+D.TRANSFIG = {
+  leg:     { indes: 22, quality: 27, affix: 38, greater: 0,  replace: 13, open: 4 },
+  uniq:    { indes: 18, quality: 26, affix: 44, greater: 0,  replace: 13, open: 3 },
+  ancLeg:  { indes: 14, quality: 20, affix: 28, greater: 28, replace: 10, open: 4 },
+  ancUniq: { indes: 15, quality: 22, affix: 27, greater: 25, replace: 11, open: 4 },
+};
+D.TRANSFIG_KINDS = ['indes', 'quality', 'affix', 'greater', 'replace'];
+D.TRANSFIG_NAME = { indes: 'Indestructible', quality: 'Item Quality', affix: 'A fifth affix', greater: 'An affix made Greater', replace: 'An affix replaced' };
+D.TRANSFIG_QUALITY = 15;     // the most Item Quality one transfiguration can add
+D.INDES_BONUS = 1.05;
 /* The same affix is worth more on some slots than others. The reasoning is opportunity cost: a slot that could
    have rolled a strong offensive affix has to be paid more to carry a defensive one, or nobody would take it.
      weapon   Defence and Strength x2. A weapon has ten offensive affixes competing for four places, so life on it

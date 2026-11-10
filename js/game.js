@@ -587,6 +587,14 @@ G.upgrade = function (id) {
   G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'upgrade', it, mw: r.mw, ranks: r.ranks }); G.save();
   return r;
 };
+G.transfigure = function (id) {
+  const f = G.findItem(id); if (!f) return null;
+  const it = f.it;
+  if (I.transfigCheck(it) || !G.pay(I.transfigCost(it))) return null;
+  const res = I.transfigure(it);
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'transfigure', it, res }); G.save();
+  return res;
+};
 G.enchant = function (id, idx) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
