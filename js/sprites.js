@@ -44,6 +44,10 @@ SP.PAL = {
   u_stone:{ g: '#3a3428', h: '#8a7c5e', c: '#e0d2a8', y: '#ff8a2a', d: '#2a2218', r: '#ff5a2a' },
   u_storm:{ g: '#123a6a', h: '#2f8ae0', c: '#b4f0ff', y: '#f0f6ff', d: '#1a2440', r: '#ffffff' },
   u_gold: { g: '#7a5210', h: '#e0a52a', c: '#fff0a0', y: '#ffffff', d: '#4a2a14', r: '#ff4a6a' },
+  orb_add:    { g: '#8a3408', h: '#ff8a2a', c: '#ffd27a', w: '#fff6d8' },
+  orb_remove: { g: '#123e6a', h: '#3a9ae0', c: '#b4f0ff', w: '#ffffff' },
+  orb_chaos:  { g: '#36105c', h: '#9a3ae0', c: '#e0a8ff', w: '#ffffff' },
+  orb_divine: { g: '#7a6210', h: '#e8cf5a', c: '#fffbe0', w: '#ffffff' },
   // map / ui icons
   icon:   { h: '#c9ccd6', c: '#f1ede4', y: '#ffd27a', d: '#7a5230', e: '#b9823f', g: '#5b6170', r: '#ff7a2a', w: '#f1ede4', k: '#15111a' },
   shrine: { g: '#4a4f66', h: '#8a90b0', r: '#7fe0ff' },
@@ -798,6 +802,24 @@ def('i_flask', { m: 1 }, [
 '....hrrr',
 '.....hhh',
 '........',
+'........',
+'........']);
+
+def('orb', { m: 1 }, [
+'........',
+'........',
+'.....ggg',
+'...gghhh',
+'..ghhhcc',
+'..ghhccw',
+'.ghhhccw',
+'.ghhhhcc',
+'.ghhhhhc',
+'.ghhhhhh',
+'..ghhhhh',
+'..gghhhh',
+'...ggghh',
+'.....ggg',
 '........',
 '........']);
 

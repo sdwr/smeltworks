@@ -13,7 +13,7 @@ class Battle {
     this.rec = rec !== false; this.ev = [];
     this.t = 0; this.over = null; this.nextId = 1;
     this.mobs = []; this.wave = -1; this.waveDelay = 0.45; this.pending = [];
-    this.killed = 0; this.dmgDone = 0; this.dmgTaken = 0; this.minFrac = 1;
+    this.killed = 0; this.dmgDone = 0; this.dmgTaken = 0; this.minFrac = 1; this.by = {}; this.ft = 0;
     const p = persist || {};
     this.h = { hp: C.st.maxLife, max: C.st.maxLife, barrier: 0, barrierT: 0, heat: p.heat == null ? 30 : p.heat, cds: Object.assign({}, p.cds || {}),
       act: 0.35, potCd: p.potCd || 0, buffs: {}, strikeN: 0, attackN: 0, charge: 0, hasteT: 0, hasteV: 0, killHasteT: 0, armorStacks: 0, armorT: 0,
@@ -24,7 +24,7 @@ class Battle {
   emit(o) { if (this.rec) this.ev.push(o); }
   alive() { return this.mobs.filter(m => !m.dead); }
   persist() { return { cds: this.h.cds, heat: this.h.heat, potCd: this.h.potCd }; }
-  summary() { return { min: this.minFrac, t: this.t, type: this.spec.type, dmg: this.dmgDone, taken: this.dmgTaken, kills: this.killed }; }
+  summary() { return { min: this.minFrac, t: this.t, ft: this.ft, type: this.spec.type, dmg: this.dmgDone, by: this.by, taken: this.dmgTaken, kills: this.killed }; }
   setHero(C) {
     const r = this.h.hp / this.h.max;
     this.C = C; this.st = C.st; this.mods = C.mods; this.h.max = C.st.maxLife; this.h.hp = Math.min(this.h.max, Math.max(1, r * this.h.max));
@@ -38,7 +38,7 @@ class Battle {
     const tier = this.spec.tier || 0;
     let hp = D.mobHp(lvl) * def.hp * D.TIER_HP[tier], dmg = D.mobDmg(lvl) * def.dmg * D.TIER_DMG[tier], int = def.int;
     if (el) { hp *= 4.2; dmg *= 1.3; }
-    if (s.champ) { hp *= 2.3; dmg *= 1.15; }
+    if (s.champ) { hp *= 2.0; }
     if (has('hulking')) { hp *= 1.6; dmg *= 1.25; }
     if (has('frenzied')) int *= 0.62;
     let dr = (def.armor || 0) / 100;
@@ -47,7 +47,6 @@ class Battle {
       max: Math.round(hp), hp: Math.round(hp), dmg, int, atkT: int * U.rand(0.55, 1), dr, dodge: def.dodge || 0,
       burns: [], bleeds: [], dotAcc: 0, stunT: 0, vulnT: 0, barrier: 0, barrierT: 0, dead: false, age: 0, wound: false, tm: {}, enraged: 0,
       el: def.el || 'phys', ranged: !!def.ranged, big: !!(boss || s.champ) };
-    m.xp = D.mobXp(lvl) * (boss ? 32 : s.champ ? 14 : el ? 6 : s.minion ? 0.3 : def.hp) * (def.flee ? 2 : 1);
     if (def.barrier) { m.barrier = m.max * def.barrier; m.barrierT = 999; }
     if (boss) for (const a of boss.abil) { if (a.cd) m.tm[a.t] = a.cd * 0.6; if (a.at) m.tm['sum' + boss.abil.indexOf(a)] = 0; }
     return m;
@@ -88,6 +87,7 @@ class Battle {
       const due = this.pending.filter(p => p.t <= 0); this.pending = this.pending.filter(p => p.t > 0);
       for (const p of due) { p.fn(); if (this.over) return; }
     }
+    this.ft += dt;                        // time actually spent fighting, for the damage meter
     this.tickCds(dt);
     this.tickHero(dt);
     if (this.over) return;
@@ -217,7 +217,7 @@ class Battle {
     const h = this.h, mods = this.mods;
     let live = this.alive(); if (!live.length) return;
     const tgt = live.reduce((a, b) => (b.slot < a.slot ? b : a));
-    if (!id) { this.emit({ e: 'cast', id: 'punch', tgt: tgt.uid }); this.hit(tgt, 70, 'phys', { basic: 1 }); this.gainHeat(8); return; }
+    if (!id) { this.emit({ e: 'cast', id: 'punch', tgt: tgt.uid }); this.hit(tgt, 70, 'phys', { basic: 1, skill: 'punch' }); this.gainHeat(8); return; }
     const sk = D.SKILL[id], n = this.nums(id), el = sk.el;
     const o = { skill: id, [sk.type]: 1 };
     // per-cast bonuses
@@ -358,7 +358,10 @@ class Battle {
     dmg *= 1 - m.dr;
     if (m.barrier > 0) { const a = Math.min(m.barrier, dmg); m.barrier -= a; dmg -= a; if (m.barrier <= 0) { m.barrier = 0; this.emit({ e: 'shieldBreak', m: m.uid }); } if (dmg <= 0) { this.emit({ e: 'hit', m: m.uid, amt: a, crit, el, absorbed: 1, dot: o && o.dot }); return; } }
     dmg = Math.max(1, Math.round(dmg));
-    m.hp -= dmg; this.dmgDone += dmg;
+    // the meter counts damage that removed life, not overkill, under whatever dealt it
+    const eff = Math.min(dmg, m.hp), src = o && o.thorns ? 'thorns' : o && o.dot ? (el === 'fire' ? 'burn' : 'bleed') : o && o.skill ? o.skill : 'proc';
+    this.dmgDone += eff; this.by[src] = (this.by[src] || 0) + eff;
+    m.hp -= dmg;
     this.emit({ e: 'hit', m: m.uid, amt: dmg, crit, el, dot: o && o.dot ? 1 : 0, proc: o && o.proc ? 1 : 0, big: o && (o.ult || o.core) ? 1 : 0 });
     if (m.hp <= 0) this.kill(m);
   }

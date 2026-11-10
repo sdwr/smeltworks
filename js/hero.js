@@ -1,24 +1,24 @@
-/* Smeltworks — the hero: levels, stat sheet, skill ranks, and a power rating used for comparisons. */
+/* Smeltworks — the hero: stat sheet, skill ranks from gear, and a power rating used for comparisons. */
 (function () {
 'use strict';
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items;
 const H = SW.hero = {};
 
-H.xpNeed = function (lvl) {
-  // fights-per-level grows slowly; xp per on-level kill grows with the monster curve
-  return Math.round(D.mobXp(lvl) * Math.min(46, 4 + lvl * 3.2));
-};
-H.paragonNeed = function (p, lvl) { return Math.round(D.mobXp(50) * 75 * Math.pow(1.11, p)); };
-D.mobXp = l => 10 * Math.pow(1.085, l - 1);
-/* the first dozen levels ramp in gently so the opening fights are quick */
-D.mobHp = l => 32 * Math.pow(D.MOB_HP_G, l - 1) * (1 + Math.min(l, 50) * 0.055) * Math.min(1, 0.5 + l / 24);
-D.mobDmg = l => 12 * Math.pow(D.MOB_DMG_G, l - 1) * (1 + Math.min(l, 50) * 0.022) * Math.min(1, 0.62 + l / 32);
+/* monster curves. Levels 1-12 ramp in gently so the opening fights are quick */
+/* past level 50 (Torment) monsters grow faster than gear does, so the endgame keeps getting harder */
+const grow = (g, g2, l) => Math.pow(g, Math.min(l, 50) - 1) * Math.pow(g2, Math.max(0, l - 50));
+D.mobHp = l => 32 * grow(D.MOB_HP_G, D.MOB_HP_G2, l) * (1 + Math.min(l, 50) * 0.055) * Math.min(1, 0.5 + l / 24);
+D.mobDmg = l => 12 * grow(D.MOB_DMG_G, D.MOB_DMG_G2, l) * (1 + Math.min(l, 50) * 0.022) * Math.min(1, 0.62 + l / 32);
 D.mobGold = l => 2.2 * Math.pow(1.08, l - 1);
 
-H.baseLife = lvl => Math.round(85 * Math.pow(1.06, lvl - 1) + 15 * lvl);
-H.skillPoints = S => (S.hero.level - 1) + (S.hero.bonusPts || 0);
-H.spentPoints = S => Object.values(S.hero.ranks).reduce((a, b) => a + b, 0);
-H.paragonSpent = S => Object.values(S.hero.paragon).reduce((a, b) => a + b, 0);
+/* There are no character levels: everything the smith is comes from what the smith wears. */
+H.BASE_LIFE = 100;
+H.gearLevel = function (gear) {
+  let n = 0, tot = 0;
+  for (const s of D.SLOTS) if (gear[s]) { n++; tot += gear[s].ilvl; }
+  return n ? Math.max(1, Math.round(tot / n)) : 1;
+};
+H.selected = S => S.hero.bar.concat(S.hero.passives).filter(Boolean);
 
 /* numbers for a skill at an effective rank */
 H.skillNums = function (sk, rank) {
@@ -36,9 +36,9 @@ H.skillNums = function (sk, rank) {
 
 /* Build the full combat sheet from the save state. gearOverride lets the UI ask "what if". */
 H.compute = function (S, gearOverride) {
-  const gear = gearOverride || S.gear, lvl = S.hero.level;
+  const gear = gearOverride || S.gear, lvl = H.gearLevel(gear);
   const st = { dmg: 0, aps: 1, dmgPct: 0, physPct: 0, firePct: 0, lightPct: 0, dot: 0, crit: 5, critDmg: 50, aspd: 0, vuln: 0, elite: 0,
-    life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0, xp: 0,
+    life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0,
     skHammer: 0, skEmber: 0, skStorm: 0, skAll: 0 };
   const mods = {};
   let hasWeapon = false, nOff = 0, nDef = 0, nUtil = 0;
@@ -53,15 +53,9 @@ H.compute = function (S, gearOverride) {
     if (it.uniq) nOff++;
   }
   if (!hasWeapon) { st.dmg = Math.round(4 * D.flat(lvl)); st.aps = 1; }
-  // paragon
-  for (const p of D.PARAGON) st[p.stat] += (S.hero.paragon[p.id] || 0) * p.per;
   // skills
   const ranks = {};
-  for (const sk of D.SKILLS) {
-    const pts = S.hero.ranks[sk.id] || 0;
-    if (!pts) continue;
-    ranks[sk.id] = pts + st.skAll + st['sk' + D.DISC[sk.disc].name];
-  }
+  for (const id of H.selected(S)) { const sk = D.SKILL[id]; ranks[id] = 1 + st.skAll + st['sk' + D.DISC[sk.disc].name]; }
   const pv = id => ranks[id] ? H.skillNums(D.SKILL[id], Math.min(ranks[id], D.SKILL[id].max + 4)).val : 0;
   st.critDmg += pv('heavy');
   st.lifePct += pv('tempered'); st.armorPct += pv('tempered');
@@ -70,7 +64,7 @@ H.compute = function (S, gearOverride) {
   addMod('crush', pv('crush')); addMod('burnMult', pv('kindling')); addMod('burnWeak', pv('backdraft'));
   addMod('burnCritCh', pv('combust')); addMod('aftershock', pv('aftershock')); addMod('critCdr', pv('quicken'));
   // totals & caps
-  st.maxLife = Math.round((H.baseLife(lvl) + st.life) * (1 + st.lifePct / 100));
+  st.maxLife = Math.round((H.BASE_LIFE + st.life) * (1 + st.lifePct / 100));
   st.armor = Math.round(st.armor * (1 + st.armorPct / 100));
   if (mods.armorThorns) st.thorns += Math.round(st.armor * mods.armorThorns / 100);
   st.crit = Math.min(75, st.crit); st.dodge = Math.min(60, st.dodge); st.dr = Math.min(50, st.dr);

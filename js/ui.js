@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero, G = SW.game, SP = SW.sprites, A = SW.audio;
-const UI = SW.ui = { tab: 'gear', dirty: {}, forgeId: null, forgeAspect: null, lastGold: -1 };
+const UI = SW.ui = { tab: 'gear', dirty: {}, forgeId: null, forgeAspect: null, cubeId: null, cubeOrb: 'add', cubeLast: null, dragId: null, lastGold: -1 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const RC = i => D.RARITY[i].color;
@@ -11,10 +11,11 @@ const pct = v => (Math.round(v * 10) / 10) + '%';
 const MAT_NAME = { gold: 'gold', scrap: 'scrap', dust: 'ember dust', soul: 'soulsteel' };
 
 /* ------------------------------------------------------------- pieces */
-function itemCell(it, extra) {
-  if (!it) return `<div class="it empty ${extra || ''}"></div>`;
+function itemCell(it, extra, idx) {
+  const bag = idx == null ? '' : ` data-bag="${idx}"`;
+  if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
     (it.upg ? '<b class="up">▲</b>' : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl">+${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
@@ -47,7 +48,7 @@ function itemTooltip(it, o) {
   h += `<div class="tt-name">${esc(it.name)}${it.up ? ' <span>+' + it.up + '</span>' : ''}</div>`;
   h += `<div class="tt-type">${I.typeLine(it)}<span>${I.itemPower(it)} Item Power</span></div>`;
   if (imp.dmg) h += `<div class="tt-base"><b>${U.fmt(imp.dmg)}</b> damage per hit<br><b>${imp.aps.toFixed(2)}</b> attacks per second</div>`;
-  if (imp.armor) h += `<div class="tt-base"><b>${U.fmt(imp.armor)}</b> armor</div>`;
+  if (imp.armor) h += `<div class="tt-base"><b>${U.fmt(imp.armor)}</b> armor${imp.life ? `<br><b>${U.fmt(imp.life)}</b> life` : ''}</div>`;
   if (b.imp) h += '<ul class="tt-imp">' + Object.keys(b.imp).map(k => `<li>${D.AFFIX[k].t.replace('{v}', b.imp[k])}</li>`).join('') + '</ul>';
   if (it.affixes.length) {
     h += '<ul class="tt-aff">' + it.affixes.map((a, i) => {
@@ -62,21 +63,18 @@ function itemTooltip(it, o) {
   return h + '</div>';
 }
 function skillTooltip(id, o) {
-  const sk = D.SKILL[id], S = G.S, pts = S.hero.ranks[id] || 0, eff = G.C.ranks[id] || 0;
-  const disc = D.DISC[sk.disc];
+  const sk = D.SKILL[id], st = G.C.st, on = G.skillOn(id), disc = D.DISC[sk.disc];
+  const bonus = st.skAll + st['sk' + disc.name], rank = sk.type === 'passive' ? Math.min(1 + bonus, sk.max + 4) : 1 + bonus;
   let h = `<div class="tt skill d-${sk.disc}"><div class="tt-name">${sk.name}</div>`;
-  h += `<div class="tt-type">${disc.name} · ${D.TYPE_NAME[sk.type]}<span>${pts ? 'Rank ' + eff + (eff > pts ? ' (' + pts + ' +' + (eff - pts) + ')' : '') + ' / ' + sk.max : 'Not learned'}</span></div>`;
+  h += `<div class="tt-type">${disc.name} · ${D.TYPE_NAME[sk.type]}<span>Rank ${rank}${bonus ? ' (1 +' + (rank - 1) + ' from gear)' : ''}</span></div>`;
   const facts = [];
   if (sk.cost) facts.push(sk.cost + ' Heat');
   if (sk.cd) facts.push(sk.cd + 's cooldown');
   if (sk.mult) facts.push(D.EL_NAME[sk.el]);
   if (facts.length) h += `<div class="tt-facts">${facts.join(' · ')}</div>`;
-  h += `<div class="tt-desc">${sk.desc(Hr.skillNums(sk, Math.max(1, eff)))}</div>`;
-  if (pts && pts < sk.max) h += `<div class="tt-next"><b>Next rank</b> ${sk.desc(Hr.skillNums(sk, eff + 1))}</div>`;
-  if (o && o.tree) {
-    if (S.hero.level < sk.lvl) h += `<div class="tt-hint warn">Unlocks at level ${sk.lvl}</div>`;
-    else h += `<div class="tt-hint">Click to learn a rank · Right-click to refund${sk.type !== 'passive' && pts ? ' · Shift-click to put it on or take it off your bar' : ''}</div>`;
-  }
+  h += `<div class="tt-desc">${sk.desc(Hr.skillNums(sk, rank))}</div>`;
+  h += `<div class="tt-next"><b>With one more rank from gear</b> ${sk.desc(Hr.skillNums(sk, rank + 1))}</div>`;
+  if (o && o.tree) h += `<div class="tt-hint">${on ? 'Click to take it off' : 'Click to use it'} · Gear with "+ to ${disc.name} Skills" raises its rank</div>`;
   return h + '</div>';
 }
 
@@ -107,14 +105,14 @@ function tipFor(el, x, y) {
     if (!f) return hideTip();
     const it = f.it;
     if (f.where === 'bag') {
-      const forge = UI.tab === 'forge';
-      const hint = forge ? 'Click to put it on the anvil' : `Click to equip · Right-click to salvage${it.rar >= 3 ? ' (hold Shift)' : ''} · Alt-click to ${it.lock ? 'unlock' : 'lock'}`;
+      const forge = UI.tab === 'forge', cube = UI.tab === 'cube';
+      const hint = cube ? 'Click to put it in the cube' : forge ? 'Click to put it on the anvil' : `Click to equip · Right-click to salvage${it.rar >= 3 ? ' (hold Shift)' : ''} · Alt-click to ${it.lock ? 'unlock' : 'lock'}`;
       let cmp = null;
       if (it.slot === 'ring') { cmp = S.gear.ring1 && S.gear.ring2 ? (Hr.compute(S, Object.assign({}, S.gear, { ring1: null })).rating.power > Hr.compute(S, Object.assign({}, S.gear, { ring2: null })).rating.power ? S.gear.ring1 : S.gear.ring2) : null; }
       else cmp = S.gear[it.slot];
       showTip(itemTooltip(it, { compare: 1, hint }), x, y, cmp ? itemTooltip(cmp, { label: 'Equipped' }) : null);
       if (it.isNew) { it.isNew = 0; el.classList.remove('new'); }
-    } else showTip(itemTooltip(it, { label: f.where === 'gear' ? 'Equipped' : null, hint: f.where === 'gear' ? (UI.tab === 'forge' ? 'Click to put it on the anvil' : 'Click to take it off') : null }), x, y);
+    } else showTip(itemTooltip(it, { label: f.where === 'gear' ? 'Equipped' : null, hint: f.where === 'gear' ? (UI.tab === 'cube' ? 'Click to put it in the cube' : UI.tab === 'forge' ? 'Click to put it on the anvil' : 'Click to take it off') : null }), x, y);
   } else if (el.dataset.skill) showTip(skillTooltip(el.dataset.skill, { tree: el.dataset.tree }), x, y);
   else if (el.dataset.aspect) {
     const a = D.ASPECT[el.dataset.aspect], r = G.S.codex[a.id];
@@ -131,7 +129,7 @@ function tileTip(c) {
     boss: G.S.world.map.name ? `${G.S.world.map.name} guards the way on. Beat it to open the next area.` : 'The master of this act. Bring your best gear.',
     chest: 'Free loot. No fight.', shrine: `A blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
   if (c.state === 'hidden') return '<div class="tt plain"><b>Unexplored</b><br>Clear a neighbouring tile to see what is here.</div>';
-  const dl = c.lvl - G.S.hero.level;
+  const dl = c.lvl - Hr.gearLevel(G.S.gear);
   let h = `<div class="tt plain"><b>${names[c.type]}</b>` + (c.type !== 'start' && c.type !== 'wall' && c.type !== 'shrine' ? ` <span class="${dl >= 3 ? 'neg' : dl >= 1 ? 'warn' : 'pos'}">Level ${c.lvl}</span>` : '') + `<br>${desc[c.type]}`;
   if (c.state === 'done') h += '<br><i>Cleared.</i>';
   else if (!G.canEnter(c) && c.type !== 'wall') h += '<br><i>Clear a path to it first.</i>';
@@ -145,12 +143,12 @@ function renderTop() {
   $('where-act').textContent = (W.tier ? D.TIERS[W.tier].name + ' · ' : '') + D.ACTS[area.act].name;
   $('where-area').textContent = area.name;
   $('where-lvl').textContent = `Lv ${lvl}–${lvl + 3}`;
-  $('hud-level').textContent = S.hero.level + (S.hero.plevel ? ' +' + S.hero.plevel : '');
+  $('hud-level').textContent = Hr.gearLevel(S.gear); $('hud-power').textContent = U.fmt(G.C.rating.power);
   document.querySelectorAll('#speed button').forEach(b => b.classList.toggle('on', +b.dataset.speed === S.opts.speed));
   $('btn-auto').classList.toggle('on', !!S.opts.auto);
   $('btn-sound').classList.toggle('off', !S.opts.sound);
   $('opt-full').checked = !!S.opts.full; $('opt-advance').checked = S.opts.onClear === 'advance';
-  const pts = G.pointsLeft() + G.paragonLeft();
+  const pts = emptySlots();
   $('pts-badge').textContent = pts > 0 ? pts : ''; $('pts-badge').classList.toggle('hidden', pts <= 0);
 }
 function renderHudBar() {
@@ -158,7 +156,7 @@ function renderHudBar() {
   let h = '';
   for (let i = 0; i < D.BAR_SIZE; i++) {
     const id = S.hero.bar[i];
-    h += id && S.hero.ranks[id] ? `<div class="slot" data-skill="${id}" data-bar="${i}">${skillIcon(id)}<i class="cd"></i><em></em></div>` : '<div class="slot none" data-tip="Empty skill slot. Learn skills in the Skills tab."></div>';
+    h += id ? `<div class="slot" data-skill="${id}" data-bar="${i}">${skillIcon(id)}<i class="cd"></i><em></em></div>` : '<div class="slot none" data-tip="Empty skill slot. Learn skills in the Skills tab."></div>';
   }
   h += `<div class="slot flask" data-tip="Flask. Drinks itself when you fall below 35% Life and restores 35%. Refills over 22 seconds."><img src="${SP.url('i_flask', 'icon', 3)}" alt=""><i class="cd"></i><em></em></div>`;
   $('bar').innerHTML = h;
@@ -187,12 +185,9 @@ UI.frame = function () {
     if (el.children[2].textContent !== String(txt)) el.children[2].textContent = txt;
     el.classList.toggle('dim', dim);
   });
-  // xp
-  const hero = S.hero, need = hero.level < D.MAX_LEVEL ? Hr.xpNeed(hero.level) : Hr.paragonNeed(hero.plevel), have = hero.level < D.MAX_LEVEL ? hero.xp : hero.pxp;
-  $('xp-fill').style.width = Math.min(100, have / need * 100) + '%';
-  $('xp-text').textContent = hero.level < D.MAX_LEVEL ? `${U.fmt(have)} / ${U.fmt(need)}` : `Paragon ${U.fmt(have)} / ${U.fmt(need)}`;
   if (UI.lastGold !== S.gold) { if (UI.lastGold >= 0 && S.gold > UI.lastGold) { const e = $('cur-gold').parentElement; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); } UI.lastGold = S.gold; $('cur-gold').textContent = U.fmt(S.gold); if (UI.tab === 'forge') mark('forge'); }
   for (const k of ['scrap', 'dust', 'soul']) { const e = $('cur-' + k), v = U.fmt(S.mats[k] || 0); if (e.textContent !== v) e.textContent = v; }
+  if (performance.now() - meterT > 250) { meterT = performance.now(); renderMeter(); }
   // boss bar
   const bb = $('bossbar'), boss = B ? B.mobs.find(m => !m.dead && (m.boss || m.champ)) : null;
   bb.classList.toggle('hidden', !boss);
@@ -215,13 +210,29 @@ UI.frame = function () {
   if (UI.buffHtml !== bh) { UI.buffHtml = bh; $('buffs').innerHTML = bh; }
 };
 
+/* -------------------------------------------------------- damage meter */
+const SRC_NAME = { burn: 'Burn', bleed: 'Bleed', thorns: 'Thorns', proc: 'Aspects and procs', punch: 'Punch' };
+let meterT = 0;
+function renderMeter() {
+  const B = G.battle, live = B && B.ft > 0.3 ? B.dmgDone / B.ft : null;
+  let dmg = 0, ft = 0; const by = {};
+  const fights = live != null ? G.meter.slice(-9).concat([{ dmg: B.dmgDone, ft: B.ft, by: B.by }]) : G.meter;
+  for (const m of fights) { dmg += m.dmg; ft += m.ft; for (const k in m.by) by[k] = (by[k] || 0) + m.by[k]; }
+  const avg = ft > 0 ? dmg / ft : 0, last = G.meter.length ? G.meter[G.meter.length - 1] : null;
+  const rows = Object.keys(by).sort((a, b) => by[b] - by[a]).slice(0, 6), top = rows.length ? by[rows[0]] : 1;
+  let h = `<div class="m-top"><span>${live != null ? 'DPS this fight' : 'DPS last fight'}</span><b>${live != null ? U.fmt(live) : last ? U.fmt(last.dmg / last.ft) : '–'}</b></div>`;
+  h += `<div class="m-avg"><span>${fights.length ? 'Last ' + fights.length + ' fight' + (fights.length === 1 ? '' : 's') : 'No fights yet'}</span><b>${fights.length ? U.fmt(avg) : ''}</b></div>`;
+  for (const k of rows) { const sk = D.SKILL[k]; h += `<div class="m-row"><i style="width:${by[k] / top * 100}%;background:${sk ? D.DISC[sk.disc].color : k === 'burn' ? '#ff9a3c' : k === 'bleed' ? '#c0303a' : '#8a8478'}"></i><span>${sk ? sk.name : SRC_NAME[k] || k}</span><b>${Math.round(by[k] / dmg * 100)}%</b></div>`; }
+  if (UI.meterHtml !== h) { UI.meterHtml = h; $('meter').innerHTML = h; }
+}
+
 /* ----------------------------------------------------------------- map */
 const TILE_ICON = { fight: ['i_fight', 'icon'], elite: ['i_elite', 'icon'], boss: ['i_boss', 'boss'], chest: ['i_chest', 'icon'], shrine: ['i_shrine', 'shrine'], start: ['i_start', 'icon'] };
 function renderMap() {
-  const S = G.S, map = S.world.map, area = D.AREAS[map.area];
+  const S = G.S, map = S.world.map, area = D.AREAS[map.area], gl = Hr.gearLevel(S.gear);
   let h = '';
   for (const c of map.cells) {
-    const can = G.canEnter(c), dl = c.lvl - S.hero.level;
+    const can = G.canEnter(c), dl = c.lvl - gl;
     let cls = `tile t-${c.type} s-${c.state}${can ? ' can' : ''}${c.deaths ? ' died' : ''}${G.target === c && G.phase !== 'idle' ? ' now' : ''}`;
     let inner = '';
     if (c.type !== 'wall' && c.state !== 'hidden') {
@@ -245,15 +256,16 @@ function moveToken(snap) {
   if (snap) t.classList.add('snap'); else t.classList.remove('snap');
   t.style.left = (p.x + 0.5) / map.w * 100 + '%'; t.style.top = (p.y + 0.5) / map.h * 100 + '%';
 }
+const emptySlots = () => G.S.hero.bar.concat(G.S.hero.passives).filter(x => !x).length;
 function renderHint() {
   const S = G.S, map = S.world.map;
   let t = '';
   if (!S.seen.fought) t = 'Click a glowing tile on the map to fight there.';
-  else if (G.pointsLeft() > 0) t = `You have ${G.pointsLeft()} skill point${G.pointsLeft() > 1 ? 's' : ''} to spend. Open Skills.`;
+  else if (emptySlots() > 0) t = `You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}. Open Skills and fill them: every skill is free.`;
   else if (S.bag.some(b => b && b.upg)) t = 'Something in your bag is better than what you are wearing. Look for the green arrow.';
   else if (!S.opts.auto && S.stats.kills > 12 && !S.seen.auto) t = 'Tired of clicking tiles? Turn on Auto and the smith explores alone.';
   else if (map.bossDone && !S.opts.auto) t = 'This area is beaten. Use the area name at the top to travel on.';
-  else if (S.hero.level >= 6 && !Object.keys(S.codex).length && S.stats.leg > 0) t = 'Salvage a Legendary to keep its aspect in the Codex, then imprint it on better gear at the Forge.';
+  else if (!Object.keys(S.codex).length && S.stats.leg > 0) t = 'Salvage a Legendary to keep its aspect in the Codex, then imprint it on better gear at the Forge.';
   $('hint').textContent = t;
 }
 
@@ -287,7 +299,7 @@ function renderGear() {
   if (st.regen) h += row('Life / sec', U.fmt(st.regen));
   if (st.thorns) h += row('Thorns', U.fmt(st.thorns), 'Damage dealt back to anything that hits you.');
   h += '</div><div class="scol"><h4>Utility</h4>';
-  h += row('Cooldowns', '−' + pct(st.cdr)) + row('Heat gain', '+' + pct(st.heat)) + row('Gold find', '+' + pct(st.gold)) + row('Magic find', '+' + pct(st.mf), 'Raises the odds of Rare, Legendary and Unique drops.') + row('Experience', '+' + pct(st.xp));
+  h += row('Cooldowns', '−' + pct(st.cdr)) + row('Heat gain', '+' + pct(st.heat)) + row('Gold find', '+' + pct(st.gold)) + row('Magic find', '+' + pct(st.mf), 'Raises the odds of Rare, Legendary and Unique drops.');
   h += '</div></div>';
   $('tab-gear').innerHTML = h;
 }
@@ -301,33 +313,26 @@ function renderBag() {
   h += ['C', 'M', 'R', 'L'].map((nm, i) => `<label class="chk mini r${i}" data-tip="Auto-salvage ${D.RARITY[i].name} drops${i === 3 ? '. Their aspects still go to your Codex.' : ''}"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('');
   $('baghead').innerHTML = h;
   let b = '';
-  for (let i = 0; i < Math.max(D.BAG_SIZE, S.bag.length); i++) b += itemCell(S.bag[i] || null, UI.tab === 'forge' && S.bag[i] && S.bag[i].id === UI.forgeId ? 'sel' : '');
+  for (let i = 0; i < Math.max(D.BAG_SIZE, S.bag.length); i++) b += itemCell(S.bag[i] || null, S.bag[i] && ((UI.tab === 'forge' && S.bag[i].id === UI.forgeId) || (UI.tab === 'cube' && S.bag[i].id === UI.cubeId)) ? 'sel' : '', i);
   $('bag').innerHTML = b;
 }
 
 /* -------------------------------------------------------------- skills */
 function renderSkills() {
-  const S = G.S, left = G.pointsLeft();
-  let h = `<div class="sk-head"><div><b class="${left ? 'hot' : ''}">${left}</b> skill point${left === 1 ? '' : 's'} to spend</div><button class="small" data-act="respec" data-tip="Refund every point. Free, any time.">Reset</button></div>`;
-  h += '<div class="sk-bar"><span class="lbl">In battle</span>';
-  for (let i = 0; i < D.BAR_SIZE; i++) { const id = S.hero.bar[i]; h += id && S.hero.ranks[id] ? `<div class="node on" data-skill="${id}" data-unbar="${id}">${skillIcon(id)}</div>` : '<div class="node none"></div>'; }
-  h += '<span class="note">One Basic, one Ultimate, the rest is yours. The smith picks the best Core skill for the fight.</span></div>';
+  const S = G.S, hero = S.hero;
+  const slot = (id, kind) => id ? `<div class="node on has" data-skill="${id}" data-tree="1">${skillIcon(id)}</div>` : `<div class="node none ${kind}"></div>`;
+  let h = '<div class="sk-head"><div>Every skill is yours from the start. <span class="note">Their ranks come from gear.</span></div><button class="small" data-act="clear-skills" data-tip="Empty the bar and the passive slots.">Clear</button></div>';
+  h += '<div class="sk-bar"><span class="lbl">Bar</span>' + hero.bar.map(id => slot(id, '')).join('') + '<span class="lbl" style="margin-left:10px">Passives</span>' + hero.passives.map(id => slot(id, 'round')).join('') + '</div>';
+  h += '<p class="note">Five skills on the bar, one Basic and one Ultimate at most, and three passives. The smith picks the best Core skill for each moment.</p>';
   for (const d in D.DISC) {
-    const disc = D.DISC[d], list = D.SKILLS.filter(s => s.disc === d);
-    h += `<div class="disc d-${d}"><div class="disc-head"><b>${disc.name}</b><span>${disc.blurb}</span></div><div class="nodes">`;
+    const disc = D.DISC[d], list = D.SKILLS.filter(s => s.disc === d), bonus = G.C.st.skAll + G.C.st['sk' + disc.name];
+    h += `<div class="disc d-${d}"><div class="disc-head"><b>${disc.name}</b><span>${disc.blurb}</span>${bonus ? `<i>+${bonus} ranks from gear</i>` : ''}</div><div class="nodes">`;
     for (const sk of [...list.filter(s => s.type !== 'passive'), ...list.filter(s => s.type === 'passive')]) {
-      const pts = S.hero.ranks[sk.id] || 0, locked = S.hero.level < sk.lvl, onbar = S.hero.bar.includes(sk.id);
-      h += `<div class="node ${pts ? 'has' : ''} ${locked ? 'locked' : ''} ${onbar ? 'on' : ''} ${!locked && left && pts < sk.max ? 'can' : ''}" data-skill="${sk.id}" data-tree="1">${skillIcon(sk.id)}` +
-        `<span class="rk">${locked ? 'Lv ' + sk.lvl : pts + '/' + sk.max}</span><span class="ty">${D.TYPE_NAME[sk.type]}</span>${pts && sk.type !== 'passive' && !onbar ? '<i class="off">off bar</i>' : ''}</div>`;
+      const on = G.skillOn(sk.id);
+      h += `<div class="node ${on ? 'has on' : ''}" data-skill="${sk.id}" data-tree="1">${skillIcon(sk.id)}<span class="rk">${on ? 'Rank ' + G.C.ranks[sk.id] : '&nbsp;'}</span><span class="ty">${D.TYPE_NAME[sk.type]}</span></div>`;
     }
     h += '</div></div>';
   }
-  if (S.hero.level >= D.MAX_LEVEL) {
-    const pl = G.paragonLeft();
-    h += `<div class="paragon"><div class="disc-head"><b>Paragon</b><span>${pl ? `<b class="hot">${pl}</b> point${pl === 1 ? '' : 's'} to spend. ` : ''}Every level past 50 gives one, forever.</span></div><div class="pgrid">`;
-    for (const p of D.PARAGON) h += `<button class="pg ${pl ? 'can' : ''}" data-paragon="${p.id}"><b>${p.name}</b><span>${p.desc}</span><i>${S.hero.paragon[p.id] || 0}</i></button>`;
-    h += '</div></div>';
-  } else h += `<div class="paragon dim"><div class="disc-head"><b>Paragon</b><span>Opens at level ${D.MAX_LEVEL}. Endless small boosts after that.</span></div></div>`;
   $('tab-skills').innerHTML = h;
 }
 
@@ -372,10 +377,31 @@ function renderForge() {
     if (f.where === 'bag') { const y = I.salvageYield(it); h += `<div class="op slim"><div class="op-t"><b>Salvage</b><span>Break it down for ${Object.keys(y).map(k => y[k] + ' ' + MAT_NAME[k]).join(', ')}${it.aspect ? '. Its aspect goes into your Codex.' : '.'}</span></div><div class="op-a"><button class="danger" data-act="salvage-one">Salvage</button></div></div>`; }
     h += '</div>';
   }
-  const cc = { gold: I.commissionCost(S.hero.level) };
-  h += `<div class="commission"><div class="op-t"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice, at your level. Never Common.</span></div><div class="op-a">${costHtml(cc)}<span class="note">each</span></div><div class="com-row">` +
+  const cc = { gold: I.commissionCost(G.areaLevel()) };
+  h += `<div class="commission"><div class="op-t"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice, at this area's level. Never Common.</span></div><div class="op-a">${costHtml(cc)}<span class="note">each</span></div><div class="com-row">` +
     D.ITEM_SLOTS.map(s => `<button class="com" data-act="commission" data-slot="${s}" ${G.canPay(cc) ? '' : 'disabled'} data-tip="Commission a ${D.SLOT_NAME[s].toLowerCase()}"><img src="${SP.url(D.BASES[D.BASES_BY_SLOT[s][0]].spr, 'iron', 2)}" alt=""><span>${D.SLOT_NAME[s]}</span></button>`).join('') + '</div></div>';
   $('tab-forge').innerHTML = h;
+}
+
+/* ---------------------------------------------------------------- cube */
+function renderCube() {
+  const S = G.S, f = UI.cubeId ? G.findItem(UI.cubeId) : null, orb = UI.cubeOrb, O = D.ORBS[orb];
+  if (!f) { UI.cubeId = null; UI.cubeLast = null; }
+  const why = !f ? 'Put a piece of gear in the cube: click one you are wearing or one in your bag.' : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from elites, bosses and chests.` : I.cubeCheck(f.it, orb);
+  let h = '<div class="worn"><span class="lbl">Wearing</span>' + D.SLOTS.map(s => S.gear[s] ? itemCell(S.gear[s], UI.cubeId === S.gear[s].id ? 'sel' : '') : '<div class="it empty"></div>').join('') + '</div>';
+  h += `<div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div></div>`;
+  h += `<p class="cube-say ${why ? 'no' : ''}">${why || O.desc}</p><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
+  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].name}</b><span>${D.ORBS[k].short}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
+  if (f) {
+    const it = f.it, last = UI.cubeLast || {};
+    h += `<div class="cube-item"><div class="an-item"><div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span></div></div><ul class="aff-list">`;
+    it.affixes.forEach((a, i) => { const fresh = last.idx === i || last.orb === 'chaos' || last.orb === 'divine'; h += `<li class="${fresh ? 'fresh' : ''}"><span>${I.affixText(it, a, i)}${a.g ? ' <i>greater</i>' : ''}</span>${last.idx === i ? '<em>new</em>' : ''}</li>`; });
+    if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
+    if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
+    h += '</ul></div>';
+  }
+  h += '<p class="note">Orbs drop from elites, champions, bosses, chests and Slag Hoarders, and one comes with every fully cleared map. The result is always random.</p>';
+  $('tab-cube').innerHTML = h;
 }
 
 /* --------------------------------------------------------------- codex */
@@ -405,12 +431,13 @@ UI.render = function () {
   if (d.bag) renderBag();
   if (d.skills && UI.tab === 'skills') renderSkills();
   if (d.forge && UI.tab === 'forge') renderForge();
+  if ((d.cube || d.bag) && UI.tab === 'cube') renderCube();
   if (d.codex && UI.tab === 'codex') renderCodex();
 };
 UI.setTab = function (t) {
   UI.tab = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  for (const k of ['gear', 'skills', 'forge', 'codex']) $('tab-' + k).classList.toggle('hidden', k !== t);
+  for (const k of ['gear', 'skills', 'forge', 'cube', 'codex']) $('tab-' + k).classList.toggle('hidden', k !== t);
   $('bagwrap').classList.toggle('hidden', t === 'skills' || t === 'codex');
   $('right').dataset.tab = t;
   mark(t, 'bag'); hideTip();
@@ -448,7 +475,7 @@ const deny = msg => { UI.toast(msg, 'bad'); A.play('deny'); };
 UI.modal = function (html, cls) { $('modal-box').className = cls || ''; $('modal-box').innerHTML = html; $('modal').classList.remove('hidden'); hideTip(); };
 UI.closeModal = function () { $('modal').classList.add('hidden'); };
 UI.travel = function (tier) {
-  const S = G.S, W = S.world; tier = tier == null ? W.tier : tier;
+  const S = G.S, W = S.world, gl = Hr.gearLevel(S.gear); tier = tier == null ? W.tier : tier;
   let h = '<h2>Travel</h2><p class="sub">Go back to farm, or press on. A new map is drawn each time you arrive.</p><div class="tiers">';
   D.TIERS.forEach((t, i) => { const open = W.cleared[i] != null; h += `<button class="tier ${i === tier ? 'on' : ''}" ${open ? '' : 'disabled'} data-tier="${i}" style="--c:${t.color}">${t.name}${open ? '' : ' <small>locked</small>'}</button>`; });
   h += '</div><div class="acts">';
@@ -456,7 +483,7 @@ UI.travel = function (tier) {
     h += `<div class="act"><h3>${act.name}</h3>`;
     for (const a of D.AREAS.filter(x => x.act === ai)) {
       const open = G.isUnlocked(a.idx, tier), done = W.cleared[tier] > a.idx, lvl = D.areaLevel(a.idx, tier), here = W.area === a.idx && W.tier === tier;
-      const dl = lvl - S.hero.level;
+      const dl = lvl - gl;
       h += `<button class="area ${done ? 'done' : ''} ${here ? 'here' : ''}" ${open ? '' : 'disabled'} data-go="${a.idx}" data-gotier="${tier}"><b>${a.name}</b><span class="${dl >= 3 ? 'neg' : dl >= 1 ? 'warn' : ''}">Level ${lvl}–${lvl + 3}</span><i>${here ? 'You are here' : done ? 'Cleared' : open ? (a.final ? 'Act boss' : 'New') : 'Locked'}</i></button>`;
     }
     h += '</div>';
@@ -477,15 +504,15 @@ UI.welcome = function () {
   UI.modal(`<h1>Smeltworks</h1>
     <p class="lead">The forges under the mountain have gone cold, and something down there is keeping them that way.</p>
     <p>You are the last smith. Fight your way down tile by tile. Battles play themselves: your part is the build. Pick skills, wear what drops, and remake the rest at the forge.</p>
-    <ul class="how"><li><b>Map</b>Click a glowing tile to fight there. Reach the boss to open the next area.</li><li><b>Gear</b>A green arrow marks an upgrade. Click to equip, right-click to salvage.</li><li><b>Skills</b>A point every level. Hammer, Ember or Storm, or a mix.</li></ul>
+    <ul class="how"><li><b>Map</b>Click a glowing tile to fight there. Reach the boss to open the next area.</li><li><b>Gear</b>A green arrow marks an upgrade. Click to equip, right-click to salvage.</li><li><b>Skills</b>All open from the start. Pick five and three passives; gear raises their ranks.</li></ul>
     <div class="mfoot"><span></span><button data-close="1" class="big">Go down</button></div>`, 'welcome');
 };
 UI.victory = function () {
   const S = G.S, t = S.stats.time, hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60);
   UI.modal(`<h1>The forges burn again</h1>
     <p class="lead">Vulkar is slag. Heat climbs back up through the mountain, shaft by shaft, and somewhere above you a bellows starts to breathe.</p>
-    <p>You finished the descent in ${hh ? hh + 'h ' : ''}${mm}m, at level ${S.hero.level}, after ${U.fmt(S.stats.kills)} kills and ${S.stats.deaths} fall${S.stats.deaths === 1 ? '' : 's'}.</p>
-    <p><b style="color:${D.TIERS[1].color}">Torment I is open.</b> The same descent, far deadlier. No Common gear drops there, Legendaries and Uniques come faster, and affixes can roll greater. Past level 50, experience earns Paragon points without end.</p>
+    <p>You finished the descent in ${hh ? hh + 'h ' : ''}${mm}m, with gear level ${Hr.gearLevel(S.gear)}, after ${U.fmt(S.stats.kills)} kills and ${S.stats.deaths} fall${S.stats.deaths === 1 ? '' : 's'}.</p>
+    <p><b style="color:${D.TIERS[1].color}">Torment I is open.</b> The same descent, far deadlier. No Common gear drops there, Legendaries and Uniques come faster, and affixes can roll greater. </p>
     <div class="mfoot"><button data-close="1">Keep farming here</button><button class="big" data-go="0" data-gotier="1">Enter Torment I</button></div>`, 'welcome');
 };
 UI.areaDone = function (d) {
@@ -502,7 +529,7 @@ UI.areaDone = function (d) {
 UI.onGame = function (type, d) {
   const S = G.S;
   switch (type) {
-    case 'stats': mark('gear', 'top', 'hud', 'forge'); break;
+    case 'stats': mark('gear', 'top', 'hud', 'forge', 'cube', 'skills', 'map'); break;
     case 'map': mark('map', 'top'); break;
     case 'moved': moveToken(); A.play('step', 0.1); break;
     case 'expedition': mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); UI.banner(D.AREAS[S.world.area].name, `${D.ACTS[D.AREAS[S.world.area].act].name} · Level ${G.areaLevel()}–${G.areaLevel() + 3}`, 'area', 1800); break;
@@ -514,13 +541,6 @@ UI.onGame = function (type, d) {
     case 'travel': mark('map'); break;
     case 'battleEnd': if (!d.win) SW.fx.clear(); mark('bag', 'map', 'top', 'skills', 'forge', 'gear'); break;
     case 'death': UI.banner('You fell', 'Nothing is lost. Catch your breath and try again.', 'dead', 2400); break;
-    case 'levelup':
-      if (d.paragon) UI.banner('Paragon ' + d.paragon, 'A paragon point to spend', 'level', 1800);
-      else UI.banner('Level ' + d.level, d.level === D.MAX_LEVEL ? 'The cap. Paragon opens now.' : 'A skill point to spend', 'level', 1800);
-      A.play('level'); SW.fx.heroGlow('#ffd27a'); mark('top', 'skills', 'map', 'hint');
-      for (const sk of D.SKILLS) if (sk.lvl === d.level && !d.paragon) UI.feed(`New ${D.TYPE_NAME[sk.type].toLowerCase()} skill available: <b style="color:${D.DISC[sk.disc].color}">${sk.name}</b>`, 'r3');
-      break;
-    case 'point': UI.feed('<b class="hot">Bonus skill point</b> for felling an act boss', 'r3'); break;
     case 'areaClear':
       A.play('clear'); UI.banner(D.AREAS[d.area].name + ' cleared', d.first ? 'The way on is open' : '', 'clear', 2400);
       if (d.first && d.area === D.AREAS.length - 1 && d.tier === 0) setTimeout(() => UI.victory(), 1600);
@@ -537,6 +557,12 @@ UI.onGame = function (type, d) {
     case 'salvageAll': A.play('salvage'); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
     case 'codex': mark('codex', 'forge'); UI.feed(`${d.isNew ? 'New aspect learned' : 'Aspect improved'}: <b style="color:${RC(3)}" data-aspect="${d.id}">${D.ASPECT[d.id].name}</b>`, 'r3'); break;
     case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. New drops are being salvaged until you make room.', 'bad'); } break;
+    case 'cube': A.play(d.res.orb === 'remove' ? 'salvage' : 'forge'); UI.cubeLast = d.res; mark('cube', 'bag', 'gear', 'forge');
+      if (d.res.from != null) UI.toast(`It is now ${D.RARITY[d.it.rar].name}.`, 'good');
+      break;
+    case 'orbs': { const n = {}; for (const k of d.list) n[k] = (n[k] || 0) + 1;
+      UI.feed('Orb: ' + Object.keys(n).map(k => `<b style="color:${D.ORBS[k].color}">${n[k] > 1 ? n[k] + ' × ' : ''}${D.ORBS[k].name}</b>`).join(', ') + (S.seen.orb ? '' : ' <span class="dim">Use it in the Cube tab</span>'), 'orb');
+      S.seen.orb = 1; A.play('shrine', 0.3); mark('cube', 'top'); break; }
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind === 'upgrade' && d.mw >= 0) UI.toast('Masterwork! ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good');
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
@@ -566,12 +592,32 @@ UI.bind = function () {
   document.addEventListener('pointerdown', () => A.unlock(), { once: false, passive: true });
   document.addEventListener('mousemove', e => {
     const el = e.target.closest && e.target.closest('[data-item],[data-skill],[data-aspect],[data-tile],[data-tip]');
-    if (!el) { if (tipEl) hideTip(); return; }
+    if (!el || UI.dragId) { if (tipEl) hideTip(); return; }
     const key = (el.dataset.item || el.dataset.skill || el.dataset.aspect || el.dataset.tile || el.dataset.tip) + '|' + UI.tab;
     if (el !== tipEl || key !== tipKey) { tipEl = el; tipKey = key; tipFor(el, e.clientX, e.clientY); }
     else { const t = $('tooltip'); if (!t.classList.contains('hidden') && $('tooltip2').classList.contains('hidden')) placeTip(t, e.clientX, e.clientY); }
   });
   document.addEventListener('mouseleave', hideTip);
+  // drag items around the bag, onto the paper doll, or off it
+  document.addEventListener('dragstart', e => {
+    const el = e.target.closest && e.target.closest('[data-item]'), f = el && G.findItem(+el.dataset.item);
+    if (!f) { e.preventDefault(); return; }
+    UI.dragId = f.it.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(f.it.id)); hideTip();
+  });
+  document.addEventListener('dragover', e => { if (UI.dragId && e.target.closest('[data-bag],.dslot')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
+  document.addEventListener('dragend', () => { UI.dragId = null; });
+  document.addEventListener('drop', e => {
+    const id = UI.dragId; UI.dragId = null;
+    if (!id) return;
+    e.preventDefault();
+    const cell = e.target.closest('[data-bag]'), doll = e.target.closest('.dslot'), f = G.findItem(id);
+    if (!f) return;
+    if (cell) { if (!G.moveItem(id, +cell.dataset.bag) && f.where === 'gear') deny('That slot holds a different kind of gear.'); }
+    else if (doll && f.where === 'bag') {
+      const slot = doll.dataset.slot;
+      if (slot.replace(/\d/, '') !== f.it.slot) deny(`That is a ${D.SLOT_NAME[f.it.slot].toLowerCase()}, not a ${D.SLOT_NAME[slot].toLowerCase()}.`); else G.equip(id, slot);
+    }
+  });
   document.addEventListener('contextmenu', e => {
     const el = e.target.closest('[data-item],[data-skill]');
     if (!el) return;
@@ -581,9 +627,9 @@ UI.bind = function () {
       if (!f || f.where !== 'bag') return;
       if (f.it.lock) return deny('That piece is locked. Alt-click to unlock it.');
       if (f.it.rar >= 3 && !e.shiftKey) return deny('Hold Shift and right-click to salvage a ' + D.RARITY[f.it.rar].name + '.');
-      if (UI.forgeId === f.it.id) UI.forgeId = null;
+      if (UI.forgeId === f.it.id) UI.forgeId = null; if (UI.cubeId === f.it.id) UI.cubeId = null;
       G.salvage(f.it.id); hideTip();
-    } else if (el.dataset.tree) { if (G.unlearn(el.dataset.skill)) A.play('click'); hideTip(); }
+    }
   });
   document.addEventListener('click', e => {
     const t = e.target, S = G.S;
@@ -609,23 +655,19 @@ UI.bind = function () {
       return;
     }
     if ((el = t.closest('[data-pick]'))) { UI.forgeAspect = el.dataset.pick; mark('forge'); return; }
-    if ((el = t.closest('[data-unbar]'))) { G.barToggle(el.dataset.unbar); A.play('click'); hideTip(); return; }
-    if ((el = t.closest('[data-paragon]'))) { if (G.paragon(el.dataset.paragon)) A.play('learn'); return; }
+    if ((el = t.closest('[data-orb]'))) { UI.cubeOrb = el.dataset.orb; mark('cube'); A.play('click'); return; }
     if ((el = t.closest('[data-skill][data-tree]'))) {
-      const id = el.dataset.skill, sk = D.SKILL[id];
-      if (e.shiftKey) { if (S.hero.ranks[id] && sk.type !== 'passive') { if (!G.barToggle(id)) deny('Your bar is full. Take a skill off first.'); else A.play('click'); } return; }
-      if (S.hero.level < sk.lvl) return deny(`${sk.name} unlocks at level ${sk.lvl}.`);
-      if ((S.hero.ranks[id] || 0) >= sk.max) return deny(`${sk.name} is at its highest rank.`);
-      if (G.pointsLeft() < 1) return deny('No skill points left. Right-click a skill to refund a rank.');
-      const fresh = !S.hero.ranks[id];
-      if (G.learn(id)) { A.play('learn'); if (fresh && sk.type !== 'passive' && !S.hero.bar.includes(id)) UI.toast(sk.type === 'basic' ? 'Learned. Shift-click it to swap it in for your current Basic skill.' : 'Learned, but your bar is full. Shift-click to swap skills.'); tipKey = ''; }
+      const id = el.dataset.skill, was = G.skillOn(id), msg = G.toggleSkill(id);
+      if (msg) deny(msg); else A.play(was ? 'click' : 'learn');
+      tipKey = '';
       return;
     }
     if ((el = t.closest('[data-act]'))) {
       const act = el.dataset.act;
       if (act === 'sort') { G.sortBag(); A.play('click'); }
       else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity.'); }
-      else if (act === 'respec') { G.respec(); A.play('salvage'); UI.toast('All skill points refunded.'); }
+      else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
+      else if (act === 'transmute') { if (!G.cube(UI.cubeId, UI.cubeOrb)) deny('The cube does nothing.'); }
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that upgrade.'); }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }
       else if (act === 'imprint') { if (!G.imprint(UI.forgeId, UI.forgeAspect)) deny('You cannot afford that imprint.'); else UI.forgeAspect = null; }
@@ -637,6 +679,7 @@ UI.bind = function () {
       const f = G.findItem(+el.dataset.item);
       if (!f) return;
       if (e.altKey) { G.toggleLock(f.it.id); hideTip(); return; }
+      if (UI.tab === 'cube') { UI.cubeId = f.it.id; UI.cubeLast = null; mark('cube', 'bag'); A.play('click'); return; }
       if (UI.tab === 'forge') { UI.forgeId = f.it.id; UI.forgeAspect = null; mark('forge', 'bag'); A.play('click'); return; }
       if (f.where === 'bag') G.equip(f.it.id);
       else if (f.where === 'gear' && el.closest('.doll')) { if (!G.unequip(f.slot)) deny('Your bag is full.'); }
@@ -663,7 +706,7 @@ UI.bind = function () {
     else if (k === ' ') { e.preventDefault(); setSpeed(0); }
     else if (k === 'a') toggleAuto();
     else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(2); else if (k === '3') setSpeed(4);
-    else if (k === 'g') UI.setTab('gear'); else if (k === 's') UI.setTab('skills'); else if (k === 'f') UI.setTab('forge'); else if (k === 'c') UI.setTab('codex');
+    else if (k === 'g') UI.setTab('gear'); else if (k === 's') UI.setTab('skills'); else if (k === 'f') UI.setTab('forge'); else if (k === 'c') UI.setTab('codex'); else if (k === 'u') UI.setTab('cube');
     else if (k === 't') UI.travel();
   });
   window.addEventListener('resize', () => SW.fx.resize());
@@ -672,9 +715,9 @@ UI.bind = function () {
 UI.fresh = function () {
   const S = G.S;
   A.on = S.opts.sound; A.setVol(S.opts.vol);
-  UI.forgeId = null; UI.lastGold = -1;
+  UI.forgeId = null; UI.cubeId = null; UI.cubeLast = null; UI.lastGold = -1;
   SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg);
-  mark('top', 'hud', 'map', 'gear', 'bag', 'skills', 'forge', 'codex');
+  mark('top', 'hud', 'map', 'gear', 'bag', 'skills', 'forge', 'cube', 'codex');
   UI.setTab(UI.tab);
 };
 })();

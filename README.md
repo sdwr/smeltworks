@@ -18,12 +18,12 @@ text, load one back in, or wipe it.
 | Space | Pause / resume |
 | A | Toggle Auto (explore and fight without waiting for you) |
 | 1 2 3 | Speed 1×, 2×, 4× |
-| G S F C | Gear, Skills, Forge, Codex |
+| G S F U C | Gear, Skills, Forge, Cube, Codex |
 | T | Travel |
 
 Mouse: click a glowing tile to fight there. Click a bag item to equip it, right-click to salvage it (Shift for
-Legendaries), Alt-click to lock it. In Skills, click to learn, right-click to refund, Shift-click to move a skill on
-or off the bar.
+Legendaries), Alt-click to lock it. Drag items to rearrange the bag, onto the paper doll to equip, or off it to
+unequip. In Skills, click a skill to use it and click again to drop it.
 
 ## What is in it
 
@@ -31,12 +31,21 @@ or off the bar.
   Clear a tile to reveal its neighbours. Beat the boss to open the next area.
 - **Fifteen areas in five acts**, each act with its own monsters and a scripted boss, then four Torment tiers that
   replay the descent at higher levels with better drops.
-- **Loot.** Ten gear slots, five rarities, 27 affixes, 31 legendary aspects and 12 uniques. Item level follows
-  monster level. Tooltips compare against what you are wearing.
+- **Gear is the only progression.** There are no character levels or experience. Life comes from armour, damage
+  from the weapon, and skill ranks from "+ to skills" affixes.
+- **Loot.** Ten gear slots, five rarities, 26 affixes, 30 legendary aspects and 12 uniques. Item level follows
+  monster level, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
+  you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
 - **The forge.** Upgrade (+5% per step, a masterwork every fourth), enchant (reroll one affix), imprint (stamp an
   aspect from the Codex onto a Rare), commission (pay gold for a random piece in a slot you choose), salvage.
-- **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Five skills on
-  the bar; the smith picks the best Core skill for each moment. Free respec. Paragon points past level 50.
+- **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
+  affix (up to five, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
+  reroll them all, Tempering Orbs reroll the numbers. Orbs drop from elites, bosses, chests and full clears.
+- **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
+  available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
+  moment.
+- **Damage meter.** The arena shows measured DPS for the current fight, the average over the last ten, and which
+  skills, burns and procs it came from.
 - **Auto.** Explores, fights, moves to the next area, and falls back to gather strength if it keeps dying.
 
 ## Code
@@ -61,7 +70,7 @@ The first five files have no DOM in them, so they run under Node for tests.
 ## Tests and tuning
 
 ```
-node tests/logic.test.cjs     # rule checks: items, forge, skills, battles, saves
+node tests/logic.test.cjs     # rule checks: items, forge, cube, skills, battles, saves
 node tests/balance.cjs hammer 5400 1    # one bot run: build, seconds of game time, seed
 node tests/sweep.cjs 6000 3             # pacing across builds and seeds
 node tests/sweep.cjs 6000 3 casual      # a player who never uses the forge
@@ -72,7 +81,7 @@ node tests/deaths.cjs                   # what kills the bot, and where
 `tests/sheet.html?set=mobs` (also `gear`, `glyph`) shows the sprite sheets.
 
 The knobs that matter most for pacing are at the top of `js/data.js` (`FLAT_G`, `MOB_HP_G`, `MOB_DMG_G`,
-`TIER_HP`, `TIER_DMG`) and the `mobHp`, `mobDmg` and `xpNeed` curves in `js/hero.js`.
+`TIER_HP`, `TIER_DMG`) and the `mobHp` and `mobDmg` curves in `js/hero.js`. Drop rates are in `dropsFor` in `js/game.js`.
 
 ## Art and sound
 

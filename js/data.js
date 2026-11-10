@@ -35,11 +35,12 @@ const U = SW.util = {
 /* ------------------------------------------------------------ scaling */
 const D = SW.data = {};
 D.FLAT_G = 1.085;      // growth of flat gear stats per item level
-D.MOB_HP_G = 1.093;    // monster life per level
-D.MOB_DMG_G = 1.085;   // monster damage per level
+D.MOB_HP_G = 1.084;    // monster life per level
+D.MOB_DMG_G = 1.075;   // monster damage per level
+D.MOB_HP_G2 = 1.096;   // ...and past level 50
+D.MOB_DMG_G2 = 1.091;
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
 D.pct = l => 1 + l / 70;
-D.MAX_LEVEL = 50;
 D.BAG_SIZE = 24;        // three rows of eight
 D.HEAT_MAX = 100;
 
@@ -75,6 +76,7 @@ D.BASES_BY_SLOT = {};
 for (const k in D.BASES) { D.BASES[k].id = k; (D.BASES_BY_SLOT[D.BASES[k].slot] = D.BASES_BY_SLOT[D.BASES[k].slot] || []).push(k); }
 D.WEAPON_DMG = 8;     // weapon damage at item level 1 (× base.dmg)
 D.ARMOR_BASE = 10;    // armour at item level 1 (× base.armor)
+D.ARMOR_LIFE = 12;    // life on armour pieces at item level 1 (× base.armor)
 D.ARMOR_K = 50;       // armour needed for 50% reduction vs a level-1 attacker
 
 /* material tiers — name prefix for commons and the palette used for the icon */
@@ -118,16 +120,15 @@ D.AFFIX = {
   heat:    { t: '+{v}% Heat Generation',        lo: 5,  hi: 10,  sc: 'none', w: 5,  slots: ['helm', 'amulet', 'offhand', 'ring', 'boots'] },
   gold:    { t: '+{v}% Gold Find',              lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['boots', 'helm', 'ring', 'amulet'] },
   mf:      { t: '+{v}% Magic Find',             lo: 4,  hi: 8,   sc: 'none', w: 3,  slots: ['boots', 'helm', 'ring', 'amulet'] },
-  xp:      { t: '+{v}% Experience',             lo: 3,  hi: 6,   sc: 'none', w: 3,  dp: 1, slots: ['helm', 'ring', 'amulet'] },
-  skHammer:{ t: '+{v} to Hammer Skills',        lo: 1,  hi: 2.49, sc: 'none', w: 2, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
-  skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 2, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
-  skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 2, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
+  skHammer:{ t: '+{v} to Hammer Skills',        lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
+  skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
+  skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'chest', 'gloves', 'amulet'] },
 };
 for (const k in D.AFFIX) D.AFFIX[k].id = k;
 /* labels for the stat sheet */
 D.STAT_LABEL = { dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
   aspd: 'Attack speed', vuln: 'Vulnerable', elite: 'vs Elites', life: 'Life', armor: 'Armor', dodge: 'Dodge', dr: 'Dmg reduction', loh: 'Life on hit',
-  regen: 'Life / sec', thorns: 'Thorns', cdr: 'Cooldown red.', heat: 'Heat gen', gold: 'Gold find', mf: 'Magic find', xp: 'Experience' };
+  regen: 'Life / sec', thorns: 'Thorns', cdr: 'Cooldown red.', heat: 'Heat gen', gold: 'Gold find', mf: 'Magic find' };
 
 /* ------------------------------------------------------------- aspects
    cat decides which slots can hold it. mod = key read by the combat engine (or a plain stat). */
@@ -166,7 +167,6 @@ D.ASPECTS = [
   A('prospect', "Prospector's",        'util', 'gold',        20, 40, 'Enemies drop {v}% more gold.'),
   A('swift',    'Wind Striker',        'util', 'killHaste',   10, 20, 'Killing an enemy grants +{v}% Attack Speed for 3 seconds.'),
   A('kindle',   'of Kindling',         'util', 'basicHeat',   3, 6,   'Basic skills generate {v} more Heat.'),
-  A('scholar',  "Scholar's",           'util', 'xp',          8, 15,  'Gain {v}% more experience.'),
   A('recharge', 'Recharging',          'util', 'killCdr',     0.3, 0.7, 'Each kill takes {v} seconds off your cooldowns.'),
   A('fortune',  'of Fortune',          'util', 'mf',          10, 20, 'Gain +{v}% Magic Find.'),
   A('draught',  'of the Deep Draught', 'util', 'potionPlus',  20, 40, 'Your flask heals {v}% more and refills 20% faster.'),
@@ -214,10 +214,11 @@ D.UNIQUES = [
 ];
 D.UNIQUE = {}; D.UNIQUES.forEach(u => D.UNIQUE[u.id] = u);
 /* text for the mods a unique or aspect grants that are plain stats */
-D.PLAIN_STATS = { gold: 1, mf: 1, xp: 1, skAll: 1 };
+D.PLAIN_STATS = { gold: 1, mf: 1, skAll: 1 };
 
 /* -------------------------------------------------------------- skills
-   type: basic | core | def | buff | ult | passive.  mult = % weapon damage at rank 1; each rank adds `rank` (fraction) of it. */
+   Every skill is available from the start. Picking one gives rank 1; higher ranks come only from gear.
+   type: basic | core | def | buff | ult | passive.  mult = % weapon damage at rank 1. */
 D.DISC = {
   hammer: { name: 'Hammer', el: 'phys',  color: '#c9ccd6', blurb: 'Heavy physical blows. Stuns, Vulnerable and brutal crits.' },
   ember:  { name: 'Ember',  el: 'fire',  color: '#ff8a2a', blurb: 'Fire that lingers. Burns stack up and spread.' },
@@ -227,73 +228,75 @@ D.EL_NAME = { phys: 'Physical', fire: 'Fire', light: 'Lightning' };
 D.EL_COLOR = { phys: '#f1ede4', fire: '#ff9a3c', light: '#8fdcff', poison: '#9be36a', shadow: '#c79bff' };
 D.SKILLS = [
   /* Hammer */
-  { id: 'strike', disc: 'hammer', type: 'basic', lvl: 1, name: 'Strike', mult: 100, gen: 11, tgt: 'single',
+  { id: 'strike', disc: 'hammer', type: 'basic', name: 'Strike', mult: 100, gen: 11, tgt: 'single',
     desc: s => `Hit an enemy for ${s.mult}% damage. Every third Strike makes the target Vulnerable for 3 seconds. Generates ${s.gen} Heat.` },
-  { id: 'sunder', disc: 'hammer', type: 'core', lvl: 2, name: 'Sunder', mult: 230, cost: 30, tgt: 'cleave',
+  { id: 'sunder', disc: 'hammer', type: 'core', name: 'Sunder', mult: 230, cost: 30, tgt: 'cleave',
     desc: s => `Smash an enemy for ${s.mult}% damage. The shockwave hits the others for half and makes them Bleed.` },
-  { id: 'quake', disc: 'hammer', type: 'core', lvl: 6, name: 'Earthshaker', mult: 125, cost: 35, tgt: 'all',
+  { id: 'quake', disc: 'hammer', type: 'core', name: 'Earthshaker', mult: 125, cost: 35, tgt: 'all',
     desc: s => `Slam the ground: ${s.mult}% damage to all enemies and Stun them for 1 second.` },
-  { id: 'ironskin', disc: 'hammer', type: 'def', lvl: 10, name: 'Iron Skin', cd: 16, val: 30, valRank: 4,
+  { id: 'ironskin', disc: 'hammer', type: 'def', name: 'Iron Skin', cd: 16, val: 30, valRank: 4,
     desc: s => `When you drop below 60% Life, gain a Barrier for ${s.val}% of your Life for 6 seconds.` },
-  { id: 'meteor', disc: 'hammer', type: 'ult', lvl: 18, name: 'Meteor Hammer', mult: 800, cd: 45, tgt: 'all',
+  { id: 'meteor', disc: 'hammer', type: 'ult', name: 'Meteor Hammer', mult: 800, cd: 45, tgt: 'all',
     desc: s => `Bring the hammer down: ${s.mult}% damage to your target, 40% of that to the rest, and Stun everything for 2 seconds.` },
-  { id: 'heavy', disc: 'hammer', type: 'passive', lvl: 4, name: 'Heavy Hands', max: 3, val: 15,
+  { id: 'heavy', disc: 'hammer', type: 'passive', name: 'Heavy Hands', max: 3, val: 15,
     desc: s => `+${s.val}% Critical Strike Damage.` },
-  { id: 'tempered', disc: 'hammer', type: 'passive', lvl: 8, name: 'Tempered Body', max: 3, val: 6,
+  { id: 'tempered', disc: 'hammer', type: 'passive', name: 'Tempered Body', max: 3, val: 6,
     desc: s => `+${s.val}% Maximum Life and Armor.` },
-  { id: 'crush', disc: 'hammer', type: 'passive', lvl: 14, name: 'Crushing Blows', max: 3, val: 10,
+  { id: 'crush', disc: 'hammer', type: 'passive', name: 'Crushing Blows', max: 3, val: 10,
     desc: s => `Deal +${s.val}% damage to Vulnerable and Stunned enemies.` },
 
   /* Ember */
-  { id: 'cinder', disc: 'ember', type: 'basic', lvl: 1, name: 'Cinder Slash', mult: 80, gen: 10, tgt: 'single', burn: 60,
+  { id: 'cinder', disc: 'ember', type: 'basic', name: 'Cinder Slash', mult: 80, gen: 10, tgt: 'single', burn: 60,
     desc: s => `Slash for ${s.mult}% damage and Burn the target for ${s.burn}% more over 3 seconds. Generates ${s.gen} Heat.` },
-  { id: 'wave', disc: 'ember', type: 'core', lvl: 2, name: 'Flame Wave', mult: 110, cost: 30, tgt: 'all', burn: 70,
+  { id: 'wave', disc: 'ember', type: 'core', name: 'Flame Wave', mult: 110, cost: 30, tgt: 'all', burn: 70,
     desc: s => `A wave of fire: ${s.mult}% damage to all enemies and Burn them for ${s.burn}% over 3 seconds.` },
-  { id: 'brand', disc: 'ember', type: 'core', lvl: 6, name: 'Searing Brand', mult: 170, cost: 30, tgt: 'single', burn: 260,
+  { id: 'brand', disc: 'ember', type: 'core', name: 'Searing Brand', mult: 170, cost: 30, tgt: 'single', burn: 260,
     desc: s => `Brand an enemy for ${s.mult}% damage and a heavy Burn of ${s.burn}% over 4 seconds.` },
-  { id: 'forgeheart', disc: 'ember', type: 'buff', lvl: 10, name: 'Forge Heart', cd: 20, val: 25, valRank: 5, dur: 7,
+  { id: 'forgeheart', disc: 'ember', type: 'buff', name: 'Forge Heart', cd: 20, val: 25, valRank: 5, dur: 7,
     desc: s => `Stoke yourself: +${s.val}% damage and double Heat generation for 7 seconds.` },
-  { id: 'eruption', disc: 'ember', type: 'ult', lvl: 18, name: 'Eruption', mult: 130, cd: 45, tgt: 'all', burn: 60,
+  { id: 'eruption', disc: 'ember', type: 'ult', name: 'Eruption', mult: 130, cd: 45, tgt: 'all', burn: 60,
     desc: s => `The ground erupts five times, each for ${s.mult}% damage to all enemies, and each leaves a Burn.` },
-  { id: 'kindling', disc: 'ember', type: 'passive', lvl: 4, name: 'Kindling', max: 3, val: 12,
+  { id: 'kindling', disc: 'ember', type: 'passive', name: 'Kindling', max: 3, val: 12,
     desc: s => `Your Burn deals +${s.val}% damage.` },
-  { id: 'backdraft', disc: 'ember', type: 'passive', lvl: 8, name: 'Backdraft', max: 3, val: 6,
+  { id: 'backdraft', disc: 'ember', type: 'passive', name: 'Backdraft', max: 3, val: 6,
     desc: s => `Burning enemies deal ${s.val}% less damage.` },
-  { id: 'combust', disc: 'ember', type: 'passive', lvl: 14, name: 'Combustion', max: 3, val: 8,
+  { id: 'combust', disc: 'ember', type: 'passive', name: 'Combustion', max: 3, val: 8,
     desc: s => `+${s.val}% Critical Strike Chance against Burning enemies.` },
 
   /* Storm */
-  { id: 'jab', disc: 'storm', type: 'basic', lvl: 1, name: 'Spark Jab', mult: 54, gen: 6, tgt: 'single', hits: 2,
+  { id: 'jab', disc: 'storm', type: 'basic', name: 'Spark Jab', mult: 54, gen: 6, tgt: 'single', hits: 2,
     desc: s => `Two quick jabs for ${s.mult}% damage each, with +10% Critical Strike Chance. Each generates ${s.gen} Heat.` },
-  { id: 'chain', disc: 'storm', type: 'core', lvl: 2, name: 'Chain Lightning', mult: 135, cost: 30, tgt: 'chain',
+  { id: 'chain', disc: 'storm', type: 'core', name: 'Chain Lightning', mult: 135, cost: 30, tgt: 'chain',
     desc: s => `Lightning strikes for ${s.mult}% damage and arcs 4 times, losing 15% each arc. With few enemies it arcs back.` },
-  { id: 'lance', disc: 'storm', type: 'core', lvl: 6, name: 'Thunder Lance', mult: 290, cost: 35, tgt: 'single',
+  { id: 'lance', disc: 'storm', type: 'core', name: 'Thunder Lance', mult: 290, cost: 35, tgt: 'single',
     desc: s => `Impale an enemy for ${s.mult}% damage. Always a critical strike against Vulnerable or Stunned enemies.` },
-  { id: 'overcharge', disc: 'storm', type: 'buff', lvl: 10, name: 'Overcharge', cd: 18, val: 30, valRank: 5, dur: 6,
+  { id: 'overcharge', disc: 'storm', type: 'buff', name: 'Overcharge', cd: 18, val: 30, valRank: 5, dur: 6,
     desc: s => `+${s.val}% Attack Speed for 6 seconds.` },
-  { id: 'tempest', disc: 'storm', type: 'ult', lvl: 18, name: 'Tempest', mult: 110, cd: 45, tgt: 'random',
+  { id: 'tempest', disc: 'storm', type: 'ult', name: 'Tempest', mult: 110, cd: 45, tgt: 'random',
     desc: s => `Call the storm: 12 bolts strike random enemies for ${s.mult}% damage each.` },
-  { id: 'conduct', disc: 'storm', type: 'passive', lvl: 4, name: 'Conductivity', max: 3, val: 3,
+  { id: 'conduct', disc: 'storm', type: 'passive', name: 'Conductivity', max: 3, val: 3,
     desc: s => `+${s.val}% Critical Strike Chance.` },
-  { id: 'aftershock', disc: 'storm', type: 'passive', lvl: 8, name: 'Aftershock', max: 3, val: 12,
+  { id: 'aftershock', disc: 'storm', type: 'passive', name: 'Aftershock', max: 3, val: 12,
     desc: s => `Critical strikes arc to another enemy for ${s.val}% of the damage.` },
-  { id: 'quicken', disc: 'storm', type: 'passive', lvl: 14, name: 'Quickening', max: 3, val: 0.15, dp: 2,
+  { id: 'quicken', disc: 'storm', type: 'passive', name: 'Quickening', max: 3, val: 0.15, dp: 2,
     desc: s => `Critical strikes take ${s.val} seconds off your cooldowns.` },
 ];
 D.SKILL = {};
 D.SKILLS.forEach(s => { D.SKILL[s.id] = s; s.el = D.DISC[s.disc].el; if (!s.max) s.max = 5; });
 D.SKILL_RANK = 0.12;         // each rank past the first adds 12% of the base
 D.BAR_SIZE = 5;
+D.PASSIVE_SLOTS = 3;
 D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ult: 'Ultimate', passive: 'Passive' };
 
-/* paragon — endless points after level 50 */
-D.PARAGON = [
-  { id: 'might',     name: 'Might',     stat: 'dmgPct',  per: 3,   desc: '+3% Damage' },
-  { id: 'vitality',  name: 'Vitality',  stat: 'lifePct', per: 2.5, desc: '+2.5% Life' },
-  { id: 'bulwark',   name: 'Bulwark',   stat: 'armorPct', per: 3,  desc: '+3% Armor' },
-  { id: 'precision', name: 'Precision', stat: 'critDmg', per: 4,   desc: '+4% Crit Damage' },
-  { id: 'fortune',   name: 'Fortune',   stat: 'mf',      per: 2,   desc: '+2% Magic Find' },
-];
+/* cube orbs: each one changes an item's affixes at random when transmuted with it */
+D.ORBS = {
+  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Adds an affix', desc: 'Adds one random affix. A Common piece becomes Magic, and a third affix makes it Rare. Five affixes at most.' },
+  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Removes an affix', desc: 'Removes one affix, chosen at random.' },
+  chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Rerolls all affixes', desc: 'Melts every affix and rolls the same number of new ones.' },
+  divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Rerolls the numbers', desc: 'Rerolls the numbers on every affix. The affixes themselves stay.' },
+};
+D.ORB_IDS = Object.keys(D.ORBS);
+D.MAX_AFFIXES = 5;
 
 /* ------------------------------------------------------------ monsters
    hp/dmg are multipliers on the level curve; int = seconds between attacks. */
@@ -322,7 +325,7 @@ D.MOBS = [
   M('harpy',    'Gale Harpy',      'bat',    'harpy',  0.75, 0.95, 1.05, { dodge: 20 }),
   M('cultist',  'Storm Cultist',   'caster', 'storm',  0.85, 1.15, 2.00, { ranged: 1, el: 'light', slow: 1 }),
   M('gargoyle', 'Gargoyle',        'golem',  'stone',  1.90, 1.80, 2.80, { windup: 1.0, armor: 30 }),
-  M('wisp',     'Spark Wisp',      'wisp',   'spark',  0.50, 0.70, 1.40, { explode: 2.2, el: 'light', swarm: 1 }),
+  M('wisp',     'Spark Wisp',      'wisp',   'spark',  0.50, 0.70, 1.40, { explode: 1.6, el: 'light', swarm: 1 }),
   M('wyrmling', 'Wyrmling',        'wyrm',   'wyrm',   1.20, 0.90, 1.60, { poison: 0.5, el: 'poison' }),
   // Act V — Hellforge
   M('imp',      'Forge Imp',       'imp',    'hell',   0.60, 0.80, 1.15, { swarm: 1, el: 'fire' }),
@@ -337,15 +340,15 @@ D.MOB = {}; D.MOBS.forEach(m => D.MOB[m.id] = m);
 
 /* bosses: abilities are scripted in the combat engine */
 D.BOSSES = {
-  grukk:   { id: 'grukk', name: 'Grukk', title: 'the Slag Ogre', spr: 'ogre', pal: 'ogre', hp: 20, dmg: 1.75, int: 2.0, el: 'phys',
+  grukk:   { id: 'grukk', name: 'Grukk', title: 'the Slag Ogre', spr: 'ogre', pal: 'ogre', hp: 20, dmg: 1.6, int: 2.0, el: 'phys',
              abil: [{ t: 'slam', cd: 9, mult: 2.4, wind: 1.6, name: 'Club Slam' }, { t: 'enrage', after: 45 }] },
-  foreman: { id: 'foreman', name: 'The Foreman', title: 'Warden of the Deep Works', spr: 'bgolem', pal: 'slag', hp: 25, dmg: 1.65, int: 2.2, el: 'phys', armor: 20,
+  foreman: { id: 'foreman', name: 'The Foreman', title: 'Warden of the Deep Works', spr: 'bgolem', pal: 'slag', hp: 25, dmg: 1.5, int: 2.2, el: 'phys', armor: 20,
              abil: [{ t: 'slam', cd: 10, mult: 2.5, wind: 1.6, name: 'Piledriver' }, { t: 'summon', at: [0.7, 0.4], mob: 'kobold', n: 3 }, { t: 'enrage', after: 50 }] },
-  morvane: { id: 'morvane', name: 'Morvane', title: 'the Drowned Lich', spr: 'lich', pal: 'lich', hp: 24, dmg: 1.6, int: 1.9, el: 'shadow',
+  morvane: { id: 'morvane', name: 'Morvane', title: 'the Drowned Lich', spr: 'lich', pal: 'lich', hp: 24, dmg: 1.45, int: 1.9, el: 'shadow',
              abil: [{ t: 'summon', at: [0.8, 0.55, 0.3], mob: 'skeleton', n: 2 }, { t: 'nova', cd: 11, mult: 1.6, wind: 1.4, name: 'Grave Tide', slow: 4 }, { t: 'enrage', after: 55 }] },
-  wyrm:    { id: 'wyrm', name: 'Azzurath', title: 'the Tempest Wyrm', spr: 'dragon', pal: 'storm', hp: 28, dmg: 1.6, int: 1.7, el: 'light',
-             abil: [{ t: 'slam', cd: 9, mult: 2.6, wind: 1.5, name: 'Lightning Breath' }, { t: 'summon', at: [0.6, 0.3], mob: 'wisp', n: 3 }, { t: 'enrage', after: 55 }] },
-  vulkar:  { id: 'vulkar', name: 'Vulkar', title: 'the Forge Tyrant', spr: 'demon', pal: 'hell', hp: 30, dmg: 1.7, int: 1.8, el: 'fire',
+  wyrm:    { id: 'wyrm', name: 'Azzurath', title: 'the Tempest Wyrm', spr: 'dragon', pal: 'storm', hp: 28, dmg: 1.4, int: 1.7, el: 'light',
+             abil: [{ t: 'slam', cd: 9, mult: 2.3, wind: 1.5, name: 'Lightning Breath' }, { t: 'summon', at: [0.6, 0.3], mob: 'wisp', n: 3 }, { t: 'enrage', after: 55 }] },
+  vulkar:  { id: 'vulkar', name: 'Vulkar', title: 'the Forge Tyrant', spr: 'demon', pal: 'hell', hp: 30, dmg: 1.5, int: 1.8, el: 'fire',
              abil: [{ t: 'slam', cd: 10, mult: 2.7, wind: 1.5, name: 'Worldforge Slam' }, { t: 'aura', dps: 0.13 }, { t: 'summon', at: [0.75, 0.5, 0.25], mob: 'imp', n: 3 }, { t: 'enrage', after: 60 }] },
 };
 

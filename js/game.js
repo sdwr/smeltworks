@@ -2,8 +2,8 @@
 (function () {
 'use strict';
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero;
-const SAVE_KEY = 'smeltworks.autobattler.v1';
-const G = SW.game = { S: null, C: null, battle: null, phase: 'idle', phaseT: 0, path: [], target: null, persist: {}, deathStreak: 0, listeners: [], log: [] };
+const SAVE_KEY = 'smeltworks.autobattler.v2';
+const G = SW.game = { S: null, C: null, battle: null, phase: 'idle', phaseT: 0, path: [], target: null, persist: {}, deathStreak: 0, listeners: [], log: [], meter: [] };
 
 G.on = fn => G.listeners.push(fn);
 G.emit = (type, data) => { for (const fn of G.listeners) fn(type, data || {}); };
@@ -11,9 +11,9 @@ G.emit = (type, data) => { for (const fn of G.listeners) fn(type, data || {}); }
 /* ------------------------------------------------------------------ state */
 G.fresh = function () {
   const S = {
-    v: 1,
-    hero: { level: 1, xp: 0, ranks: { strike: 1 }, bar: ['strike', null, null, null, null], paragon: {}, plevel: 0, pxp: 0, bonusPts: 1 },
-    gear: {}, bag: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, codex: {},
+    v: 2,
+    hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null] },
+    gear: {}, bag: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 }, codex: {},
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
     opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false, false], sound: true, vol: 0.6 },
     stats: { kills: 0, deaths: 0, leg: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
@@ -28,12 +28,13 @@ G.fresh = function () {
 G.init = function (saved) {
   G.S = saved || G.fresh();
   const S = G.S;
-  S.bag = S.bag.filter(Boolean);                 // older saves had a bigger bag: keep everything, packed to the front
+  S.bag = S.bag.filter(Boolean); while (S.bag.length < D.BAG_SIZE) S.bag.push(null);   // fixed slots, so items can be arranged
+  S.orbs = Object.assign({ add: 0, remove: 0, chaos: 0, divine: 0 }, S.orbs || {});
   let mx = 1;
   for (const s of D.SLOTS) if (S.gear[s]) mx = Math.max(mx, S.gear[s].id);
   for (const it of S.bag) if (it) mx = Math.max(mx, it.id);
   I.setUid(mx + 1);
-  G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = {}; G.deathStreak = 0;
+  G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = {}; G.deathStreak = 0; G.meter = [];
   G.recompute();
   if (!S.world.map) G.startExpedition(S.world.area, S.world.tier, true);
 };
@@ -43,12 +44,12 @@ G.save = function () {
 };
 G.load = function () {
   if (typeof localStorage === 'undefined') return null;
-  try { const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null; const S = JSON.parse(raw); return S && S.v === 1 && S.hero && S.world ? S : null; } catch (e) { return null; }
+  try { const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null; const S = JSON.parse(raw); return S && S.v === 2 && S.hero && S.world ? S : null; } catch (e) { return null; }
 };
 G.wipe = function () { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} };
 G.exportSave = () => btoa(unescape(encodeURIComponent(JSON.stringify(G.S))));
 G.importSave = function (str) {
-  try { const S = JSON.parse(decodeURIComponent(escape(atob(str.trim())))); if (S && S.v === 1 && S.hero && S.world) { G.init(S); G.save(); return true; } } catch (e) {}
+  try { const S = JSON.parse(decodeURIComponent(escape(atob(str.trim())))); if (S && S.v === 2 && S.hero && S.world) { G.init(S); G.save(); return true; } } catch (e) {}
   return false;
 };
 G.recompute = function () {
@@ -148,7 +149,7 @@ G.makeSpec = function (c) {
   } else if (c.type === 'boss') {
     const m = U.pick(pool.filter(m => !m.swarm && !m.heal && !m.summon));
     spec.waves.push(pack(1.2 + tier * 0.5));
-    spec.waves.push([{ id: m.id, lvl, champ: true, elite: affixes(lvl >= 20 ? 2 : 1), name: W.map.name }, ...pack(1.1)]);
+    spec.waves.push([{ id: m.id, lvl, champ: true, elite: affixes(lvl >= 30 || tier > 0 ? 2 : 1), name: W.map.name }, ...pack(1.1)]);
     spec.champ = W.map.name;
   } else if (c.type === 'elite') {
     const m = U.pick(pool.filter(m => !m.swarm));
@@ -195,10 +196,23 @@ G.addItem = function (it) {
   S.bag[i] = it;
   return 'bag';
 };
+/* Drops lean towards the slots where the smith's gear has fallen furthest behind, so fewer drops still keep pace. */
+G.rollLoot = function (ilvl, o) {
+  const gear = G.S.gear;
+  const lag = s => {
+    const worn = s === 'ring' ? [gear.ring1, gear.ring2] : [gear[s]];
+    let worst = 0; for (const it of worn) worst = Math.max(worst, it ? U.clamp((ilvl - it.ilvl) / 5, 0, 3) : 4);
+    return worst;
+  };
+  o.slot = U.wpick(D.ITEM_SLOTS, s => D.SLOT_WEIGHT[s] * (1 + lag(s)));
+  return I.roll(ilvl, o);
+};
+G.rollOrb = () => U.wpick(D.ORB_IDS, k => D.ORBS[k].w);
+G.gainOrbs = function (list) { for (const k of list) G.S.orbs[k]++; if (list.length) G.emit('orbs', { list }); };
 G.dropsFor = function (m) {
   const S = G.S, st = G.C.st, tier = S.world.tier, greed = G.battle && G.battle.shrine === 'greed';
   const mf = st.mf + (greed ? 60 : 0);
-  const out = { gold: 0, items: [], xp: 0 };
+  const out = { gold: 0, items: [], orbs: [] };
   const weight = m.boss ? 45 : m.champ ? 16 : m.elite ? 6 : m.def.flee ? 30 : m.minion ? 0.3 : m.def.hp;
   out.gold = Math.max(1, Math.round(D.mobGold(m.lvl) * weight * U.rand(0.7, 1.3) * (1 + st.gold / 100) * (greed ? 3 : 1)));
   let n = 0, boost = 1, minRar = 0;
@@ -207,17 +221,19 @@ G.dropsFor = function (m) {
   else if (m.elite) { n = 1 + (U.chance(0.2) ? 1 : 0); boost = 3; minRar = 1; }
   else if (m.def.flee) { n = 2; boost = 4; minRar = 1; }
   else if (U.chance((m.minion ? 0.012 : 0.05 + (m.def.hp > 1.4 ? 0.03 : 0)) * (1 + mf / 300))) n = 1;
-  for (let i = 0; i < n; i++) out.items.push(I.roll(Math.max(1, m.lvl + U.irand(-1, 1)), { mf, tier, boost, minRar }));
+  for (let i = 0; i < n; i++) out.items.push(G.rollLoot(Math.max(1, m.lvl + U.irand(-1, 1)), { mf, tier, boost, minRar }));
   if (m.boss) {
     const key = m.id + tier;
     if (!S.stats.bosses[key]) {
       S.stats.bosses[key] = 1; out.first = true;
       out.items.push(I.roll(m.lvl + 1, { rar: 3, tier }));
-      if (tier === 0) { S.hero.bonusPts++; out.point = true; }
     } else S.stats.bosses[key]++;
     out.mats = { soul: 1 + tier, dust: 3 };
   } else if (m.champ) out.mats = { dust: 2 };
   else if (m.elite && U.chance(0.4)) out.mats = { dust: 1 };
+  // cube orbs come from anything worth the name
+  const orbs = m.boss ? 2 + (tier > 0 ? 1 : 0) : m.def.flee ? 1 : m.champ ? (U.chance(0.5) ? 1 : 0) : m.elite ? (U.chance(0.15) ? 1 : 0) : m.minion ? 0 : (U.chance(0.005) ? 1 : 0);
+  for (let i = 0; i < orbs; i++) out.orbs.push(G.rollOrb());
   return out;
 };
 G.onKill = function (m) {
@@ -226,38 +242,18 @@ G.onKill = function (m) {
   S.gold += d.gold;
   if (d.mats) G.gainMats(d.mats);
   d.fate = d.items.map(it => G.addItem(it));
-  d.xp = G.addXp(m.xp, m.lvl);
-  if (d.point) G.emit('point');
+  G.gainOrbs(d.orbs);
   return d;
-};
-G.addXp = function (x, mobLvl) {
-  const S = G.S, h = S.hero;
-  const diff = h.level - mobLvl;
-  let mult = 1 + G.C.st.xp / 100;
-  if (h.level < D.MAX_LEVEL && diff > 3) mult *= Math.max(0.15, 1 - 0.12 * (diff - 3));
-  x = Math.max(1, Math.round(x * mult));
-  if (h.level < D.MAX_LEVEL) {
-    h.xp += x;
-    let up = false;
-    while (h.level < D.MAX_LEVEL && h.xp >= Hr.xpNeed(h.level)) { h.xp -= Hr.xpNeed(h.level); h.level++; up = true; }
-    if (h.level >= D.MAX_LEVEL) { h.pxp += h.xp; h.xp = 0; }
-    if (up) { G.recompute(); if (G.battle && !G.battle.over) G.battle.h.hp = G.battle.h.max; G.emit('levelup', { level: h.level }); }
-  } else {
-    h.pxp += x;
-    let up = false;
-    while (h.pxp >= Hr.paragonNeed(h.plevel)) { h.pxp -= Hr.paragonNeed(h.plevel); h.plevel++; up = true; }
-    if (up) G.emit('levelup', { level: h.level, paragon: h.plevel });
-  }
-  return x;
 };
 G.openChest = function (c) {
   const S = G.S, st = G.C.st, items = [];
   const n = U.irand(1, 2);
-  for (let i = 0; i < n; i++) items.push(I.roll(c.lvl, { mf: st.mf, tier: S.world.tier, boost: 2, minRar: 1 }));
+  for (let i = 0; i < n; i++) items.push(G.rollLoot(c.lvl, { mf: st.mf, tier: S.world.tier, boost: 2, minRar: 1 }));
   const gold = Math.round(D.mobGold(c.lvl) * 14 * U.rand(0.8, 1.3) * (1 + st.gold / 100));
   S.gold += gold;
   const fate = items.map(it => G.addItem(it));
   G.emit('chest', { c, items, gold, fate });
+  if (U.chance(0.15)) G.gainOrbs([G.rollOrb()]);
 };
 
 /* -------------------------------------------------------------- game loop */
@@ -326,7 +322,7 @@ G.update = function (dt) {
   if (G.phase === 'dead') {
     G.phaseT -= dt;
     if (G.phaseT <= 0) {
-      const bs = G.battle.summary(); G.persist = G.battle.persist(); G.battle = null; G.phase = 'idle'; G.phaseT = 0.3; G.emit('battleEnd', { win: false, bs });
+      const bs = G.battle.summary(); G.record(bs); G.persist = G.battle.persist(); G.battle = null; G.phase = 'idle'; G.phaseT = 0.3; G.emit('battleEnd', { win: false, bs });
       if (S.opts.auto && G.deathStreak >= 3) {
         // three falls in a row: stop banging on the same door. If only the boss is too much, run this area again
         // for its loot; if the ordinary packs are too much, step back an area.
@@ -369,16 +365,19 @@ G.completeCell = function (c) {
   }
   if (!map.allDone && map.cells.every(x => x.type === 'wall' || x.state === 'done')) {
     map.allDone = true;
-    const items = [I.roll(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 5, minRar: 2 })];
+    const items = [G.rollLoot(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 5, minRar: 2 })];
     const gold = Math.round(D.mobGold(c.lvl) * 40 * (1 + G.C.st.gold / 100)); S.gold += gold;
     const fate = items.map(it => G.addItem(it));
     G.emit('fullClear', { items, gold, fate });
+    G.gainOrbs([G.rollOrb()]);
   }
   G.emit('map');
 };
+/* the damage meter averages over the last ten battles */
+G.record = function (bs) { if (bs.ft > 0.2) { G.meter.push({ dmg: bs.dmg, ft: bs.ft, by: bs.by }); if (G.meter.length > 10) G.meter.shift(); } };
 G.winCell = function () {
   const S = G.S, W = S.world, c = G.target;
-  const bs = G.battle.summary();
+  const bs = G.battle.summary(); G.record(bs);
   G.persist = G.battle.persist(); G.battle = null; G.deathStreak = 0;
   if (W.shrineN > 0) { W.shrineN--; if (!W.shrineN) W.shrine = null; }
   G.phase = 'idle'; G.phaseT = 0.25;
@@ -423,6 +422,22 @@ G.unequip = function (slot) {
   G.recompute(); G.refreshUpgrades(); G.emit('equip', { it }); G.save();
   return true;
 };
+/* drag and drop: move a bag item to another slot (swapping), or drop worn gear into a bag slot */
+G.moveItem = function (id, toIdx) {
+  const S = G.S, f = G.findItem(id);
+  if (!f || toIdx < 0 || toIdx >= Math.max(D.BAG_SIZE, S.bag.length)) return false;
+  if (f.where === 'bag') {
+    if (f.idx === toIdx) return false;
+    const other = S.bag[toIdx] || null; S.bag[toIdx] = f.it; S.bag[f.idx] = other;
+    G.emit('bag'); G.save(); return true;
+  }
+  const there = S.bag[toIdx];
+  if (there && there.slot !== f.it.slot) return false;       // can only swap with a piece for the same slot
+  S.bag[toIdx] = f.it; S.gear[f.slot] = there || null;
+  if (there) { there.isNew = 0; there.upg = 0; }
+  G.recompute(); G.refreshUpgrades(); G.emit('equip', { it: f.it }); G.save();
+  return true;
+};
 G.refreshUpgrades = function () { for (const b of G.S.bag) if (b) b.upg = G.isUpgrade(b) ? 1 : 0; };
 G.salvage = function (id) {
   const f = G.findItem(id);
@@ -440,6 +455,7 @@ G.toggleLock = function (id) { const f = G.findItem(id); if (f) { f.it.lock = f.
 G.sortBag = function () {
   const S = G.S, order = D.ITEM_SLOTS;
   const items = S.bag.filter(Boolean).sort((a, b) => b.rar - a.rar || order.indexOf(a.slot) - order.indexOf(b.slot) || b.ilvl - a.ilvl);
+  while (items.length < D.BAG_SIZE) items.push(null);
   S.bag = items; G.emit('bag');
 };
 G.canPay = c => Object.keys(c).every(k => (k === 'gold' ? G.S.gold : G.S.mats[k] || 0) >= c[k]);
@@ -469,9 +485,8 @@ G.imprint = function (id, aspectId) {
   return true;
 };
 G.commission = function (slot) {
-  const S = G.S, cost = { gold: I.commissionCost(S.hero.level) };
+  const S = G.S, ilvl = G.areaLevel(), cost = { gold: I.commissionCost(ilvl) };
   if (G.bagCount() >= D.BAG_SIZE || !G.pay(cost)) return null;
-  const ilvl = Math.max(S.hero.level, Math.min(G.areaLevel(), S.hero.level + 5));
   const it = I.roll(ilvl, { slot, mf: G.C.st.mf + 40, tier: S.world.tier, minRar: 1, boost: 1.5 });
   it.upg = G.isUpgrade(it) ? 1 : 0;
   if (it.rar === 3) S.stats.leg++; if (it.rar === 4) S.stats.uniq++;
@@ -480,47 +495,32 @@ G.commission = function (slot) {
   return it;
 };
 
-/* skills */
-G.pointsLeft = () => Hr.skillPoints(G.S) - Hr.spentPoints(G.S);
-G.learn = function (id) {
-  const S = G.S, sk = D.SKILL[id], r = S.hero.ranks[id] || 0;
-  if (!sk || S.hero.level < sk.lvl || r >= sk.max || G.pointsLeft() < 1) return false;
-  S.hero.ranks[id] = r + 1;
-  if (r === 0 && sk.type !== 'passive' && !S.hero.bar.includes(id)) G.barAdd(id, true);
-  G.recompute(); G.emit('skills'); G.save();
-  return true;
+/* The cube: one item, one orb, a random result. */
+G.cube = function (id, orb) {
+  const S = G.S, f = G.findItem(id);
+  if (!f || !D.ORBS[orb] || !(S.orbs[orb] > 0) || I.cubeCheck(f.it, orb)) return null;
+  S.orbs[orb]--;
+  const res = I.cube(f.it, orb, S.world.tier);
+  G.recompute(); G.refreshUpgrades(); G.emit('cube', { it: f.it, res }); G.save();
+  return res;
 };
-G.unlearn = function (id) {
-  const S = G.S, r = S.hero.ranks[id] || 0;
-  if (!r) return false;
-  if (r === 1) { delete S.hero.ranks[id]; const i = S.hero.bar.indexOf(id); if (i >= 0) S.hero.bar[i] = null; } else S.hero.ranks[id] = r - 1;
-  G.recompute(); G.emit('skills'); G.save();
-  return true;
-};
-G.respec = function () { const S = G.S; S.hero.ranks = {}; S.hero.bar = [null, null, null, null, null]; G.recompute(); G.emit('skills'); G.save(); };
-G.barAdd = function (id, soft) {
-  const S = G.S, bar = S.hero.bar, sk = D.SKILL[id];
-  if (!S.hero.ranks[id] || sk.type === 'passive' || bar.includes(id)) return false;
-  if (sk.type === 'basic' || sk.type === 'ult') {
-    const i = bar.findIndex(x => x && D.SKILL[x].type === sk.type);
-    if (i >= 0) { if (soft && sk.type === 'basic') return false; bar[i] = id; return true; }
+
+/* Skills: no points and no levels. Pick up to five for the bar and three passives; gear supplies the ranks. */
+G.skillOn = id => Hr.selected(G.S).includes(id);
+G.toggleSkill = function (id) {
+  const S = G.S, sk = D.SKILL[id], h = S.hero;
+  if (!sk) return 'No such skill.';
+  const list = sk.type === 'passive' ? h.passives : h.bar;
+  let i = list.indexOf(id), msg = null;
+  if (i >= 0) list[i] = null;
+  else {
+    if (sk.type === 'basic' || sk.type === 'ult') i = list.findIndex(x => x && D.SKILL[x].type === sk.type);   // one of each: swap it
+    if (i < 0) i = list.indexOf(null);
+    if (i < 0) msg = sk.type === 'passive' ? 'All three passive slots are taken. Click one to free it.' : 'Your bar is full. Click a skill on it to free a slot.';
+    else list[i] = id;
   }
-  const i = bar.indexOf(null);
-  if (i < 0) return false;
-  bar[i] = id; return true;
+  if (!msg) { G.recompute(); G.emit('skills'); G.save(); }
+  return msg;
 };
-G.barToggle = function (id) {
-  const S = G.S, i = S.hero.bar.indexOf(id);
-  let ok = true;
-  if (i >= 0) S.hero.bar[i] = null; else ok = G.barAdd(id);
-  G.recompute(); G.emit('skills'); G.save();
-  return ok;
-};
-G.paragonLeft = () => G.S.hero.plevel - Hr.paragonSpent(G.S);
-G.paragon = function (id) {
-  if (G.paragonLeft() < 1) return false;
-  G.S.hero.paragon[id] = (G.S.hero.paragon[id] || 0) + 1;
-  G.recompute(); G.emit('skills'); G.save();
-  return true;
-};
+G.clearSkills = function () { const h = G.S.hero; h.bar = h.bar.map(() => null); h.passives = h.passives.map(() => null); G.recompute(); G.emit('skills'); G.save(); };
 })();

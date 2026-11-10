@@ -21,7 +21,7 @@ const RARE_SUF = {
 };
 const MAGIC_PRE = { dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', lightPct: 'Crackling', dot: 'Festering', crit: 'Keen', critDmg: 'Savage', aspd: 'Quick',
   vuln: 'Exposing', elite: 'Slaying', life: 'Stout', lifePct: 'Hale', armor: 'Sturdy', armorPct: 'Plated', dodge: 'Nimble', dr: 'Warding', loh: 'Thirsting', regen: 'Mending',
-  thorns: 'Barbed', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', xp: 'Learned', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
+  thorns: 'Barbed', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
 
 /* ---------------------------------------------------------------- rolling */
 I.rarityWeights = function (lvl, mf, tier, boost) {
@@ -111,6 +111,7 @@ I.implicit = function (it) {
   const q = (0.92 + 0.16 * (it.br == null ? 0.5 : it.br)) * I.upMult(it) * (1 + it.rar * 0.03);
   if (b.dmg) { out.dmg = Math.max(1, Math.round(D.WEAPON_DMG * b.dmg * D.flat(it.ilvl) * q)); out.aps = b.aps; }
   if (b.armor) out.armor = Math.max(1, Math.round(D.ARMOR_BASE * b.armor * D.flat(it.ilvl) * q));
+  if (b.armor && b.slot !== 'offhand') out.life = Math.max(1, Math.round(D.ARMOR_LIFE * b.armor * D.flat(it.ilvl) * q));   // armour carries the smith's life
   if (b.imp) for (const k in b.imp) out[k] = b.imp[k];
   return out;
 };
@@ -191,5 +192,38 @@ I.imprint = function (it, aspectId, r) {
   it.aspect = { id: aspectId, r }; it.rar = 3; it.name = I.makeName(it);
 };
 I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
+
+/* ------------------------------------------------------------------- cube
+   Orbs change affixes at random. Returns a reason string when the recipe cannot run. */
+I.cubeCheck = function (it, orb) {
+  const n = it.affixes.length;
+  if (orb === 'divine') return n ? null : 'It has no affixes to reroll.';
+  if (it.uniq) return 'Uniques are fixed. Only a Tempering Orb works on them.';
+  if (orb === 'add') return n >= D.MAX_AFFIXES ? 'It already has ' + D.MAX_AFFIXES + ' affixes.' : null;
+  return n ? null : 'It has no affixes.';
+};
+I.cube = function (it, orb, tier) {
+  const res = { orb };
+  if (orb === 'add') {
+    const a = rollAffix(it.slot, it.affixes.map(x => x.k), tier || 0);
+    it.affixes.push(a); res.idx = it.affixes.length - 1;
+    const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
+    if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
+  } else if (orb === 'remove') {
+    const i = Math.floor(U.rng() * it.affixes.length);
+    res.removed = I.affixText(it, it.affixes[i], i);
+    it.affixes.splice(i, 1);
+    if (it.ench === i) it.ench = -1; else if (it.ench > i) it.ench--;
+    it.mw = (it.mw || []).filter(x => x !== i).map(x => (x > i ? x - 1 : x));
+  } else if (orb === 'chaos') {
+    const n = it.affixes.length; it.affixes = [];
+    for (let i = 0; i < n; i++) it.affixes.push(rollAffix(it.slot, it.affixes.map(x => x.k), tier || 0));
+    it.ench = -1;
+  } else if (orb === 'divine') {
+    for (const a of it.affixes) a.r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();
+  }
+  if (!it.uniq && it.rar < 3) it.name = I.makeName(it);
+  return res;
+};
 I.costText = c => Object.keys(c).map(k => U.fmt(c[k]) + ' ' + ({ gold: 'gold', scrap: 'scrap', dust: 'ember dust', soul: 'soulsteel' })[k]).join(', ');
 })();

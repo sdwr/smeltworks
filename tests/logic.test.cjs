@@ -4,9 +4,10 @@ const { load, play } = require('./harness.cjs');
 let n = 0;
 function test(name, fn) { const SW = load(); SW.util.seed(1234 + n); SW.game.init(null); fn(SW, SW.game, SW.data, SW.items, SW.hero); n++; console.log('PASS ' + name); }
 
-test('A fresh save starts with a weapon, a basic skill and a map', (SW, G) => {
+test('A fresh save starts with a weapon, a basic skill and a map', (SW, G, D) => {
   const S = G.S;
-  assert.ok(S.gear.weapon && S.gear.chest); assert.equal(S.hero.ranks.strike, 1); assert.equal(G.pointsLeft(), 0);
+  assert.ok(S.gear.weapon && S.gear.chest); assert.ok(S.hero.bar.includes('strike')); assert.equal(G.C.ranks.strike, 1);
+  assert.equal(S.bag.length, D.BAG_SIZE); assert.equal(D.BAG_SIZE, 24);
   assert.ok(S.world.map && S.world.map.cells.length === 35);
 });
 test('Every map is fully reachable and has one boss', (SW, G, D) => {
@@ -83,20 +84,23 @@ test('A full bag salvages the new drop and leaves the bag alone', (SW, G, D, I) 
   assert.equal(G.S.mats.soul, soul + 1, 'its materials are kept'); assert.ok(G.S.codex.twin != null, 'and so is its aspect');
   G.S.bag[5] = null; assert.equal(G.addItem(I.roll(10, { rar: 1, slot: 'ring' })), 'bag', 'a free slot is used again');
 });
-test('Skill points: one per level, refundable, level-gated', (SW, G, D) => {
-  const S = G.S;
-  assert.equal(G.learn('sunder'), false, 'no points at level 1');
-  S.hero.level = 5; G.recompute();
-  assert.ok(G.learn('sunder')); assert.ok(S.hero.bar.includes('sunder'));
-  assert.equal(G.learn('meteor'), false, 'ultimates need level 18');
-  assert.ok(G.learn('cinder')); assert.ok(!S.hero.bar.includes('cinder'), 'a second basic waits for the player');
-  G.barToggle('cinder'); assert.ok(S.hero.bar.includes('cinder') && !S.hero.bar.includes('strike'));
-  G.respec(); assert.equal(G.pointsLeft(), 5); assert.equal(S.hero.bar.filter(Boolean).length, 0);
+test('Skills need no points: pick five and three passives, one Basic and one Ultimate', (SW, G, D) => {
+  const h = G.S.hero;
+  G.clearSkills(); assert.equal(h.bar.filter(Boolean).length, 0);
+  for (const id of ['strike', 'sunder', 'quake', 'meteor', 'wave']) assert.equal(G.toggleSkill(id), null);
+  assert.ok(G.toggleSkill('chain'), 'a sixth skill is refused with a reason'); assert.ok(!h.bar.includes('chain'));
+  assert.equal(G.toggleSkill('cinder'), null); assert.ok(h.bar.includes('cinder') && !h.bar.includes('strike'), 'a second Basic replaces the first');
+  assert.equal(G.toggleSkill('tempest'), null); assert.ok(h.bar.includes('tempest') && !h.bar.includes('meteor'), 'a second Ultimate replaces the first');
+  for (const id of ['heavy', 'kindling', 'conduct']) assert.equal(G.toggleSkill(id), null);
+  assert.ok(G.toggleSkill('crush'), 'a fourth passive is refused');
+  assert.equal(G.toggleSkill('heavy'), null); assert.ok(!h.passives.includes('heavy')); assert.equal(G.C.ranks.heavy, undefined);
 });
-test('Gear can raise skill ranks past what points bought', (SW, G, D, I) => {
-  const S = G.S; S.hero.level = 20; S.hero.ranks = { strike: 2 };
+test('Skill ranks come only from gear', (SW, G, D, I) => {
+  const S = G.S; S.hero.bar = ['strike', 'cinder', null, null, null]; S.hero.bar[1] = null; S.hero.bar[1] = 'wave'; G.recompute();
+  assert.equal(G.C.ranks.strike, 1); assert.equal(G.C.ranks.wave, 1);
   const helm = I.roll(20, { rar: 2, slot: 'helm' }); helm.affixes = [{ k: 'skHammer', r: 0.99, g: 0 }]; S.gear.helm = helm; G.recompute();
-  assert.equal(G.C.ranks.strike, 4); assert.equal(G.C.ranks.sunder, undefined, 'unlearned skills stay unlearned');
+  assert.equal(G.C.ranks.strike, 3, 'Hammer gear raises Hammer skills'); assert.equal(G.C.ranks.wave, 1, 'and leaves Ember alone');
+  assert.equal(G.C.ranks.sunder, undefined, 'skills that are not picked stay off');
 });
 test('Stat caps hold', (SW, G, D, I) => {
   const S = G.S;
@@ -104,15 +108,71 @@ test('Stat caps hold', (SW, G, D, I) => {
   G.recompute(); const st = G.C.st;
   assert.ok(st.crit <= 75 && st.dodge <= 60 && st.dr <= 50 && st.cdr <= 60);
 });
-test('Experience levels the hero and overflows into paragon at 50', (SW, G, D, I, H) => {
+test('There are no levels: life and power come from what is worn', (SW, G, D, I, H) => {
   const S = G.S;
-  G.addXp(H.xpNeed(1) + 1, 1); assert.equal(S.hero.level, 2); assert.equal(G.pointsLeft(), 1);
-  S.hero.level = 49; S.hero.xp = 0; G.addXp(H.xpNeed(49) + 10, 49); assert.equal(S.hero.level, 50);
-  G.addXp(H.paragonNeed(0) * 2.2, 50); assert.ok(S.hero.plevel >= 1); assert.ok(G.paragon('might')); assert.ok(G.C.st.dmgPct >= 3);
+  assert.equal(S.hero.level, undefined); assert.equal(G.addXp, undefined);
+  for (const s of D.SLOTS) S.gear[s] = null; G.recompute();
+  assert.equal(G.C.st.maxLife, H.BASE_LIFE); const naked = G.C.rating.power;
+  S.gear.chest = I.roll(30, { rar: 0, slot: 'chest' }); S.gear.helm = I.roll(10, { rar: 0, slot: 'helm' }); G.recompute();
+  assert.ok(G.C.st.maxLife > H.BASE_LIFE + 100, 'armour carries life'); assert.ok(G.C.rating.power > naked);
+  assert.equal(H.gearLevel(S.gear), 20);
 });
-test('Far weaker monsters give little experience', (SW, G) => {
-  G.S.hero.level = 20; const a = G.addXp(1000, 20); const b = G.addXp(1000, 8);
-  assert.ok(b < a * 0.3);
+test('Drops favour the slots that have fallen behind', (SW, G, D, I) => {
+  const S = G.S;
+  for (const s of D.SLOTS) S.gear[s] = I.roll(40, { rar: 2, slot: s.replace(/\d/, '') });
+  S.gear.boots = I.roll(5, { rar: 0, slot: 'boots' });
+  let boots = 0; for (let i = 0; i < 2000; i++) if (G.rollLoot(40, { rar: 1 }).slot === 'boots') boots++;
+  assert.ok(boots > 2000 * 0.25, 'boots came up ' + boots + ' times in 2000');
+});
+test('The cube: Kindling adds an affix and lifts rarity, up to five', (SW, G, D, I) => {
+  const S = G.S, it = I.roll(20, { rar: 0, slot: 'gloves' }); S.bag[0] = it; S.orbs.add = 9;
+  assert.equal(it.affixes.length, 0);
+  assert.ok(G.cube(it.id, 'add')); assert.equal(it.rar, 1, 'Common becomes Magic'); assert.equal(it.affixes.length, 1);
+  G.cube(it.id, 'add'); assert.equal(it.rar, 1); G.cube(it.id, 'add'); assert.equal(it.rar, 2, 'a third affix makes it Rare');
+  G.cube(it.id, 'add'); G.cube(it.id, 'add'); assert.equal(it.affixes.length, 5);
+  assert.equal(G.cube(it.id, 'add'), null, 'no sixth affix'); assert.equal(S.orbs.add, 4, 'a refused recipe costs nothing');
+  assert.equal(new Set(it.affixes.map(a => a.k)).size, 5);
+  for (const a of it.affixes) assert.ok(D.AFFIX[a.k].slots.includes('gloves'));
+});
+test('The cube: Quenching removes one affix and keeps the bookkeeping straight', (SW, G, D, I) => {
+  const S = G.S, it = I.roll(50, { rar: 3, slot: 'chest' }); S.bag[0] = it; S.orbs.remove = 9; S.orbs.add = 0;
+  it.ench = 3; it.mw = [3, 0]; const keys = it.affixes.map(a => a.k);
+  SW.util.rng = () => 0;                                   // always removes the first affix
+  const res = G.cube(it.id, 'remove');
+  assert.ok(res.removed.length > 3); assert.equal(it.affixes.length, 3); assert.equal(it.affixes[0].k, keys[1]);
+  assert.equal(it.ench, 2); assert.equal(it.mw.join(), '2'); assert.equal(it.rar, 3, 'rarity and aspect stay'); assert.ok(it.aspect);
+  assert.equal(G.cube(it.id, 'add'), null, 'no orb, no transmute');
+  G.cube(it.id, 'remove'); G.cube(it.id, 'remove'); G.cube(it.id, 'remove'); assert.equal(it.affixes.length, 0);
+  assert.equal(G.cube(it.id, 'remove'), null); assert.equal(S.orbs.remove, 5);
+});
+test('The cube: Slag rerolls every affix, Tempering only the numbers, and Uniques resist', (SW, G, D, I) => {
+  const S = G.S, it = I.roll(30, { rar: 2, slot: 'ring' }), u = I.roll(30, { rar: 4, unique: 'coil', slot: 'ring' });
+  S.bag[0] = it; S.bag[1] = u; S.orbs = { add: 5, remove: 5, chaos: 5, divine: 5 };
+  const keys = it.affixes.map(a => a.k).join(), rolls = it.affixes.map(a => a.r).join();
+  G.cube(it.id, 'divine'); assert.equal(it.affixes.map(a => a.k).join(), keys); assert.notEqual(it.affixes.map(a => a.r).join(), rolls);
+  G.cube(it.id, 'chaos'); assert.equal(it.affixes.length, 3);
+  for (const orb of ['add', 'remove', 'chaos']) assert.equal(G.cube(u.id, orb), null, orb + ' must not touch a Unique');
+  const ur = u.affixes.map(a => a.r).join(); assert.ok(G.cube(u.id, 'divine')); assert.notEqual(u.affixes.map(a => a.r).join(), ur);
+  assert.equal(u.affixes.map(a => a.k).join(), D.UNIQUE.coil.affixes.join());
+});
+test('Bag items can be moved and swapped, and gear dropped into the bag', (SW, G, D, I) => {
+  const S = G.S, a = I.roll(5, { slot: 'boots', rar: 1 }), b = I.roll(5, { slot: 'ring', rar: 1 });
+  S.bag[0] = a; S.bag[1] = b;
+  assert.ok(G.moveItem(a.id, 10)); assert.equal(S.bag[10], a); assert.equal(S.bag[0], null);
+  assert.ok(G.moveItem(b.id, 10)); assert.equal(S.bag[10], b); assert.equal(S.bag[1], a, 'dropping on an item swaps them');
+  assert.equal(G.moveItem(a.id, 99), false);
+  const worn = S.gear.chest; assert.ok(G.moveItem(worn.id, 5)); assert.equal(S.bag[5], worn); assert.equal(S.gear.chest, null);
+  assert.equal(G.moveItem(S.gear.weapon.id, 10), false, 'worn gear only swaps with its own kind');
+  G.sortBag(); assert.equal(S.bag.length, D.BAG_SIZE); assert.ok(S.bag[0] && S.bag[1] && S.bag[2] && !S.bag[3]);
+});
+test('The damage meter adds up to the damage dealt and ignores overkill', (SW, G, D) => {
+  const B = new SW.Battle(G.C, {}, { waves: [[{ id: 'rat', lvl: 1 }, { id: 'wolf', lvl: 1 }, { id: 'bandit', lvl: 1 }]], lvl: 1 }, {}, false);
+  const hp = B.spec.waves[0].reduce((t, s) => t + B.mkMob(s).max, 0);
+  while (!B.over) B.step(0.05);
+  const bs = B.summary(), sum = Object.values(bs.by).reduce((a, b) => a + b, 0);
+  assert.equal(B.over, 'win'); assert.equal(sum, bs.dmg); assert.equal(bs.dmg, hp, 'damage counted equals the life removed');
+  assert.ok(bs.ft > 0 && bs.ft <= bs.t); assert.ok(bs.by.strike > 0);
+  G.record(bs); assert.equal(G.meter.length, 1);
 });
 test('A fresh smith beats a rat and loses to an act boss', (SW, G, D) => {
   const run = spec => { const B = new SW.Battle(G.C, {}, spec, {}, false); let t = 0; while (!B.over && t < 400) { B.step(0.05); t += 0.05; } return B; };
@@ -129,10 +189,9 @@ test('No battle can stall: every fight ends, even hopeless ones against healers'
   }
 });
 test('Every skill can be cast without errors and deals damage', (SW, G, D) => {
-  const S = G.S; S.hero.level = 50;
+  const S = G.S;
   for (const sk of D.SKILLS.filter(s => s.type !== 'passive')) {
-    S.hero.ranks = { strike: 1, [sk.id]: 3 }; S.hero.bar = ['strike', sk.id, null, null, null].filter((x, i, a) => a.indexOf(x) === i);
-    if (sk.type === 'basic') S.hero.bar = [sk.id];
+    S.hero.bar = sk.type === 'basic' ? [sk.id, null, null, null, null] : ['strike', sk.id, null, null, null];
     G.recompute();
     const B = new SW.Battle(G.C, { heat: 100 }, { waves: [[{ id: 'golem', lvl: 1 }, { id: 'bat', lvl: 1 }, { id: 'kobold', lvl: 1 }]], lvl: 1 }, {}, true);
     B.h.hp = B.h.max * 0.5;                       // lets defensive skills trigger
@@ -142,7 +201,7 @@ test('Every skill can be cast without errors and deals damage', (SW, G, D) => {
   }
 });
 test('Every aspect and unique power runs in battle without breaking the numbers', (SW, G, D, I) => {
-  const S = G.S; S.hero.level = 30; S.hero.ranks = { cinder: 3, sunder: 3, chain: 3, forgeheart: 1, ironskin: 1, meteor: 1 }; S.hero.bar = ['cinder', 'sunder', 'chain', 'forgeheart', 'meteor'];
+  const S = G.S; S.hero.bar = ['cinder', 'sunder', 'chain', 'forgeheart', 'meteor']; S.hero.passives = ['kindling', 'aftershock', 'crush'];
   const fight = () => { G.recompute(); const B = new SW.Battle(G.C, { heat: 80 }, { waves: [[{ id: 'ghoul', lvl: 28, elite: ['molten'] }, { id: 'skeleton', lvl: 28 }, { id: 'wisp', lvl: 28 }]], lvl: 28 }, {}, false); for (let t = 0; t < 40 && !B.over; t += 0.05) B.step(0.05); assert.ok(isFinite(B.h.hp) && isFinite(B.dmgDone) && B.dmgDone > 0); };
   for (const a of D.ASPECTS) { const slot = D.ASPECT_SLOTS[a.cat][0]; for (const s of D.SLOTS) S.gear[s] = null; S.gear.weapon = I.roll(30, { slot: 'weapon', rar: 2 }); S.gear[slot === 'ring' ? 'ring1' : slot] = I.roll(30, { slot, rar: 3, aspect: a.id }); fight(); }
   for (const u of D.UNIQUES) { for (const s of D.SLOTS) S.gear[s] = null; const it = I.roll(30, { rar: 4, unique: u.id, slot: D.BASES[u.base].slot }); assert.equal(it.uniq, u.id); S.gear.weapon = I.roll(30, { slot: 'weapon', rar: 2 }); S.gear[it.slot === 'ring' ? 'ring1' : it.slot] = it; fight(); assert.ok(I.powerText(it).length > 10 && !I.powerText(it).includes('{')); }
@@ -155,17 +214,17 @@ test('Clearing the boss unlocks the next area; the last one unlocks Torment', (S
   assert.ok(G.isUnlocked(0, 1)); assert.equal(D.areaLevel(0, 1), 50); assert.ok(D.areaLevel(14, 4) > D.areaLevel(0, 4));
 });
 test('Saves survive an export and import', (SW, G, D, I) => {
-  G.S.gold = 4242; G.S.bag[3] = I.roll(12, { rar: 3 }); G.S.hero.level = 9;
+  G.S.gold = 4242; G.S.bag[3] = I.roll(12, { rar: 3 }); G.S.orbs.chaos = 7;
   const str = G.exportSave(), name = G.S.bag[3].name;
   G.init(null); assert.equal(G.S.gold, 0);
-  assert.ok(G.importSave(str)); assert.equal(G.S.gold, 4242); assert.equal(G.S.bag[0].name, name, 'the bag is packed to the front on load'); assert.equal(G.S.hero.level, 9);
+  assert.ok(G.importSave(str)); assert.equal(G.S.gold, 4242); assert.equal(G.S.bag[0].name, name, 'the bag is packed to the front on load'); assert.equal(G.S.orbs.chaos, 7);
   assert.equal(G.importSave('not a save'), false);
   const it = I.roll(5, {}); assert.ok(it.id > G.S.bag[0].id, 'new item ids never collide with loaded ones');
 });
 test('Auto-explore clears the first area without help, and never stalls', () => {
   const SW = load();
   const r = play(SW, { build: 'hammer', seed: 5, maxT: 900, until: g => g.S.world.cleared[0] >= 1 });
-  assert.ok(r.S.world.cleared[0] >= 1, 'first area not cleared in 15 minutes'); assert.ok(r.S.hero.level >= 4);
+  assert.ok(r.S.world.cleared[0] >= 1, 'first area not cleared in 15 minutes');
 });
 test('A rushing, forge-less player still finishes Act I through the fallback loop', () => {
   const SW = load();
