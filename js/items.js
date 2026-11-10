@@ -151,11 +151,11 @@ I.affixText = function (it, a, idx) {
 };
 /* the main stat: fixed by base type and item level, never rolled. Forge upgrades raise it. */
 I.implicit = function (it) {
-  const hard = it.indes ? D.INDES_BONUS : 1, b = D.BASES[it.base], out = {}, f = D.flat(it.ilvl) * I.upMult(it) * hard;      // Indestructible: a harder main stat
+  const b = D.BASES[it.base], out = {}, f = D.flat(it.ilvl) * I.upMult(it);
   if (b.dmg) { out.dmg = Math.max(1, Math.round(D.WEAPON_DMG * b.dmg * f)); out.aps = b.aps; }
   if (b.armor) out.armor = Math.max(1, Math.round(D.ARMOR_BASE * b.armor * f));
   if (b.life) out.life = Math.max(1, Math.round(D.JEWEL_LIFE * b.life * f));
-  if (b.pct) out.dmgPct = Math.round(b.pct * D.pct(it.ilvl) * I.upMult(it) * hard);
+  if (b.pct) out.dmgPct = Math.round(b.pct * D.pct(it.ilvl) * I.upMult(it));
   return out;
 };
 /* every stat the item grants, summed */
@@ -273,7 +273,7 @@ I.transfigure = function (it) {
   // a transfigured affix can be anything the piece does not already have, whatever its slot normally rolls
   const fresh = () => { const have = it.affixes.map(a => a.k), pool = Object.values(D.AFFIX).filter(a => !have.includes(a.id)); return { k: U.wpick(pool, a => a.w).id, r: U.rng(), g: 0, t: 1 }; };
   const res = { kind };
-  if (kind === 'indes') it.indes = 1;
+  if (kind === 'indes') it.indes = 1;                        // a label and nothing more
   else if (kind === 'quality') { res.v = 1 + Math.floor(U.rng() * D.TRANSFIG_QUALITY); it.tq = (it.tq || 0) + res.v; }
   else if (kind === 'affix') { it.affixes.push(fresh()); res.idx = it.affixes.length - 1; }
   else if (kind === 'greater') { res.idx = U.pick(plain); it.affixes[res.idx].g = 1; }

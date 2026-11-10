@@ -489,20 +489,20 @@ function renderCraft() {
   $('tab-craft').innerHTML = h;
 }
 /* Transfiguring: the last step. Shows the odds for this kind of piece, and asks twice, because it is final. */
-const TF_TIP = { indes: 'Indestructible: the piece hardens. +5% to its main stat.', quality: `Item Quality: +1 to +${D.TRANSFIG_QUALITY}% to everything on the piece, beyond its masterwork ranks.`, affix: 'A fifth affix. It can be one this slot could never roll.',
+const TF_TIP = { indes: 'Indestructible: nothing changes. This is the dud.', quality: `Item Quality: +1 to +${D.TRANSFIG_QUALITY}% to everything on the piece, beyond its masterwork ranks.`, affix: 'A fifth affix. It can be one this slot could never roll.',
   greater: 'One ordinary affix becomes Greater: its maximum roll, and half again. Ancestral gear only.', replace: 'One affix, chosen at random, is replaced by a new random one. It can take your best affix, a Greater one included.' };
 function transfigHtml(it) {
   const kind = I.tfKind(it), last = UI.tfLast && UI.tfLast.id === it.id ? UI.tfLast.res : null;
   let h = '<div class="op tfig"><div class="op-t"><b>Transfigure</b><span>The last step. One roll on the table below, and then the piece is almost always sealed for good: no more masterworking, rerolling, imprinting or cube. Finish everything else first.</span></div>';
   if (last) {
-    const what = last.kind === 'indes' ? 'The piece hardens: +5% to its main stat.' : last.kind === 'quality' ? `+${last.v}: everything on it is ${last.v}% stronger.` : last.kind === 'affix' ? I.affixText(it, it.affixes[last.idx], last.idx) + '.'
+    const what = last.kind === 'indes' ? 'Nothing changed. That was the dud.' : last.kind === 'quality' ? `+${last.v}: everything on it is ${last.v}% stronger.` : last.kind === 'affix' ? I.affixText(it, it.affixes[last.idx], last.idx) + '.'
       : last.kind === 'greater' ? I.affixText(it, it.affixes[last.idx], last.idx) + '.' : `${last.was} became ${I.affixText(it, it.affixes[last.idx], last.idx)}.`;
-    h += `<div class="tf-res ${last.kind === 'replace' ? 'bad' : 'good'}"><b>${D.TRANSFIG_NAME[last.kind]}</b> ${what} ${last.open ? '<i>And it was not sealed: you can keep working on it, or transfigure it again.</i>' : ''}</div>`;
+    h += `<div class="tf-res ${last.kind === 'replace' ? 'bad' : last.kind === 'indes' ? 'dud' : 'good'}"><b>${D.TRANSFIG_NAME[last.kind]}</b> ${what} ${last.open ? '<i>And it was not sealed: you can keep working on it, or transfigure it again.</i>' : ''}</div>`;
   }
   if (!kind) return h + '<div class="op-a"><i>Only Legendary and Unique gear can be transfigured.</i></div></div>';
   if (it.sealed) return h + '</div>';
   const odds = D.TRANSFIG[kind], c = I.transfigCost(it), armed = UI.tfArm === it.id, unfinished = (it.up || 0) < D.MW_MAX;
-  h += '<div class="tf-odds">' + D.TRANSFIG_KINDS.filter(k => odds[k]).map(k => `<span class="${k === 'replace' ? 'bad' : ''}" data-tip="${TF_TIP[k]}"><b>${odds[k]}%</b>${D.TRANSFIG_NAME[k]}</span>`).join('') +
+  h += '<div class="tf-odds">' + D.TRANSFIG_KINDS.filter(k => odds[k]).map(k => `<span class="${k === 'replace' ? 'bad' : k === 'indes' ? 'dud' : ''}" data-tip="${TF_TIP[k]}"><b>${odds[k]}%</b>${D.TRANSFIG_NAME[k]}</span>`).join('') +
     `<span class="open" data-tip="The chance the piece is not sealed afterwards. It can then be worked on as before, or transfigured again."><b>${odds.open}%</b>Stays open</span></div>`;
   if (unfinished) h += `<p class="note warn">This piece is at masterwork rank ${it.up || 0} of ${D.MW_MAX}. Once sealed it cannot be masterworked further.</p>`;
   h += `<div class="op-a">${costHtml(c)}<button class="${armed ? 'danger' : ''}" data-act="transfigure" ${G.canPay(c) ? '' : 'disabled'}>${armed ? 'Yes, transfigure it<small>this cannot be undone</small>' : 'Transfigure'}</button></div></div>`;
@@ -686,7 +686,7 @@ UI.onGame = function (type, d) {
       S.seen.orb = 1; A.play('shrine', 0.3); mark('cube', 'top'); break; }
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');
-      if (d.kind === 'transfigure') { UI.tfLast = { id: d.it.id, res: d.res }; A.play(d.res.kind === 'replace' ? 'salvage' : 'master'); UI.toast(`Transfigured: ${D.TRANSFIG_NAME[d.res.kind]}${d.res.kind === 'quality' ? ' +' + d.res.v : ''}${d.res.open ? '. It was not sealed.' : ''}`, d.res.kind === 'replace' ? 'bad' : 'good'); }
+      if (d.kind === 'transfigure') { UI.tfLast = { id: d.it.id, res: d.res }; A.play(d.res.kind === 'replace' ? 'salvage' : d.res.kind === 'indes' ? 'forge' : 'master'); UI.toast(`Transfigured: ${D.TRANSFIG_NAME[d.res.kind]}${d.res.kind === 'quality' ? ' +' + d.res.v : d.res.kind === 'indes' ? ' (nothing changed)' : ''}${d.res.open ? '. It was not sealed.' : ''}`, d.res.kind === 'replace' ? 'bad' : d.res.kind === 'indes' ? '' : 'good'); }
       if (d.kind === 'upgrade') { UI.mwLast = { id: d.it.id, ranks: d.ranks, t: performance.now() }; if (d.mw >= 0) UI.toast('Masterworked: ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good'); }
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
       break;

@@ -343,7 +343,7 @@ test('Transfiguring: the last step, with Diablo 4\'s odds, and it seals the piec
   const force = (it, kind) => { const real = SW.util.wpick; SW.util.wpick = (arr, wf) => (arr === D.TRANSFIG_KINDS ? kind : real(arr, wf)); const r = I.transfigure(it); SW.util.wpick = real; return r; };
   let it = leg(false), base = I.implicit(it).life, v0 = I.affixValue(it, it.affixes[0], 0);
   let r = force(it, 'quality'); assert.ok(r.v >= 1 && r.v <= 15); assert.equal(it.tq, r.v); assert.ok(Math.abs(I.implicit(it).life / base - (1 + r.v / 100)) < 0.01, 'Item Quality lifts the main stat'); assert.ok(I.affixValue(it, it.affixes[0], 0) >= v0);
-  it = leg(false); base = I.implicit(it).life; force(it, 'indes'); assert.ok(it.indes && Math.abs(I.implicit(it).life / base - 1.05) < 0.01, 'Indestructible: +5% main stat');
+  it = leg(false); base = I.implicit(it).life; const before = JSON.stringify(I.stats(it)); force(it, 'indes'); assert.ok(it.indes); assert.equal(I.implicit(it).life, base); assert.equal(JSON.stringify(I.stats(it)), before, 'Indestructible changes nothing');
   it = leg(false); r = force(it, 'affix'); assert.equal(it.affixes.length, 5); assert.equal(r.idx, 4); assert.ok(it.affixes[4].t && !it.affixes[4].g); assert.equal(new Set(it.affixes.map(x => x.k)).size, 5, 'a fifth affix it did not have');
   let off = 0; for (let i = 0; i < 300; i++) { const x = leg(false); force(x, 'affix'); if (!D.AFFIX[x.affixes[4].k].slots.includes('ring')) off++; } assert.ok(off > 20, 'and often one a ring could never roll: ' + off);
   it = leg(true); it.affixes[0].g = 1; r = force(it, 'greater'); assert.ok(r.idx > 0 && it.affixes[r.idx].g === 1, 'an ordinary affix becomes Greater'); assert.equal(I.greaterCount(it), 2);
@@ -358,6 +358,14 @@ test('Transfiguring: the last step, with Diablo 4\'s odds, and it seals the piec
   // the rare one that stays open can be worked on and transfigured again
   it = leg(false); S.bag[0] = it; do { it.sealed = 0; it.tf = []; it.tq = 0; force(it, 'quality'); } while (it.sealed);
   assert.ok(G.upgrade(it.id), 'still open: masterworking works'); const q = it.tq; assert.ok(G.transfigure(it.id), 'and so does a second transfiguration'); assert.equal(it.tf.length, 2); assert.ok(it.tq >= q);
+});
+test('Cooldown Reduction rolls on rings and amulets, at the same value on both', (SW, G, D, I) => {
+  for (const k of ['ring', 'amulet', 'helm', 'shield', 'lantern']) assert.ok(D.AFFIX.cdr.slots.includes(k), k);
+  const S = G.S; S.orbs = { add: 9999, remove: 0, chaos: 0, divine: 0 }; let got = 0;
+  for (let i = 0; i < 300; i++) { const r = I.roll(40, { rar: 0, slot: 'ring' }); S.bag[0] = r; G.cube(r.id, 'add', 'util'); assert.ok(['cdr', 'heat', 'regen'].includes(r.affixes[0].k)); if (r.affixes[0].k === 'cdr') got++; }
+  assert.ok(got > 40, 'a ring aimed at Utility can come up Cooldown Reduction: ' + got);
+  const val = slot => { const it = I.roll(50, { rar: 2, slot }); it.affixes = [{ k: 'cdr', r: 0.5, g: 0 }]; return I.affixValue(it, it.affixes[0], 0); };
+  assert.equal(val('ring'), val('amulet'));
 });
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;

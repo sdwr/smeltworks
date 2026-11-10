@@ -99,7 +99,7 @@ the skill bar to drink it.
   Item Quality is +1 to +15% to everything on the piece, on top of masterwork ranks. The fifth affix can be one the
   slot could never roll. Making an affix Greater is Ancestral only, and is the one way crafting produces a Greater
   affix. A replaced affix is chosen at random and can be your best. There is no durability in this game, so
-  Indestructible hardens the piece instead: +5% to its main stat. A piece that stays open can be worked on as
+  Indestructible does nothing: it is the dud, as in Diablo. A piece that stays open can be worked on as
   before, or transfigured again.
 - **One of each legendary power.** The same aspect, or the same Unique, cannot be worn on two pieces. A second
   copy can only replace the first, and an aspect already worn cannot be imprinted onto another worn piece.
@@ -122,7 +122,7 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 | Pants | Strength, Burn/Bleed, Elites, Thorns | Life, Armor, Dodge, Damage reduction, Life per second, Barrier |  |  |
 | Boots | Strength | Life, Armor, Dodge, Life per second | Heat, Movement speed |  |
 | Amulet | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat | yes |
-| Ring | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Heat |  |
+| Ring | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Cooldown, Heat |  |
 
 Each affix is listed under its family, which is also its colour in the game. Strength is the main stat: it can roll
 on every slot, and each point multiplies all damage by 1%, separately from the other damage affixes. Walking from

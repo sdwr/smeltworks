@@ -113,7 +113,7 @@ D.material = l => D.MATERIALS.find(m => l <= m.to);
      the lesser kind: Thorns, damage to Elites, damage over time.
    - Boots are the travel slot: Movement Speed rolls nowhere else.
    - Damage Reduction is chest, pants and shield. Dodge is pants, boots and amulet. % Total Armor is amulet and shield.
-   - Cooldown Reduction is helm, amulet and offhand. Heat (the resource) is gloves, rings, amulet, lantern, chest and boots.
+   - Cooldown Reduction is helm, amulet, rings and offhand. Heat (the resource) is gloves, rings, amulet, lantern, chest and boots.
    - Skill ranks are helm, gloves and amulet.
    - The amulet is the wildcard: something from nearly every group, but no flat life or armor.
    Uniques ignore all this. */
@@ -142,7 +142,7 @@ D.AFFIX = {
   regen:   { t: '+{v} Life per Second',         lo: 1.2, hi: 2.2, sc: 'flat', w: 6, slots: ['weapon', 'helm', 'chest', 'pants', 'boots', 'ring'] },
   barrier: { t: '+{v}% Barrier Strength',       lo: 8,  hi: 16,  sc: 'none', w: 4,  slots: ['shield', 'lantern', 'helm', 'chest', 'pants', 'amulet'] },
   // utility
-  cdr:     { t: '+{v}% Cooldown Reduction',     lo: 3,  hi: 6,   sc: 'none', w: 6,  dp: 1, slots: ['shield', 'lantern', 'helm', 'amulet'] },
+  cdr:     { t: '+{v}% Cooldown Reduction',     lo: 3,  hi: 6,   sc: 'none', w: 6,  dp: 1, slots: ['shield', 'lantern', 'helm', 'amulet', 'ring'] },
   heat:    { t: '+{v}% Heat Generation',        lo: 5,  hi: 10,  sc: 'none', w: 6,  slots: ['lantern', 'chest', 'gloves', 'boots', 'ring', 'amulet'] },
   move:    { t: '+{v}% Movement Speed',         lo: 15, hi: 30,  sc: 'none', w: 9,  slots: ['boots'] },
   // skills
@@ -153,7 +153,7 @@ D.AFFIX = {
 /* Transfiguring: the last thing done to a piece. One roll on the table below, and then the piece is almost always
    sealed: no more masterworking, rerolling, imprinting or cube. The chances are Diablo 4's, as measured by players
    (no Tuning Prism), per kind of item, in percent:
-     indes    Indestructible. There is no durability here, so it hardens the piece instead: +5% to its main stat
+     indes    Indestructible. There is no durability here, so it does nothing at all: the dud, as in Diablo
      quality  Item Quality: +1 to +15% to everything on the piece, on top of its masterwork ranks
      affix    a fifth affix, which may be one its slot could never roll
      greater  one ordinary affix becomes Greater (Ancestral gear only). The one way crafting makes a Greater affix
@@ -168,7 +168,6 @@ D.TRANSFIG = {
 D.TRANSFIG_KINDS = ['indes', 'quality', 'affix', 'greater', 'replace'];
 D.TRANSFIG_NAME = { indes: 'Indestructible', quality: 'Item Quality', affix: 'A fifth affix', greater: 'An affix made Greater', replace: 'An affix replaced' };
 D.TRANSFIG_QUALITY = 15;     // the most Item Quality one transfiguration can add
-D.INDES_BONUS = 1.05;
 /* The same affix is worth more on some slots than others. The reasoning is opportunity cost: a slot that could
    have rolled a strong offensive affix has to be paid more to carry a defensive one, or nobody would take it.
      weapon   Defence and Strength x2. A weapon has ten offensive affixes competing for four places, so life on it
