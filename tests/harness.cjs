@@ -17,6 +17,7 @@ function botTurn(SW, build, casual) {
   const G = SW.game, S = G.S, D = SW.data, I = SW.items, H = SW.hero;
   if (S.hero.bar.join() !== build.bar.join()) { S.hero.bar = build.bar.slice(); S.hero.passives = build.passives.slice(); S.hero.tech = Object.assign({}, build.tech); G.recompute(); }
   for (let pass = 0; pass < 3; pass++) for (const it of S.bag.slice()) if (it && G.isUpgrade(it)) G.equip(it.id);
+  for (const it of S.bag.slice()) if (it && it.upg && !G.equipSlots(it).length) G.salvage(it.id);      // better on paper, but its legendary power is already worn elsewhere: the bot does not juggle
   G.salvageAll(4, true);
   if (casual) return;            // a casual player never touches the forge or the cube
   const gl = H.gearLevel(S.gear);

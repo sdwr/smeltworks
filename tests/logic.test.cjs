@@ -305,7 +305,7 @@ test('The same legendary power cannot be worn twice', (SW, G, D, I) => {
   const r1 = leg('ring', asp), r2 = leg('ring', asp), am = leg('amulet', asp), r3 = leg('ring', other);
   S.bag[0] = r1; S.bag[1] = r2; S.bag[2] = am; S.bag[3] = r3;
   assert.ok(G.equip(r1.id)); assert.equal(S.gear.ring1, r1);
-  assert.equal(G.equip(am.id), false, 'the same aspect on an amulet is refused'); assert.ok(/only be worn once/.test(G.equipWhy(am.id))); assert.equal(G.isUpgrade(am), false, 'and it is not flagged as an upgrade');
+  assert.equal(G.equip(am.id), false, 'the same aspect on an amulet is refused'); assert.ok(/only be worn once/.test(G.equipWhy(am.id))); assert.equal(G.isUpgrade(am), true, 'though it is still marked as an upgrade, since on stats it is one');
   assert.ok(G.equip(r3.id)); assert.equal(S.gear.ring2, r3, 'a different aspect is fine');
   assert.ok(G.equip(r2.id), 'a second ring with the aspect can still be worn...'); assert.equal(S.gear.ring1, r2, '...by replacing the ring that has it'); assert.equal(S.gear.ring2, r3);
   assert.equal(G.equip(r1.id, 'ring2'), false, 'but not dragged onto the other ring'); assert.ok(G.equipWhy(r1.id, 'ring2'));

@@ -204,8 +204,10 @@ G.equipWhy = function (id, slotHint) {
   const s = G.twinOf(f.it, slotHint && f.it.slot === 'ring' ? slotHint : null) || G.twinOf(f.it), w = G.S.gear[s];
   return `You already wear ${f.it.uniq ? 'that Unique' : 'the ' + D.ASPECT[f.it.aspect.id].name + ' aspect'}${w ? ' (' + w.name + ')' : ''}. Each legendary power can only be worn once.`;
 };
+/* Would this piece be better than what is in its slot? Judged on stats alone, so a piece you cannot wear yet because
+   its legendary power is already on another piece is still marked: you may want to swap the two. */
 G.isUpgrade = function (it) {
-  const S = G.S, slots = G.equipSlots(it);
+  const S = G.S, slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
   for (const s of slots) {
     if (!S.gear[s]) return true;
     const g = Object.assign({}, S.gear); g[s] = it;
