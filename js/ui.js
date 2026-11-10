@@ -15,7 +15,7 @@ function itemCell(it, extra, idx) {
   const bag = idx == null ? '' : ` data-bag="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
     (it.upg ? '<b class="up">▲</b>' : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl">+${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
