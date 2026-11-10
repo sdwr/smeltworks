@@ -118,12 +118,13 @@ D.material = l => D.MATERIALS.find(m => l <= m.to);
    - The amulet is the wildcard: something from nearly every group, but no flat life or armor.
    Uniques ignore all this. */
 D.AFFIX = {
-  // offence
+  // offence. A single damage type rolls about a fifth higher than all-damage: enough to prefer it on a one-element
+  // bar, not so much that plain Damage is a wasted affix (the two add together).
   str:     { t: '+{v} Strength',                lo: 3,  hi: 7,   sc: 'none', w: 9,  note: '+1% to all damage per point, multiplying everything else', slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'gloves', 'pants', 'boots', 'amulet', 'ring'] },
   dmgPct:  { t: '+{v}% Damage',                 lo: 6,  hi: 10,  sc: 'pct',  w: 10, slots: ['weapon', 'shield', 'lantern', 'ring', 'amulet'] },
-  physPct: { t: '+{v}% Physical Damage',        lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
-  firePct: { t: '+{v}% Fire Damage',            lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
-  lightPct:{ t: '+{v}% Lightning Damage',       lo: 9,  hi: 15,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
+  physPct: { t: '+{v}% Physical Damage',        lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
+  firePct: { t: '+{v}% Fire Damage',            lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
+  lightPct:{ t: '+{v}% Lightning Damage',       lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   dot:     { t: '+{v}% Burn and Bleed Damage',  lo: 12, hi: 20,  sc: 'pct',  w: 6,  slots: ['weapon', 'helm', 'chest', 'gloves', 'pants', 'ring', 'amulet'] },
   crit:    { t: '+{v}% Critical Strike Chance', lo: 2,  hi: 4.5, sc: 'none', w: 8,  dp: 1, slots: ['weapon', 'gloves', 'lantern', 'ring', 'amulet'] },
   critDmg: { t: '+{v}% Critical Strike Damage', lo: 10, hi: 18,  sc: 'pct',  w: 8,  slots: ['weapon', 'gloves', 'ring', 'amulet'] },

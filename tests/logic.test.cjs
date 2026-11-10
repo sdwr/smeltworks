@@ -367,6 +367,11 @@ test('Cooldown Reduction rolls on rings and amulets, at the same value on both',
   const val = slot => { const it = I.roll(50, { rar: 2, slot }); it.affixes = [{ k: 'cdr', r: 0.5, g: 0 }]; return I.affixValue(it, it.affixes[0], 0); };
   assert.equal(val('ring'), val('amulet'));
 });
+test('A single damage type rolls only a little higher than all-damage', (SW, G, D, I) => {
+  const top = k => { const it = I.roll(50, { rar: 2, slot: 'ring' }); return I.affixValue(it, { k, r: 0.9999, g: 0 }, 0); }, low = k => { const it = I.roll(50, { rar: 2, slot: 'ring' }); return I.affixValue(it, { k, r: 0, g: 0 }, 0); };
+  for (const k of ['physPct', 'firePct', 'lightPct']) { assert.ok(top(k) > top('dmgPct') && top(k) <= top('dmgPct') * 1.25, `${k} tops out at ${top(k)} against ${top('dmgPct')}`); assert.ok(low(k) > low('dmgPct') && low(k) <= low('dmgPct') * 1.25); }
+  assert.equal(top('physPct'), top('firePct')); assert.equal(top('firePct'), top('lightPct'));
+});
 test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
   let prev = first;
