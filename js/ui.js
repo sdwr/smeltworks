@@ -309,7 +309,9 @@ function renderGear() {
   const row = (l, v, tip) => `<div class="st" ${tip ? `data-tip="${tip}"` : ''}><span>${l}</span><b>${v}</b></div>`;
   let h = '<div class="doll"><div class="dcol">' + DOLL_L.map(dollSlot).join('') + '</div>';
   h += `<div class="dmid"><div class="portrait">${wk ? `<img class="pw" src="${SP.url(wk.spr, wk.pal, 6)}" alt="">` : ''}<img class="ph" src="${SP.url('hero', 'hero', 8)}" alt=""></div>`;
-  h += `<div class="power" data-tip="A rough measure of how hard you hit and how much you can take. Use it to compare, not as gospel."><span>Power</span><b>${U.fmt(C.rating.power)}</b></div></div>`;
+  // the two halves of Power, side by side: the same Damage and Toughness the gear tooltips compare against
+  h += `<div class="power two"><div data-tip="Damage: an estimate of what you deal each second, from your stats and the skills and techniques on your bar. Weapon damage, attack speed, damage bonuses, Strength, critical strikes and Vulnerable all go in. Aspect and unique powers are not counted."><span>Damage</span><b>${U.fmt(C.rating.off)}</b></div>` +
+    `<div class="tough" data-tip="Toughness: how much punishment you can take. Your Life, divided by what armor, damage reduction and dodge let through against monsters of this area, plus a few seconds of healing."><span>Toughness</span><b>${U.fmt(C.rating.def)}</b></div></div></div>`;
   h += '<div class="dcol">' + DOLL_R.map(dollSlot).join('') + '</div></div>';
   $('tab-gear').innerHTML = h;
   h = '<div class="stats"><div class="scol"><h4>Offence</h4>';

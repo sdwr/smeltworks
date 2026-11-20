@@ -200,6 +200,7 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 .portrait { position: relative; width: 150px; height: 190px; margin-top: 22px; }
 .portrait .ph { position: absolute; left: 2px; bottom: 0; width: 144px; }
 .portrait .pw { position: absolute; left: 62px; bottom: 58px; width: 108px; transform-origin: 22% 82%; transform: rotate(8deg); }
+.power.two { display: flex; justify-content: center; gap: 18px; width: 100%; } .power.two b { font-size: 22px; } .power.two .tough b { color: #8fd0ff; text-shadow: 0 0 12px rgba(143,208,255,.4); }
 .power { text-align: center; line-height: 1.1; padding-bottom: 4px; } .power span { display: block; color: var(--dim); font-size: 11px; } .power b { font: 700 26px var(--serif); color: var(--hot); text-shadow: 0 0 12px rgba(255,138,42,.5); }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 16px; }
 .stats h4, #tab-codex h4 { margin: 0 0 3px; font: 600 13px var(--serif); color: var(--ember); border-bottom: 1px solid var(--line); padding-bottom: 2px; }
