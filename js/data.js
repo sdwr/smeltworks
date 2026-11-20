@@ -186,7 +186,7 @@ D.SLOT_MULT = {
   amulet: { off: 1.5, def: 1.5, util: 1.5 },
 };
 D.SLOT_FLAT = ['cdr', 'aspd', 'move', 'skHammer', 'skEmber', 'skStorm'];
-/* Affix types: what a Kindling or Quenching Orb can be aimed at in the cube. Four of them, after Diablo 4's tuning
+/* Affix types: what Kindle and Quench can be aimed at in the cube. Four of them, after Diablo 4's tuning
    prisms (Aggressive, Protector's, Pragmatic, Adept's), and a few affixes sit in two:
      Strength             Offence and Skills
      Thorns               Offence and Utility
@@ -196,7 +196,7 @@ D.SLOT_FLAT = ['cdr', 'aspd', 'move', 'skHammer', 'skEmber', 'skStorm'];
    Skills carries the two disciplines you do not play, Utility carries Thorns and regen beside cooldown and Heat.
    So aiming an orb narrows the roll but never makes it safe. And the overlap is where the cleverness is: an unwanted
    Life per Second on a chest shares Defence with the life and armor you mean to keep, but in Utility it may stand
-   alone, so a Quenching Orb aimed at Utility takes it cleanly.
+   alone, so Quench aimed at Utility takes it cleanly.
    Each affix's first type is its family (D.AFFIX[k].cat), which gives it its colour.
    A slot only offers a type it has at least two affixes for (I.slotCats). */
 D.AFFIX_CAT = {
@@ -381,18 +381,19 @@ D.BAR_SIZE = 5;
 D.PASSIVE_SLOTS = 3;
 D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ult: 'Ultimate', passive: 'Passive' };
 
-/* cube orbs: each one changes an item's affixes at random when transmuted with it */
+/* The cube's four recipes. Each changes a piece's affixes at random and costs ember dust, the one crafting
+   material: the cube and masterworking both spend it, and nothing else does the work of either. (They were four
+   kinds of orb once, which is why the code still calls them that.) */
 D.ORBS = {
-  add:    { name: 'Kindling Orb',  pal: 'orb_add',    color: '#ffb347', w: 34, short: 'Add an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater. Drops from ordinary monsters.' },
-  remove: { name: 'Quenching Orb', pal: 'orb_remove', color: '#7fd4ff', w: 30, short: 'Remove an affix', desc: 'Removes one random affix of the type you choose. Hover a type to see which affixes on the piece it could take. Drops from ordinary monsters.' },
-  chaos:  { name: 'Slag Orb',      pal: 'orb_chaos',  color: '#c98bff', w: 20, short: 'Reroll all affixes', desc: 'Melts every affix and rolls the same number of new ones. None of them come out Greater. Drops from elites, bosses and chests.' },
-  divine: { name: 'Tempering Orb', pal: 'orb_divine', color: '#ffe9a8', w: 16, short: 'Reroll the numbers', desc: 'Rerolls the numbers on the ordinary affixes. The affixes themselves stay. It leaves Greater affixes alone, and the one affix you rerolled at the forge. It never makes a Greater affix. Drops from elites, bosses and chests.' },
+  add:    { name: 'Kindle', pal: 'orb_add',    color: '#ffb347', cost: 3, short: 'Add an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater.' },
+  remove: { name: 'Quench', pal: 'orb_remove', color: '#7fd4ff', cost: 3, short: 'Remove an affix', desc: 'Removes one random affix of the type you choose: the ones it could take are marked on the piece. It never takes the affix you rerolled at the forge.' },
+  chaos:  { name: 'Recast', pal: 'orb_chaos',  color: '#c98bff', cost: 8, short: 'Reroll all affixes', desc: 'Melts every affix and rolls the same number of new ones, except the affix you rerolled at the forge, which stays. None of the new ones come out Greater.' },
+  divine: { name: 'Temper', pal: 'orb_divine', color: '#ffe9a8', cost: 6, short: 'Reroll the numbers', desc: 'Rerolls the numbers on the ordinary affixes. The affixes themselves stay. It leaves Greater affixes alone, and the one affix you rerolled at the forge. It never makes a Greater affix.' },
 };
 D.ORB_IDS = Object.keys(D.ORBS);
-/* Kindling and Quenching are the everyday crafting materials: ordinary monsters drop them. Slag and Tempering stay
-   with elites, bosses, chests and full clears. */
-D.ORB_BASIC = ['add', 'remove'];
-D.ORB_COMMON = 0.05;     // chance for an ordinary monster to drop a Kindling or Quenching Orb
+/* Ember dust from kills: an ordinary monster sometimes carries a pinch, anything bigger always does. Salvage is the
+   other source (see I.salvageYield). */
+D.DUST = { chance: 0.05, kill: 2, elite: 4, flee: 8, champ: 10, boss: 25, bossTorment: 5, chest: [2, 4], clear: 6 };
 D.MAX_AFFIXES = 4;
 /* Masterworking: 25 ranks, +1% to everything on the piece per rank, and each strike at the forge adds 1 to 3 ranks.
    At rank 25 one more strike masterworks a single affix (+25%, or +1 on a "+ to skills" affix); striking again moves it. */
@@ -504,4 +505,8 @@ D.SHRINES = {
   storm: { name: 'Shrine of Haste', desc: '+35% Attack Speed', color: '#7fd4ff' },
 };
 D.SHRINE_FIGHTS = 4;
+/* Life is not refilled after a battle: what you end a fight with is what you start the next one with. While walking
+   the smith gets a little back (this share of maximum Life a second, plus Life per Second), and the flask keeps
+   refilling. A shrine, a fall, or a new map restores it all. */
+D.WALK_HEAL = 0.01;
 })();

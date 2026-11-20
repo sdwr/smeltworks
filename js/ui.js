@@ -11,7 +11,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const RC = i => D.RARITY[i].color;
 const mark = (...keys) => { for (const k of keys) UI.dirty[k] = 1; };
 const pct = v => (Math.round(v * 10) / 10) + '%';
-const MAT_NAME = { gold: 'gold', scrap: 'scrap', dust: 'ember dust', soul: 'soulsteel' };
+const MAT_NAME = { gold: 'gold', dust: 'ember dust', soul: 'soulsteel' };
 
 /* ------------------------------------------------------------- pieces */
 function itemCell(it, extra, idx, box) {
@@ -178,10 +178,10 @@ function renderHudBar() {
 UI.frame = function () {
   moveToken();
   const S = G.S, B = G.battle, h = B ? B.h : null, st = G.C.st;
-  const hp = h ? h.hp / h.max : 1, heat = (h ? h.heat : G.persist.heat == null ? 30 : G.persist.heat) / D.HEAT_MAX;
+  const hp = G.lifeFrac(), heat = (h ? h.heat : G.persist.heat == null ? 30 : G.persist.heat) / D.HEAT_MAX;
   const oh = $('orb-hp'); oh.firstElementChild.style.height = Math.max(0, hp * 100) + '%';
   oh.children[1].style.height = h && h.barrier > 0 ? Math.min(100, h.barrier / h.max * 100) + '%' : '0%';
-  oh.lastElementChild.textContent = U.fmt(h ? Math.ceil(h.hp) : st.maxLife);
+  oh.lastElementChild.textContent = U.fmt(h ? Math.ceil(h.hp) : Math.ceil(st.maxLife * hp));
   oh.classList.toggle('low', hp < 0.35);
   const ot = $('orb-heat'); ot.firstElementChild.style.height = heat * 100 + '%'; ot.lastElementChild.textContent = Math.round(heat * D.HEAT_MAX);
   const cds = h ? h.cds : G.persist.cds || {};
@@ -200,7 +200,7 @@ UI.frame = function () {
     el.classList.toggle('dim', dim);
   });
   if (UI.lastGold !== S.gold) { if (UI.lastGold >= 0 && S.gold > UI.lastGold) { const e = $('cur-gold').parentElement; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); } UI.lastGold = S.gold; $('cur-gold').textContent = U.fmt(S.gold); mark('forge'); }
-  for (const k of ['scrap', 'dust', 'soul']) { const e = $('cur-' + k), v = U.fmt(S.mats[k] || 0); if (e.textContent !== v) e.textContent = v; }
+  for (const k of ['dust', 'soul']) { const e = $('cur-' + k), v = U.fmt(S.mats[k] || 0); if (e.textContent !== v) e.textContent = v; }
   if (performance.now() - meterT > 250) { meterT = performance.now(); renderMeter(); }
   // boss bar
   const bb = $('bossbar'), boss = B ? B.mobs.find(m => !m.dead && (m.boss || m.champ)) : null;
@@ -409,7 +409,7 @@ function renderCraft() {
   if (!f) { UI.forgeId = null; UI.cubeLast = null; }
   if (f && UI.cubeCat && !I.slotCats(f.it).includes(UI.cubeCat)) UI.cubeCat = null;      // this piece's slot does not offer the type that was aimed at
   const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
-  const able = !!f && aims && !I.cubeCheck(f.it, orb, cat);      // the orb could do something to this piece (whether or not you hold one)
+  const able = !!f && aims && !I.cubeCheck(f.it, orb, cat);      // the recipe could do something to this piece (whether or not you can pay for it)
   let h = '';
   if (!f) h += '<div class="anvil empty"><b>The bench is empty</b><p>Click any piece of gear, worn or in your bag or stash, to bring it here. Then use the cube to add and remove affixes, or the forge to masterwork it, reroll an affix and, last of all, transfigure it.</p></div>';
   else {
@@ -419,15 +419,16 @@ function renderCraft() {
     h += worthHtml(it);
     const imp = I.implicit(it);
     h += `<div class="main-stat">${imp.dmg ? `<b>${U.fmt(imp.dmg)}</b> damage per hit, ${imp.aps.toFixed(2)} attacks per second` : imp.armor ? `<b>${U.fmt(imp.armor)}</b> armor` : imp.life ? `<b>${U.fmt(imp.life)}</b> life` : `<b>+${imp.dmgPct}%</b> damage`}</div>`;
-    // what the cube is aimed at shows on the piece itself: the affixes a Quenching Orb could take are marked with
-    // their odds, and a Kindling Orb adds an empty line for the affix it would bring
-    const risk = able && orb === 'remove' ? it.affixes.map((a, i) => i).filter(i => !cat || I.inCat(it.affixes[i].k, cat)) : [];
+    // what the cube is aimed at shows on the piece itself: the affixes Quench could take are marked with
+    // their odds, and Kindle adds an empty line for the affix it would bring
+    const risk = able && orb === 'remove' ? I.removable(it, cat) : [];
+    const safe = (orb === 'remove' || orb === 'chaos') && !it.sealed && !it.uniq ? it.ench : -1;      // the forge-rerolled affix, which those two recipes leave alone
     h += '<ul class="aff-list">';
     it.affixes.forEach((a, i) => {
       const atRisk = risk.includes(i);
-      const fresh = last.idx === i || last.orb === 'chaos' || (last.orb === 'divine' && (last.idxs || []).includes(i)), ok = I.canEnchant(it, i);
+      const fresh = last.idx === i || (last.orb === 'chaos' && (last.idxs || []).includes(i)) || (last.orb === 'divine' && (last.idxs || []).includes(i)), ok = I.canEnchant(it, i);
       h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''} ${atRisk ? 'aim-rm' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
-        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (atRisk ? `<em class="rmt" data-tip="${risk.length === 1 ? 'The Quenching Orb as it is aimed would remove this affix: it is the only one that matches.' : `The Quenching Orb as it is aimed removes one of the ${risk.length} marked affixes at random.`}">✕ ${risk.length === 1 ? 'removed' : '1 in ' + risk.length}</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
+        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (safe === i ? `<em class="sft" data-tip="You rerolled this affix at the forge. Quench and Recast leave it alone, as Temper does: only the forge changes it now.">kept</em>` : '') + (atRisk ? `<em class="rmt" data-tip="${risk.length === 1 ? 'Quench as it is aimed would remove this affix: it is the only one that matches.' : `Quench as it is aimed removes one of the ${risk.length} marked affixes at random.`}">✕ ${risk.length === 1 ? 'removed' : '1 in ' + risk.length}</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
     if (able && orb === 'add') { const C = cat ? D.AFFIX_CAT[cat] : null, n = I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat).length;
@@ -438,14 +439,14 @@ function renderCraft() {
     h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.sealed ? '<span>✧ Sealed</span>' : it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
   }
   // ---- the cube
-  const why = !f ? 'Bring a piece of gear to the bench first.' : f.it.sealed ? I.SEALED : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from ${D.ORB_BASIC.includes(orb) ? 'ordinary monsters, and always from elites and bosses' : 'elites, bosses and chests'}.` : I.cubeCheck(f.it, orb, cat);
-  h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
+  const why = !f ? 'Bring a piece of gear to the bench first.' : f.it.sealed ? I.SEALED : I.cubeCheck(f.it, orb, cat) || (G.canPay(I.cubeCost(orb)) ? null : `${O.name} costs ${O.cost} ember dust and you have ${U.fmt(S.mats.dust || 0)}. Salvage gear for more; elites and bosses always carry some.`);
+  h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}" data-tip="${O.name}: ${O.desc}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em class="${G.canPay(I.cubeCost(orb)) ? '' : 'short'}"><i class="ci dust"></i>${O.cost}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
   if (aims) {
-    // tooltips: a Kindling Orb lists what could roll on this slot, a Quenching Orb lists what is on the piece and could go
+    // tooltips: Kindle lists what could roll on this slot, Quench lists what is on the piece and could go
     const aimTip = c => {
       if (orb === 'remove') {
         if (!f) return c ? 'Removes one random ' + D.AFFIX_CAT[c].name + ' affix.' : 'Removes one random affix of any type.';
-        const on = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !c || I.inCat(o.a.k, c)).map(o => I.affixText(f.it, o.a, o.i));
+        const on = I.removable(f.it, c).map(i => I.affixText(f.it, f.it.affixes[i], i));
         const what = c ? D.AFFIX_CAT[c].name + ' affix' : 'affix';
         const list = on.map(t => '<br>• ' + t).join('');
         return !on.length ? `This piece has no ${what}${c ? '' : 'es'} to remove.` : on.length === 1 ? `The only ${what} on this piece, so it is the one removed:${list}` : `One of these ${on.length} ${what}es is removed at random:${list}`;
@@ -462,11 +463,11 @@ function renderCraft() {
   }
   let say = why || O.desc, list = '';
   if (aims) {
-    // spell out what the orb could do to this piece: the affixes it might add, or the ones it might take
+    // spell out what the recipe could do to this piece: the affixes it might add, or the ones it might take
     const kind = cat ? D.AFFIX_CAT[cat].name + ' affix' : 'affix', dot = k => `<u style="background:${D.AFFIX_CAT[D.AFFIX[k].cat].color}"></u>`;
     let opts = [], nRm = 0;
     if (able && orb === 'add') opts = I.affixPool(I.poolKey(f.it), f.it.affixes.map(a => a.k), cat).map(a => dot(a.id) + affName(a.id) + (I.slotMult(f.it, a.id) !== 1 ? ` <em data-tip="Worth ${I.slotMult(f.it, a.id)} times as much on a ${D.BASES[f.it.base].name.toLowerCase()} as on most slots.">×${I.slotMult(f.it, a.id)}</em>` : ''));
-    if (able && orb === 'remove') nRm = f.it.affixes.filter(a => !cat || I.inCat(a.k, cat)).length;
+    if (able && orb === 'remove') nRm = I.removable(f.it, cat).length;
     if (!why || able) {
       const n = opts.length, of = n > 1 ? ` One of these ${n}:` : '';
       say = orb === 'add' ? (n === 1 ? `Adds the one ${kind} this piece can still take:` : `Adds one random ${kind}${cat ? '' : ' of any type'}.${of}`)
@@ -476,7 +477,7 @@ function renderCraft() {
     if (opts.length) list = `<ul class="cube-list ${orb}">${opts.map(o => `<li>${o}</li>`).join('')}</ul>`;
   }
   h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p>${list}</div>`;
-  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc}"><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].short}</b><span>${D.ORBS[k].name}</span><i>${S.orbs[k] || 0}</i></button>`).join('') + '</div>';
+  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc} Costs ${D.ORBS[k].cost} ember dust."><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].short}</b><span>${D.ORBS[k].name}</span><i class="${G.canPay(I.cubeCost(k)) ? '' : 'short'}"><u class="ci dust"></u>${D.ORBS[k].cost}</i></button>`).join('') + '</div>';
   // ---- the forge
   h += '<h4 class="sect">The forge</h4>';
   if (!f) h += '<p class="note">Masterworking, transfiguring and salvage appear here once a piece is on the bench.</p>';
@@ -663,9 +664,10 @@ UI.onGame = function (type, d) {
       mark('top', 'map');
       break;
     case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', `Ancestral gear drops there: ${Math.round(D.ANC_CHANCE[d.tier] * 100)}% of all drops`, 'boss', 3600), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
-    case 'chest': A.play('chest'); SW.fx.spill(d.items, d.fate); UI.feed(`Chest: <b class="gold">${U.fmt(d.gold)} gold</b>`, ''); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag', 'map'); break;
-    case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b> and a bonus piece`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
-    case 'shrine': { const s = D.SHRINES[d.id]; A.play('shrine'); SW.fx.heroGlow(s.color); UI.banner(s.name, `${s.desc} for ${D.SHRINE_FIGHTS} battles`, 'shrine', 1800); break; }
+    case 'chest': A.play('chest'); SW.fx.spill(d.items, d.fate); UI.feed(`Chest: <b class="gold">${U.fmt(d.gold)} gold</b> and ${d.dust} ember dust`, ''); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag', 'map'); break;
+    case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b>, ${d.dust} ember dust and a bonus piece`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
+    case 'shrine': { const s = D.SHRINES[d.id]; A.play('shrine'); SW.fx.heroGlow(s.color); UI.banner(s.name, `Life restored. ${s.desc} for ${D.SHRINE_FIGHTS} battles`, 'shrine', 1800); break; }
+    case 'drink': A.play('potion'); SW.fx.heroGlow('#ff5a5a'); break;
     case 'equip': A.play('equip'); mark('gear', 'bag', 'forge', 'hint'); hideTip(); break;
     case 'bag': mark('bag'); break;
     case 'salvage': A.play('salvage'); mark('bag', 'forge', 'hint'); break;
@@ -675,9 +677,6 @@ UI.onGame = function (type, d) {
       if (d.res.from != null) UI.toast(`It is now ${D.RARITY[d.it.rar].name}.`, 'good');
       if (d.res.crit) { A.play('master'); UI.toast(d.res.crit > 1 ? `${d.res.crit} Greater affixes!` : 'It crit: a Greater affix!', 'good'); }
       break;
-    case 'orbs': { const n = {}; for (const k of d.list) n[k] = (n[k] || 0) + 1;
-      UI.feed('Orb: ' + Object.keys(n).map(k => `<b style="color:${D.ORBS[k].color}">${n[k] > 1 ? n[k] + ' × ' : ''}${D.ORBS[k].name}</b>`).join(', ') + (S.seen.orb ? '' : ' <span class="dim">Click a piece of gear and use it in Crafting</span>'), 'orb');
-      S.seen.orb = 1; A.play('shrine', 0.3); mark('cube', 'top'); break; }
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind !== 'commission') worthChanged(d.it);
       if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');

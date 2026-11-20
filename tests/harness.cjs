@@ -12,7 +12,7 @@ const BUILDS = {
   storm:  { bar: ['jab', 'chain', 'lance', 'overcharge', 'tempest'], passives: ['conduct', 'aftershock', 'quicken'], tech: { jab: 'static', chain: 'fork', lance: 'piercing', overcharge: 'livewire', tempest: 'thunderhead' } },
 };
 /* The bot: picks a loadout, equips anything flagged as an upgrade and melts the rest. Unless it is playing
-   casually it also upgrades, spends Kindling Orbs and commissions its weakest slot. */
+   casually it also masterworks, fills out affixes at the cube and commissions its weakest slot. Both crafts spend ember dust. */
 function botTurn(SW, build, casual) {
   const G = SW.game, S = G.S, D = SW.data, I = SW.items, H = SW.hero;
   if (S.hero.bar.join() !== build.bar.join()) { S.hero.bar = build.bar.slice(); S.hero.passives = build.passives.slice(); S.hero.tech = Object.assign({}, build.tech); G.recompute(); }
@@ -23,7 +23,7 @@ function botTurn(SW, build, casual) {
   const gl = H.gearLevel(S.gear);
   for (const slot of ['weapon', 'chest', 'ring1', 'amulet', 'gloves', 'helm', 'pants', 'ring2', 'boots', 'offhand']) {
     const it = S.gear[slot]; if (!it) continue;
-    if (it.ilvl >= gl - 2) while (S.orbs.add > 0 && G.cube(it.id, 'add'));
+    if (it.ilvl >= gl - 2) while (G.cube(it.id, 'add'));
     if (it.rar >= 2 && it.ilvl >= gl - 4) while ((it.up || 0) < 20 && G.upgrade(it.id));
   }
   if (S.gold > I.commissionCost(G.areaLevel()) * 6) {

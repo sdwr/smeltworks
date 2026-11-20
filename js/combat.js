@@ -6,7 +6,7 @@ const TICK = 0.5;            // burn / bleed tick length
 const MAX_MOBS = 6;
 
 class Battle {
-  /* C: computed hero sheet. persist: {cds, heat, potCd} carried between battles.
+  /* C: computed hero sheet. persist: {cds, heat, potCd, hp} carried between battles (hp is the share of Life left).
      spec: {waves:[[{id,lvl,elite,boss,champ,name}]], shrine}. hooks: {onKill(mob), autoFlask} */
   constructor(C, persist, spec, hooks, rec) {
     this.C = C; this.st = C.st; this.mods = C.mods; this.spec = spec; this.hooks = hooks || {};
@@ -14,9 +14,10 @@ class Battle {
     this.autoFlask = this.hooks.autoFlask !== false;      // drink the flask without being asked, below 35% Life
     this.t = 0; this.over = null; this.nextId = 1;
     this.mobs = []; this.wave = -1; this.waveDelay = 0.45; this.pending = [];
-    this.killed = 0; this.dmgDone = 0; this.dmgTaken = 0; this.minFrac = 1; this.by = {}; this.ft = 0;
+    this.killed = 0; this.dmgDone = 0; this.dmgTaken = 0; this.by = {}; this.ft = 0;
     const p = persist || {};
-    this.h = { hp: C.st.maxLife, max: C.st.maxLife, barrier: 0, barrierT: 0, heat: p.heat == null ? 30 : p.heat, cds: Object.assign({}, p.cds || {}),
+    this.minFrac = p.hp == null ? 1 : U.clamp(p.hp, 0, 1);
+    this.h = { hp: Math.max(1, Math.round(C.st.maxLife * (p.hp == null ? 1 : U.clamp(p.hp, 0, 1)))), max: C.st.maxLife, barrier: 0, barrierT: 0, heat: p.heat == null ? 30 : p.heat, cds: Object.assign({}, p.cds || {}),
       act: 0.35, potCd: p.potCd || 0, buffs: {}, strikeN: 0, attackN: 0, charge: 0, hasteT: 0, hasteV: 0, killHasteT: 0, armorStacks: 0, armorT: 0,
       cheat: false, doomT: 8, doomReady: false, slowT: 0, poison: [], poisonAcc: 0, boltIcd: 0, protT: 0, ultAfterT: 0, regenAcc: 0 };
     this.shrine = spec.shrine || null;
@@ -24,7 +25,7 @@ class Battle {
   }
   emit(o) { if (this.rec) this.ev.push(o); }
   alive() { return this.mobs.filter(m => !m.dead); }
-  persist() { return { cds: this.h.cds, heat: this.h.heat, potCd: this.h.potCd }; }
+  persist() { return { cds: this.h.cds, heat: this.h.heat, potCd: this.h.potCd, hp: this.over === 'lose' || this.h.hp <= 0 ? 1 : this.h.hp / this.h.max }; }      // a fall sends the smith back whole
   summary() { return { min: this.minFrac, t: this.t, ft: this.ft, type: this.spec.type, dmg: this.dmgDone, by: this.by, taken: this.dmgTaken, kills: this.killed }; }
   setHero(C) {
     const r = this.h.hp / this.h.max;

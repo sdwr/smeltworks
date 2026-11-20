@@ -13,7 +13,7 @@ G.fresh = function () {
   const S = {
     v: 2,
     hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null], tech: {} },
-    gear: {}, bag: [], stash: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 },
+    gear: {}, bag: [], stash: [], gold: 0, mats: { dust: 0, soul: 0 },
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
     opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6, autoFlask: true },
     stats: { kills: 0, deaths: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
@@ -23,14 +23,21 @@ G.fresh = function () {
   const w = I.roll(1, { slot: 'weapon', base: 'hammer', rar: 0 }); w.name = "Apprentice's Hammer"; w.isNew = 0;
   const c = I.roll(1, { slot: 'chest', rar: 0 }); c.name = 'Singed Apron'; c.isNew = 0;
   S.gear.weapon = w; S.gear.chest = c;
-  S.rarv = 1;
+  S.rarv = 1; S.curv = 1;
   return S;
 };
 G.init = function (saved) {
   G.S = saved || G.fresh();
   const S = G.S;
   S.bag = S.bag.filter(Boolean); while (S.bag.length < D.BAG_SIZE) S.bag.push(null);   // fixed slots, so items can be arranged
-  S.orbs = Object.assign({ add: 0, remove: 0, chaos: 0, divine: 0 }, S.orbs || {});
+  if (!S.curv) {
+    // saves from before ember dust was the one crafting material: orbs are worth what their recipe now costs, and
+    // three scrap make one dust
+    const o = S.orbs || {}; let d = Math.floor((S.mats.scrap || 0) / 3);
+    for (const k of D.ORB_IDS) d += (o[k] || 0) * D.ORBS[k].cost;
+    S.mats.dust = (S.mats.dust || 0) + d; delete S.mats.scrap; delete S.orbs;
+    S.curv = 1;
+  }
   if (!S.hero.tech) S.hero.tech = {};
   if (!S.mwv) {
     // saves from before masterwork ranks: an old upgrade was +5%, so it becomes five ranks (25 at most), and a piece keeps one masterworked affix
@@ -66,13 +73,13 @@ G.init = function (saved) {
   S.stash = (S.stash || []).slice(0, Math.max(D.STASH_SIZE, (S.stash || []).length)); while (S.stash.length < D.STASH_SIZE) S.stash.push(null);
   for (const it of S.bag.concat(S.stash)) if (it) mx = Math.max(mx, it.id);
   I.setUid(mx + 1);
-  G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = {}; G.deathStreak = 0; G.meter = [];
+  G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = { hp: S.hp == null ? 1 : U.clamp(S.hp, 0.01, 1) }; G.deathStreak = 0; G.meter = [];      // Life left is saved, so reloading the page is not a heal
   G.recompute();
   if (!S.world.map) G.startExpedition(S.world.area, S.world.tier, true);
 };
 G.save = function () {
   if (typeof localStorage === 'undefined') return;
-  try { G.S.uid = I.getUid(); localStorage.setItem(SAVE_KEY, JSON.stringify(G.S)); } catch (e) { /* storage full or blocked */ }
+  try { G.S.uid = I.getUid(); G.S.hp = G.persist.hp == null ? 1 : G.persist.hp; localStorage.setItem(SAVE_KEY, JSON.stringify(G.S)); } catch (e) { /* storage full or blocked */ }
 };
 G.load = function () {
   if (typeof localStorage === 'undefined') return null;
@@ -153,6 +160,7 @@ G.startExpedition = function (area, tier, quiet) {
   W.area = area; W.tier = tier;
   W.map = G.genMap(area, tier);
   W.pos = { x: 0, y: 2 }; W.shrine = null; W.shrineN = 0;
+  G.persist.hp = 1;                                         // a new map is begun whole
   G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.route = [];
   if (!quiet) G.emit('expedition');
   G.emit('map');
@@ -271,13 +279,10 @@ G.rollLoot = function (ilvl, o) {
   o.slot = U.wpick(D.ITEM_SLOTS, s => D.SLOT_WEIGHT[s] * (1 + lag(s)));
   return I.roll(ilvl, o);
 };
-G.rollOrb = () => U.wpick(D.ORB_IDS, k => D.ORBS[k].w);
-G.rollBasicOrb = () => U.wpick(D.ORB_BASIC, k => D.ORBS[k].w);      // Kindling or Quenching
-G.gainOrbs = function (list) { for (const k of list) G.S.orbs[k]++; if (list.length) G.emit('orbs', { list }); };
 G.dropsFor = function (m) {
   const S = G.S, st = G.C.st, tier = S.world.tier, greed = G.battle && G.battle.shrine === 'greed';
   const mf = st.mf + (greed ? 60 : 0);
-  const out = { gold: 0, items: [], orbs: [] };
+  const out = { gold: 0, items: [] };
   const weight = m.boss ? 45 : m.champ ? 16 : m.elite ? 6 : m.def.flee ? 30 : m.minion ? 0.3 : m.def.hp;
   out.gold = Math.max(1, Math.round(D.mobGold(m.lvl) * weight * U.rand(0.7, 1.3) * (1 + st.gold / 100) * (greed ? 3 : 1)));
   let n = 0, boost = 1, minRar = 0;
@@ -293,16 +298,11 @@ G.dropsFor = function (m) {
       S.stats.bosses[key] = 1; out.first = true;
       out.items.push(I.roll(m.lvl + 1, { rar: 2, tier, anc: G.ancestral(), greater: 1 }));      // a first kill pays a Rare with a Greater affix
     } else S.stats.bosses[key]++;
-    out.mats = { soul: 1 + tier, dust: 3 };
-  } else if (m.champ) out.mats = { dust: 2 };
-  else if (m.elite && U.chance(0.4)) out.mats = { dust: 1 };
-  // Kindling and Quenching Orbs (add and remove an affix) are everyday materials: ordinary monsters drop them, and
-  // anything bigger always carries some. Orbs of any kind, Slag and Tempering included, come from the bigger kills.
-  const of = 1 + st.orbFind / 100;
-  const basic = m.boss ? 3 : m.champ ? 2 : m.elite || m.def.flee ? 1 : m.minion ? 0 : (U.chance(D.ORB_COMMON * of) ? 1 : 0);
-  for (let i = 0; i < basic; i++) out.orbs.push(G.rollBasicOrb());
-  const orbs = m.boss ? 2 + (tier > 0 ? 1 : 0) : m.def.flee ? 1 : m.champ ? (U.chance(0.5 * of) ? 1 : 0) : m.elite ? (U.chance(0.15 * of) ? 1 : 0) : 0;
-  for (let i = 0; i < orbs; i++) out.orbs.push(G.rollOrb());
+    out.mats = { soul: 1 + tier, dust: D.DUST.boss + (tier > 0 ? D.DUST.bossTorment : 0) };
+  } else if (m.champ) out.mats = { dust: D.DUST.champ };
+  else if (m.def.flee) out.mats = { dust: D.DUST.flee };
+  else if (m.elite) out.mats = { dust: D.DUST.elite };
+  else if (!m.minion && U.chance(D.DUST.chance)) out.mats = { dust: D.DUST.kill };      // ordinary monsters carry a pinch now and then
   return out;
 };
 G.onKill = function (m) {
@@ -311,7 +311,6 @@ G.onKill = function (m) {
   S.gold += d.gold;
   if (d.mats) G.gainMats(d.mats);
   d.fate = d.items.map(it => G.addItem(it));
-  G.gainOrbs(d.orbs);
   return d;
 };
 G.openChest = function (c) {
@@ -321,8 +320,8 @@ G.openChest = function (c) {
   const gold = Math.round(D.mobGold(c.lvl) * 14 * U.rand(0.8, 1.3) * (1 + st.gold / 100));
   S.gold += gold;
   const fate = items.map(it => G.addItem(it));
-  G.emit('chest', { c, items, gold, fate });
-  if (U.chance(0.15 * (1 + st.orbFind / 100))) G.gainOrbs([G.rollOrb()]);
+  const dust = U.irand(D.DUST.chest[0], D.DUST.chest[1]); G.gainMats({ dust });
+  G.emit('chest', { c, items, gold, fate, dust });
 };
 
 /* -------------------------------------------------------------- game loop */
@@ -426,7 +425,7 @@ G.update = function (dt) {
     return;
   }
   if (G.phase === 'travel') {
-    G.phaseT += dt;
+    G.phaseT += dt; G.rest(dt);
     const step = G.stepTime();
     while (G.path.length > 1 && G.phaseT >= step) { G.phaseT -= step; const c = G.path.shift(); W.pos = { x: c.x, y: c.y }; G.emit('moved'); }
     // a room that has to be fought for is approached only as far as its doorway; chests and shrines are walked straight into
@@ -470,6 +469,7 @@ G.arrive = function (c) {
   if (c.type === 'shrine') {
     W.pos = { x: c.x, y: c.y };
     const id = U.pick(Object.keys(D.SHRINES)); W.shrine = id; W.shrineN = D.SHRINE_FIGHTS;
+    G.persist.hp = 1;                                       // every shrine also restores your Life
     G.emit('shrine', { id, c }); G.completeCell(c); G.phase = 'idle'; G.phaseT = 0.7; return;
   }
   const spec = G.makeSpec(c);
@@ -496,8 +496,8 @@ G.completeCell = function (c) {
     const items = [G.rollLoot(c.lvl + 1, { mf: G.C.st.mf, tier: W.tier, boost: 5, minRar: 2 })];
     const gold = Math.round(D.mobGold(c.lvl) * 40 * (1 + G.C.st.gold / 100)); S.gold += gold;
     const fate = items.map(it => G.addItem(it));
-    G.emit('fullClear', { items, gold, fate });
-    G.gainOrbs([G.rollOrb()]);
+    G.gainMats({ dust: D.DUST.clear });
+    G.emit('fullClear', { items, gold, fate, dust: D.DUST.clear });
   }
   G.emit('map');
 };
@@ -507,6 +507,7 @@ G.winCell = function () {
   const S = G.S, W = S.world, c = G.target;
   const bs = G.battle.summary(); G.record(bs);
   G.persist = G.battle.persist(); G.battle = null; G.deathStreak = 0;
+  G.rest(G.wonT || 0);                                    // the walk into the room counts as walking
   if (W.shrineN > 0) { W.shrineN--; if (!W.shrineN) W.shrine = null; }
   G.phase = 'idle'; G.phaseT = 0.25;
   G.emit('battleEnd', { win: true, bs });
@@ -635,12 +636,11 @@ G.commission = function (slot) {
   return it;
 };
 
-/* The cube: one item, one orb, a random result. */
+/* The cube: one item, one recipe paid for in ember dust, a random result. */
 G.cube = function (id, orb, cat) {
   const S = G.S, f = G.findItem(id);
   if (!D.AFFIX_CAT[cat]) cat = null;
-  if (!f || !D.ORBS[orb] || !(S.orbs[orb] > 0) || I.cubeCheck(f.it, orb, cat)) return null;
-  S.orbs[orb]--;
+  if (!f || !D.ORBS[orb] || I.cubeCheck(f.it, orb, cat) || !G.pay(I.cubeCost(orb))) return null;
   const res = I.cube(f.it, orb, S.world.tier, cat);
   G.recompute(); G.refreshUpgrades(); G.emit('cube', { it: f.it, res }); G.save();
   return res;
@@ -649,9 +649,27 @@ G.cube = function (id, orb, cat) {
 /* Skills: no points and no levels. Pick up to five for the bar and three passives; gear supplies the ranks. */
 G.skillOn = id => Hr.selected(G.S).includes(id);
 /* drink the flask by hand. Returns null, or a line saying why not */
+/* Life left, as a share of the maximum: from the fight in progress, or what was carried out of the last one */
+G.lifeFrac = () => (G.battle ? Math.max(0, G.battle.h.hp / G.battle.h.max) : G.persist.hp == null ? 1 : G.persist.hp);
+/* Time spent walking: a little Life comes back, and the flask keeps refilling. Standing still does neither. */
+G.rest = function (dt) {
+  const p = G.persist, st = G.C.st;
+  if (p.potCd > 0) p.potCd = Math.max(0, p.potCd - dt);
+  if (p.hp != null && p.hp < 1) p.hp = Math.min(1, p.hp + dt * (D.WALK_HEAL + st.regen / st.maxLife));
+};
 G.drink = function () {
   const B = G.battle;
-  if (!B || B.over) return 'Your Life refills between battles. Save the flask for a fight.';
+  if (!B || B.over) {
+    // between fights the flask works the same way, on the Life you carried out of the last one
+    const p = G.persist, st = G.C.st;
+    if (B && B.over === 'lose') return 'Too late for that.';
+    if (B) return 'Wait for the smith to step into the room.';
+    if (p.potCd > 0) return `The flask is still refilling (${Math.ceil(p.potCd)}s).`;
+    if (p.hp == null || p.hp >= 1) return 'You are at full Life.';
+    p.hp = Math.min(1, p.hp + 0.35 * (1 + ((G.C.mods.potionPlus || 0) + (st.flask || 0)) / 100)); p.potCd = 22 * (G.C.mods.potionPlus ? 0.8 : 1);
+    G.emit('drink');
+    return null;
+  }
   const r = B.drink();
   return r === 'cooldown' ? `The flask is still refilling (${Math.ceil(B.h.potCd)}s).` : r === 'full' ? 'You are at full Life.' : r ? 'Too late for that.' : null;
 };

@@ -58,8 +58,8 @@ the skill bar to drink it.
 - **Greater affixes.** When a piece drops or is commissioned, each affix has a small chance to crit and come out
   Greater: the maximum roll for that affix, and then half again on top, marked with a gold star. A Greater affix
   never rolls low, and its value sits above the range shown beside it. The chance rises in Torment. Greater affixes are found,
-  never crafted: the forge's reroll and every cube orb roll ordinary affixes. A Tempering Orb leaves a Greater
-  affix Greater, but rerolling one at the forge or melting it with a Slag Orb gives it up.
+  never crafted: the forge's reroll and every cube recipe roll ordinary affixes. Temper leaves a Greater
+  affix Greater, but rerolling one at the forge or melting it with Recast gives it up.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
 - **The forge.** Masterwork, enchant (the Reroll button beside an affix), transfigure and salvage. Rerolling costs a
   little more each time on the same piece and levels off at five times the first price.
@@ -71,19 +71,30 @@ the skill bar to drink it.
   transfigure, the change rises in green or sinks in red beside each number.
 - **Weapon Damage.** An Offence affix that only weapons roll: +6 to 12% to the weapon's own damage at any item
   level. Every skill is a percentage of weapon damage, so it multiplies everything else, as Strength does.
-- **The cube shows its aim on the piece.** With a Quenching Orb chosen, the affixes it could take are marked on the
-  piece with their odds ("1 in 3"). With a Kindling Orb, the piece gains an empty line for the affix to come, and the
+- **The cube shows its aim on the piece.** With Quench chosen, the affixes it could take are marked on the
+  piece with their odds ("1 in 3"). With Kindle, the piece gains an empty line for the affix to come, and the
   cube lists what it could be.
 - **Soulsteel.** From bosses, and from salvaging the exceptional: 3 for a Unique, 1 for each Greater affix on a
   piece, 1 more if it is Ancestral. A boss's first kill pays a Rare with a guaranteed Greater affix.
 - **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the area's level.
 - **The flask.** Restores 35% of your Life and refills over 22 seconds. Drink it with Q. By default it also drinks
   itself below 35% Life, so Auto can run unattended; Settings turns that off.
-- **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
-  affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
-  reroll them all, Tempering Orbs reroll the numbers (but not on Greater affixes, nor on the affix rerolled at the forge). Kindling and Quenching can be aimed at an affix type (see
-  "Cube types" below); the affix within the type is still random. Uniques cannot
-  be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on them. Kindling and Quenching Orbs are everyday materials: ordinary monsters drop them (5% a kill), and every elite and boss carries some. Slag and Tempering Orbs come from elites, bosses, chests and full clears.
+- **The cube.** Put in a piece of gear, pick a recipe, press Transmute, take what you get. Kindle adds a random
+  affix (up to four, lifting Common to Magic to Rare on the way), Quench removes one at random, Recast rerolls
+  them all, Temper rerolls the numbers (but not on Greater affixes). The affix you rerolled at the forge is left
+  alone by all of them: Quench never takes it and Recast does not melt it. Kindle and Quench can be aimed at an
+  affix type (see "Cube types" below); the affix within the type is still random. Uniques cannot be cubed, except
+  that Temper rerolls their numbers; the forge can still enchant one affix on them.
+- **Ember dust.** The one crafting material. Masterworking and all four cube recipes are paid in it and in nothing
+  else: Kindle 3, Quench 3, Temper 6, Recast 8; a masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or
+  move the masterworked affix. Salvage pays 1 for a Common, 2 for a Magic, 4 for a Rare (more with ranks and
+  Greater affixes) and 8 for a Unique. Elites, champions and bosses always carry some, ordinary monsters a pinch 5%
+  of the time, and chests and full clears add a little. Rerolling an affix and transfiguring take dust as well,
+  beside their gold. There are no orbs and no scrap; an old save has them turned into dust.
+- **Life carries over.** Life is not refilled after a battle: you start the next fight with what you ended the
+  last one on. Walking brings back 1% of your Life a second (plus your Life per Second), the flask keeps refilling
+  as you walk and can be drunk between fights, and a shrine restores everything. So does a fall, and so does a new
+  map. Standing still heals nothing.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
   available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
   moment.
@@ -159,7 +170,7 @@ and the cube marks boosted affixes (×1.5) in its list of what it could add.
 
 ### Cube types
 
-Kindling and Quenching Orbs can be aimed at one of four types, after Diablo 4's tuning prisms. They are the four
+Kindle and Quench can be aimed at one of four types, after Diablo 4's tuning prisms. They are the four
 families above, except that four affixes sit in two types:
 
 | Affix | Types |
@@ -174,7 +185,7 @@ disciplines plus Strength.
 
 Two rules shape the types. No type on any slot holds only affixes a build wants, so aiming narrows a roll without
 making it safe. And the overlap is where the skill is: an unwanted Life per second on a chest shares Defence with
-the life and armor you mean to keep, but in Utility it may stand alone, so a Quenching Orb aimed at Utility takes
+the life and armor you mean to keep, but in Utility it may stand alone, so Quench aimed at Utility takes
 it cleanly. A piece only offers a type its slot has at least two affixes for.
 
 ## Code

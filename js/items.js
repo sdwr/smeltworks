@@ -43,7 +43,7 @@ I.rollRarity = function (lvl, mf, tier, boost, minRar) {
   return minRar || 0;
 };
 /* An affix can crit when a piece drops (or is commissioned) and come out Greater: half again as strong. Likelier in
-   Torment. Greater affixes are found, never crafted: the forge's reroll and every cube orb roll plain affixes. */
+   Torment. Greater affixes are found, never crafted: the forge's reroll and every cube recipe roll plain affixes. */
 I.greaterChance = tier => 0.04 + 0.03 * (tier || 0);
 I.greaterCount = it => it.affixes.reduce((n, a) => n + (a.g ? 1 : 0), 0);
 /* the affixes a slot can still gain, optionally of one type */
@@ -184,11 +184,11 @@ I.spriteKey = function (it) {
 /* ------------------------------------------------------------------ forge */
 I.salvageYield = function (it) {
   const up = it.up || 0;
-  if (it.rar === 0) return { scrap: 1 + (it.ilvl > 20 ? 1 : 0) };
-  if (it.rar === 1) return { scrap: 3 };
-  if (it.uniq) return { dust: 4, soul: 3 };
+  if (it.rar === 0) return { dust: 1 };
+  if (it.rar === 1) return { dust: 2 };
+  if (it.uniq) return { dust: 8, soul: 3 };
   /* soulsteel comes out of the exceptional: one for each Greater affix, one more for an Ancestral piece */
-  const g = I.greaterCount(it), y = { scrap: 2, dust: 2 + Math.floor(up / 6) + 2 * g }, soul = g + (it.anc ? 1 : 0);
+  const g = I.greaterCount(it), y = { dust: 4 + Math.floor(up / 6) + 2 * g }, soul = g + (it.anc ? 1 : 0);
   if (soul) y.soul = soul;
   return y;
 };
@@ -196,12 +196,10 @@ I.goldScale = D.goldScale;
 /* One strike of masterworking. Below rank 25 the price follows the rank you are at; at 25 it is the price of
    masterworking an affix, and of moving that masterwork to another one. */
 I.upgradeCost = function (it) {
-  const n = it.up || 0, gs = I.goldScale(it.ilvl);
-  if (n >= D.MW_MAX) return { gold: Math.round(180 * gs), dust: 6, soul: 2 };
-  const c = { gold: Math.round(14 * gs * Math.pow(1 + n / 5, 1.3)) };
-  if (n < 8) c.scrap = 3; else if (n < 16) { c.scrap = 4; c.dust = 1; } else { c.dust = 3; if (n >= 20) c.soul = 1; }
-  return c;
+  const n = it.up || 0;
+  return { dust: n >= D.MW_MAX ? 12 : n < 8 ? 2 : n < 16 ? 4 : 6 };       // ember dust and nothing else, like the cube
 };
+I.cubeCost = orb => ({ dust: D.ORBS[orb].cost });
 /* null when a strike would do something, otherwise the reason it would not */
 I.upgradeCheck = function (it) {
   if (it.sealed) return I.SEALED;
@@ -222,7 +220,7 @@ I.upgrade = function (it) {
 };
 /* Rerolling an affix costs more each time on the same piece, but gently: +40% of the first price per reroll, levelling off at five times it. */
 I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Math.round(45 * I.goldScale(it.ilvl) * (1 + 0.4 * n)), dust: 2 + Math.min(3, Math.floor(n / 3)) }; };
-/* Uniques cannot be cubed (no adding, removing or rerolling affixes), though a Tempering Orb can reroll their
+/* Uniques cannot be cubed (no adding, removing or rerolling affixes), though Temper can reroll their
    numbers and the forge can enchant one affix. */
 I.fixed = it => !!it.uniq;
 /* any piece with affixes, Uniques included: one affix of your choosing, and then only that one */
@@ -237,7 +235,7 @@ I.enchant = function (it, idx, tier) {
 I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 
 /* ------------------------------------------------------------------- cube
-   Orbs change affixes at random. Returns a reason string when the recipe cannot run. */
+   Each recipe changes affixes at random. Returns a reason string when the recipe cannot run. */
 /* ---- transfiguring: the last step (see D.TRANSFIG) ---- */
 I.SEALED = 'It has been transfigured and is sealed: nothing more can be done to it.';
 /* any piece can be transfigured; Uniques and Ancestral gear roll on their own rows of the table */
@@ -265,14 +263,17 @@ I.transfigure = function (it) {
   (it.tf = it.tf || []).push(kind);
   return res;
 };
-/* the affixes a Tempering Orb will touch: not the Greater ones (already at their maximum), and not the one affix
+/* the affixes Temper will touch: not the Greater ones (already at their maximum), and not the one affix
    rerolled at the forge, whose number you chose to keep working on there */
 I.temperable = it => it.affixes.map((a, i) => i).filter(i => !it.affixes[i].g && i !== it.ench);
+/* the affixes Quench could take (of one type, or any), and those Recast melts: never the one affix
+   rerolled at the forge, which only the forge touches from then on */
+I.removable = (it, cat) => it.affixes.map((a, i) => i).filter(i => i !== it.ench && (!cat || I.inCat(it.affixes[i].k, cat)));
 I.cubeCheck = function (it, orb, cat) {
   if (it.sealed) return I.SEALED;
   const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
   if (orb === 'divine') return !n ? 'It has no affixes to reroll.' : I.temperable(it).length ? null : 'Nothing here for it to reroll: Greater affixes and the affix you rerolled at the forge are left alone.';
-  if (I.fixed(it)) return 'A Unique is fixed. Only a Tempering Orb works on it.';
+  if (I.fixed(it)) return 'A Unique is fixed. Only Temper works on it.';
   if (C && I.affixPool(I.poolKey(it), [], cat).length < 2) return `A ${D.BASES[it.base].name.toLowerCase()} cannot be aimed at ${C.name}.`;
   if (orb === 'add') {
     if (n >= D.MAX_AFFIXES) return 'It already has ' + D.MAX_AFFIXES + ' affixes.';
@@ -280,10 +281,11 @@ I.cubeCheck = function (it, orb, cat) {
     return null;
   }
   if (!n) return 'It has no affixes.';
-  if (orb === 'remove' && C && !it.affixes.some(a => I.inCat(a.k, cat))) return `It has no ${C.name} affix to remove.`;
+  if (orb === 'remove' && !I.removable(it, cat).length) return it.affixes.some(a => !C || I.inCat(a.k, cat)) ? `The only ${C ? C.name + ' ' : ''}affix on it is the one you rerolled at the forge, and that one is left alone.` : `It has no ${C.name} affix to remove.`;
+  if (orb === 'chaos' && !I.removable(it).length) return 'Its only affix is the one you rerolled at the forge, and that one is left alone.';
   return null;
 };
-/* cat aims Kindling (what to add) and Quenching (what to remove) at one affix type; the roll inside it is still random */
+/* cat aims Kindle (what to add) and Quench (what to remove) at one affix type; the roll inside it is still random */
 I.cube = function (it, orb, tier, cat) {
   const res = { orb };
   if (orb === 'add') {
@@ -292,16 +294,18 @@ I.cube = function (it, orb, tier, cat) {
     const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
     if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
   } else if (orb === 'remove') {
-    const idxs = it.affixes.map((a, k) => k).filter(k => !cat || I.inCat(it.affixes[k].k, cat));
+    const idxs = I.removable(it, cat);
     const i = idxs[Math.floor(U.rng() * idxs.length)];
     res.removed = I.affixText(it, it.affixes[i], i);
     it.affixes.splice(i, 1);
     if (it.ench === i) it.ench = -1; else if (it.ench > i) it.ench--;
     it.mw = (it.mw || []).filter(x => x !== i).map(x => (x > i ? x - 1 : x));
   } else if (orb === 'chaos') {
-    const n = it.affixes.length; it.affixes = [];
-    for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, null, true));
-    it.ench = -1;
+    // every affix but the one rerolled at the forge, which stays where it is
+    const kept = it.ench >= 0 ? it.affixes[it.ench] : null, out = [];
+    res.idxs = I.removable(it);
+    for (let i = 0; i < it.affixes.length; i++) out.push(i === it.ench ? kept : rollAffix(I.poolKey(it), out.map(x => x.k).concat(kept ? [kept.k] : []), tier || 0, null, true));
+    it.affixes = out;
   } else if (orb === 'divine') {
     res.idxs = I.temperable(it);                           // new numbers only, and only on ordinary affixes that were not rerolled at the forge
     for (const i of res.idxs) it.affixes[i].r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();
@@ -309,5 +313,5 @@ I.cube = function (it, orb, tier, cat) {
   if (!it.uniq && (res.from != null || it.rar < 2)) it.name = I.makeName(it);      // a Rare keeps its name
   return res;
 };
-I.costText = c => Object.keys(c).map(k => U.fmt(c[k]) + ' ' + ({ gold: 'gold', scrap: 'scrap', dust: 'ember dust', soul: 'soulsteel' })[k]).join(', ');
+I.costText = c => Object.keys(c).map(k => U.fmt(c[k]) + ' ' + ({ gold: 'gold', dust: 'ember dust', soul: 'soulsteel' })[k]).join(', ');
 })();
