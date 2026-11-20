@@ -189,7 +189,8 @@ G.makeSpec = function (c) {
   } else if (c.type === 'boss') {
     const m = U.pick(pool.filter(m => !m.swarm && !m.heal && !m.summon));
     spec.waves.push(pack(1.2 + tier * 0.5));
-    spec.waves.push([{ id: m.id, lvl, champ: true, elite: affixes(lvl >= 30 || tier > 0 ? 2 : 1), name: W.map.name }, ...pack(1.1)]);
+    const gate = tier === 0 ? D.GATE[W.area] : null;
+    spec.waves.push([Object.assign({ id: m.id, lvl, champ: true, elite: affixes(lvl >= 30 || tier > 0 ? 2 : 1), name: W.map.name }, gate ? { hpMul: gate.hp, dmgMul: gate.dmg } : {}), ...pack(1.1)]);
     spec.champ = W.map.name;
   } else if (c.type === 'elite') {
     const m = U.pick(pool.filter(m => !m.swarm));

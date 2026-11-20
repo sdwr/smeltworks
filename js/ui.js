@@ -282,6 +282,10 @@ function renderHint() {
   const S = G.S, map = S.world.map;
   let t = '';
   if (!S.seen.fought) t = 'Click a glowing tile on the map to fight there.';
+  else if (S.world.tier === 0 && D.GATE[S.world.area] && !map.bossDone && (map.cells.find(c => c.type === 'boss') || {}).deaths > 0)
+    t = emptySlots() > 0 ? `This map's guardian is a test of your build: you have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}. Open Skills and fill them.`
+      : S.bag.some(b => b && b.upg) ? "This map's guardian is a test of your gear, and something in your bag is better than what you wear. Look for the green arrow."
+        : "This map's guardian is a test of your gear. Clear more rooms for drops, fill your empty slots, masterwork what you wear, and come back on full Life (a shrine restores it).";
   else if (G.route.length > 1) t = 'The smith follows your route in order. Click a numbered tile to take it off.';
   else if (!S.seen.route && S.stats.kills > 6 && emptySlots() === 0) t = 'Click several tiles to plan a route: the smith visits them in the order shown, with Auto on or off.';
   else if (emptySlots() > 0) t = `You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}. Open Skills and fill them: every skill is free.`;

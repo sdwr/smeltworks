@@ -505,6 +505,10 @@ D.SHRINES = {
   storm: { name: 'Shrine of Haste', desc: '+35% Attack Speed', color: '#7fd4ff' },
 };
 D.SHRINE_FIGHTS = 4;
+/* The guardian of the first maps is a gear check: its Life and damage are multiplied by these (campaign only, by
+   area). In the starting hammer and apron the first one kills you; wearing what the map dropped, you usually win.
+   The second is eased in, and from the third area on the act bosses do this job themselves. */
+D.GATE = { 0: { hp: 2.5, dmg: 1.8 }, 1: { hp: 1.6, dmg: 1.35 } };
 /* Life is not refilled after a battle: what you end a fight with is what you start the next one with. While walking
    the smith gets a little back (this share of maximum Life a second, plus Life per Second), and the flask keeps
    refilling. A shrine, a fall, or a new map restores it all. */

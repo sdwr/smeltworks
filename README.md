@@ -91,6 +91,10 @@ the skill bar to drink it.
   Greater affixes) and 8 for a Unique. Elites, champions and bosses always carry some, ordinary monsters a pinch 5%
   of the time, and chests and full clears add a little. Rerolling an affix and transfiguring take dust as well,
   beside their gold. There are no orbs and no scrap; an old save has them turned into dust.
+- **The first guardian is a gear check.** The guardian of the first map has two and a half times the Life and
+  nearly twice the damage of an ordinary champion. In the starting hammer and apron it kills you (bots lose nine
+  fights in ten or more); wearing what the map dropped, you usually win on the first try. The second map's guardian
+  is eased in, and from there the act bosses do the job.
 - **Life carries over.** Life is not refilled after a battle: you start the next fight with what you ended the
   last one on. Walking brings back 1% of your Life a second (plus your Life per Second), the flask keeps refilling
   as you walk and can be drunk between fights, and a shrine restores everything. So does a fall, and so does a new

@@ -842,6 +842,27 @@ test('Life is not refilled after a battle: it carries to the next, and walking, 
   // and it is saved, so reloading the page is no heal
   G.persist.hp = 0.37; S.hp = G.persist.hp; const copy = JSON.parse(JSON.stringify(S)); G.init(copy); assert.equal(G.persist.hp, 0.37); G.init(null); assert.equal(G.lifeFrac(), 1);
 });
+test('The first map\'s guardian is a gear check: the starting kit dies to it, a smith wearing the map\'s drops wins', (SW, G, D, I) => {
+  const { BUILDS } = require('./harness.cjs');
+  const run = (dress, build, N) => { let win = 0;
+    for (let s = 1; s <= N; s++) {
+      SW.util.seed(s * 13 + 5); G.init(null); const S = G.S, b = BUILDS[build];
+      S.hero.bar = b.bar.slice(); S.hero.passives = b.passives.slice(); S.hero.tech = Object.assign({}, b.tech);
+      if (dress) for (const slot of D.SLOTS) S.gear[slot] = I.roll(slot === 'weapon' ? 4 : 3, { slot: slot.replace(/\d/, ''), rar: slot === 'weapon' || slot === 'chest' ? 2 : 1, base: slot === 'weapon' ? 'hammer' : undefined });
+      G.recompute();
+      const c = S.world.map.cells.find(x => x.type === 'boss'), spec = G.makeSpec(c); assert.equal(spec.waves[1][0].hpMul, D.GATE[0].hp); assert.equal(spec.waves[1][0].dmgMul, D.GATE[0].dmg);
+      const B = new SW.Battle(G.C, {}, spec, { autoFlask: true }, false); for (let i = 0; i < 4000 && !B.over; i++) B.step(0.05);
+      if (B.over === 'win') win++;
+    } return win / N; };
+  for (const build of ['hammer', 'ember', 'storm']) {
+    const bare = run(false, build, 30), kit = run(true, build, 30);
+    assert.ok(bare <= 0.25, `${build} in the starting hammer and apron should fall: won ${Math.round(bare * 100)}%`);
+    assert.ok(kit >= 0.8, `${build} wearing level 3 drops in every slot should win: won ${Math.round(kit * 100)}%`);
+  }
+  // the gate is for the campaign's first maps only
+  G.init(null); G.startExpedition(3, 0, true); let c = G.S.world.map.cells.find(x => x.type === 'boss'), sp = G.makeSpec(c); if (sp.waves[1]) assert.equal(sp.waves[1][0].hpMul, undefined);
+  G.S.world.cleared[1] = 0; G.startExpedition(0, 1, true); c = G.S.world.map.cells.find(x => x.type === 'boss'); assert.equal(G.makeSpec(c).waves[1][0].hpMul, undefined, 'Torment is not gated twice');
+});
 test('Saves survive an export and import', (SW, G, D, I) => {
   G.S.gold = 4242; G.S.bag[3] = I.roll(12, { rar: 2 }); G.S.mats.dust = 7;
   const str = G.exportSave(), name = G.S.bag[3].name;

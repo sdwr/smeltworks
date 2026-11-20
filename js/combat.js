@@ -41,6 +41,7 @@ class Battle {
     let hp = D.mobHp(lvl) * def.hp * D.TIER_HP[tier], dmg = D.mobDmg(lvl) * def.dmg * D.TIER_DMG[tier], int = def.int;
     if (el) { hp *= 4.2; dmg *= 1.3; }
     if (s.champ) { hp *= 2.0; }
+    if (s.hpMul) hp *= s.hpMul; if (s.dmgMul) dmg *= s.dmgMul;      // a map's guardian can be made a gear check (see D.GATE)
     if (has('hulking')) { hp *= 1.6; dmg *= 1.25; }
     if (has('frenzied')) int *= 0.62;
     let dr = (def.armor || 0) / 100;
