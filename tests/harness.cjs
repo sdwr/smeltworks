@@ -12,19 +12,18 @@ const BUILDS = {
   storm:  { bar: ['jab', 'chain', 'lance', 'overcharge', 'tempest'], passives: ['conduct', 'aftershock', 'quicken'], tech: { jab: 'static', chain: 'fork', lance: 'piercing', overcharge: 'livewire', tempest: 'thunderhead' } },
 };
 /* The bot: picks a loadout, equips anything flagged as an upgrade and melts the rest. Unless it is playing
-   casually it also upgrades, imprints aspects, spends Kindling Orbs and commissions its weakest slot. */
+   casually it also upgrades, spends Kindling Orbs and commissions its weakest slot. */
 function botTurn(SW, build, casual) {
   const G = SW.game, S = G.S, D = SW.data, I = SW.items, H = SW.hero;
   if (S.hero.bar.join() !== build.bar.join()) { S.hero.bar = build.bar.slice(); S.hero.passives = build.passives.slice(); S.hero.tech = Object.assign({}, build.tech); G.recompute(); }
   for (let pass = 0; pass < 3; pass++) for (const it of S.bag.slice()) if (it && G.isUpgrade(it)) G.equip(it.id);
-  for (const it of S.bag.slice()) if (it && it.upg && !G.equipSlots(it).length) G.salvage(it.id);      // better on paper, but its legendary power is already worn elsewhere: the bot does not juggle
+  for (const it of S.bag.slice()) if (it && it.upg && !G.equipSlots(it).length) G.salvage(it.id);      // better on paper, but the same Unique is already worn elsewhere: the bot does not juggle
   G.salvageAll(4, true);
   if (casual) return;            // a casual player never touches the forge or the cube
   const gl = H.gearLevel(S.gear);
   for (const slot of ['weapon', 'chest', 'ring1', 'amulet', 'gloves', 'helm', 'pants', 'ring2', 'boots', 'offhand']) {
     const it = S.gear[slot]; if (!it) continue;
-    if (it.ilvl >= gl - 2) while (S.orbs.add > 0 && G.cube(it.id, 'add'));       // finish the affixes before an imprint locks them
-    if (it.rar === 2) for (const a of D.ASPECTS) if (S.codex[a.id] != null && a.cat !== 'util' && I.canImprint(it, a.id) && !D.SLOTS.some(s => S.gear[s] && S.gear[s].aspect && S.gear[s].aspect.id === a.id) && G.imprint(it.id, a.id)) break;
+    if (it.ilvl >= gl - 2) while (S.orbs.add > 0 && G.cube(it.id, 'add'));
     if (it.rar >= 2 && it.ilvl >= gl - 4) while ((it.up || 0) < 20 && G.upgrade(it.id));
   }
   if (S.gold > I.commissionCost(G.areaLevel()) * 6) {

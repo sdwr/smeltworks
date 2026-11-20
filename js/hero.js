@@ -81,8 +81,8 @@ H.compute = function (S, gearOverride) {
 H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * D.flat(Math.min(attackerLvl, D.GEAR_CAP))));
 
 /* A rough offence × defence estimate from the stat sheet, used for the upgrade arrow and the tooltip comparison.
-   It counts stats only. Aspect and unique powers are left out on purpose: most are conditional, and a guess at
-   their worth would let a legendary look like more damage than a piece that simply has more damage on it.
+   It counts stats only. Unique powers are left out on purpose: most are conditional, and a guess at
+   their worth would let a Unique look like more damage than a piece that simply has more damage on it.
    Damage   = weapon damage × attacks per second × (1 + additive damage %) × (1 + Strength %) × crit × Vulnerable uptime × skill ranks,
               with small credit for cooldown reduction and Heat generation when the bar has skills that use them.
    Toughness = life ÷ (what armor, damage reduction and dodge let through), plus a few seconds of healing. */

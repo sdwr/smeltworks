@@ -1,4 +1,4 @@
-/* Smeltworks — static game data: rarities, gear, affixes, aspects, uniques, skills, monsters, world. */
+/* Smeltworks — static game data: rarities, gear, affixes, uniques, skills, monsters, world. */
 (function () {
 'use strict';
 const SW = globalThis.SW = globalThis.SW || {};
@@ -56,7 +56,6 @@ D.RARITY = [
   { id: 'common',    name: 'Common',    color: '#b9b4aa', affixes: [0, 0] },
   { id: 'magic',     name: 'Magic',     color: '#6f9dff', affixes: [1, 2] },
   { id: 'rare',      name: 'Rare',      color: '#ffd84a', affixes: [3, 4] },
-  { id: 'legendary', name: 'Legendary', color: '#ff8a2a', affixes: [4, 4] },
   { id: 'unique',    name: 'Unique',    color: '#e6c79a', affixes: [4, 4] },
 ];
 
@@ -151,8 +150,8 @@ D.AFFIX = {
   skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
   skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
 };
-/* Transfiguring: the last thing done to a piece. One roll on the table below, and then the piece is almost always
-   sealed: no more masterworking, rerolling, imprinting or cube. The chances are Diablo 4's, as measured by players
+/* Transfiguring: the last thing done to a piece, of any rarity. One roll on the table below, and then the piece is almost always
+   sealed: no more masterworking, rerolling or cube. The chances are Diablo 4's, as measured by players
    (no Tuning Prism), per kind of item, in percent:
      indes    Indestructible. There is no durability here, so it does nothing at all: the dud, as in Diablo
      quality  Item Quality: +1 to +15% to everything on the piece, on top of its masterwork ranks
@@ -161,9 +160,9 @@ D.AFFIX = {
      replace  one affix, chosen at random, is replaced by a new random one. The gamble: it can take your best
      open     the chance the piece is NOT sealed and can still be worked on, or transfigured again */
 D.TRANSFIG = {
-  leg:     { indes: 22, quality: 27, affix: 38, greater: 0,  replace: 13, open: 4 },
+  gear:    { indes: 22, quality: 27, affix: 38, greater: 0,  replace: 13, open: 4 },      // Diablo's Legendary row: here, anything that is not a Unique
   uniq:    { indes: 18, quality: 26, affix: 44, greater: 0,  replace: 13, open: 3 },
-  ancLeg:  { indes: 14, quality: 20, affix: 28, greater: 28, replace: 10, open: 4 },
+  ancGear: { indes: 14, quality: 20, affix: 28, greater: 28, replace: 10, open: 4 },
   ancUniq: { indes: 15, quality: 22, affix: 27, greater: 25, replace: 11, open: 4 },
 };
 D.TRANSFIG_KINDS = ['indes', 'quality', 'affix', 'greater', 'replace'];
@@ -175,7 +174,7 @@ D.TRANSFIG_QUALITY = 15;     // the most Item Quality one transfiguration can ad
               has to be worth giving one up; and the weapon is where the main stat belongs.
      gloves   Defence x1.5. They are the crit and speed slot, so life and armor there come dear.
      ring     Defence x1.25. The same argument, more gently, so that an amulet still beats a ring.
-     amulet   everything x1.5. The one-of-a-kind slot, as with its aspects.
+     amulet   everything x1.5. The one-of-a-kind slot.
    Body armour, boots and offhands are the baseline. Cooldown Reduction, Attack Speed, Movement Speed and skill ranks
    are the same on every slot: they are capped or counted in whole steps, and a bigger roll on one slot would just
    make that slot the only place to take them. */
@@ -212,49 +211,6 @@ for (const k in D.AFFIX) D.AFFIX[k].id = k;
 D.STAT_LABEL = { str: 'Strength', dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
   aspd: 'Attack speed', vuln: 'Vulnerable', elite: 'vs Elites', life: 'Life', armor: 'Armor', dodge: 'Dodge', dr: 'Dmg reduction', loh: 'Life on hit',
   regen: 'Life / sec', thorns: 'Thorns', flask: 'Flask healing', barrier: 'Barrier strength', move: 'Movement speed', orbFind: 'Orb find', cdr: 'Cooldown red.', heat: 'Heat gen', gold: 'Gold find', mf: 'Magic find' };
-
-/* ------------------------------------------------------------- aspects
-   cat decides which slots can hold it. mod = key read by the combat engine (or a plain stat). */
-D.ASPECT_SLOTS = {
-  off:  ['weapon', 'offhand', 'gloves', 'ring', 'amulet'],
-  def:  ['helm', 'chest', 'pants', 'offhand', 'amulet'],
-  util: ['boots', 'helm', 'chest', 'gloves', 'ring', 'amulet'],
-};
-D.ASPECT_CAT_NAME = { off: 'Offensive', def: 'Defensive', util: 'Utility' };
-const A = (id, name, cat, mod, lo, hi, desc, extra) => ({ id, name, cat, mod, lo, hi, desc, extra: extra || null });
-D.ASPECTS = [
-  A('edge',     "Edgemaster's",        'off', 'heatDmg',      15, 30, 'Skills deal up to +{v}% damage, based on how much Heat you hold when they land.'),
-  A('twin',     'of the Twin Strike',  'off', 'basicTwice',   20, 40, 'Basic skills have a {v}% chance to strike twice.'),
-  A('rapid',    'Rapid',               'off', 'basicAspd',    15, 30, 'Basic skills attack {v}% faster.'),
-  A('conflag',  'of Conflagration',    'off', 'burnMult',     30, 60, 'Your Burn deals +{v}% damage.'),
-  A('accel',    'Accelerating',        'off', 'critHaste',    12, 25, 'Critical strikes grant +{v}% Attack Speed for 3 seconds.'),
-  A('expect',   'of the Expectant',    'off', 'basicCharge',  10, 20, 'Each Basic skill hit makes your next Core skill deal +{v}% damage, stacking 3 times.'),
-  A('arcbolt',  'Stormcaller\'s',      'off', 'critBolt',     40, 80, 'Critical strikes call down a lightning bolt for {v}% weapon damage.'),
-  A('slagburst','of Slagburst',        'off', 'burnBoom',     60, 120, 'Enemies that die while Burning explode for {v}% weapon damage to all others.'),
-  A('rupture',  'of Rupture',          'off', 'critBleed',    40, 80, 'Physical critical strikes make the target Bleed for {v}% weapon damage over 4 seconds.'),
-  A('echo',     'Echoing',             'off', 'coreEcho',     15, 30, 'Core skills have a {v}% chance to be cast a second time for free.'),
-  A('hfall',    'of Hammerfall',       'off', 'nthHammer',    80, 160, 'Every 6th attack drops a spectral hammer on all enemies for {v}% weapon damage.'),
-  A('overheat', 'Overheated',          'off', 'hotCrit',      10, 20, 'While you hold 70 or more Heat, gain +{v}% Critical Strike Chance.'),
-  A('frenzy',   'of the Melee',        'off', 'perEnemyDmg',  5, 10, 'Deal +{v}% damage for each enemy alive, up to 5.'),
-  A('cata',     'of Cataclysm',        'off', 'ultAfter',     20, 40, 'After you use an Ultimate, deal +{v}% damage for 8 seconds.'),
-  A('exec',     "Executioner's",       'off', 'execute',      25, 50, 'Deal +{v}% damage to enemies below 35% Life.'),
-  A('ambush',   'of the First Blow',   'off', 'opener',       20, 40, 'Deal +{v}% damage to enemies above 80% Life.'),
-  A('disob',    'of Disobedience',     'def', 'hitArmor',     2, 4,   'Each hit you land grants +{v}% Armor for 4 seconds, stacking 10 times.'),
-  A('protect',  'of the Protector',    'def', 'eliteBarrier', 15, 30, 'Facing an Elite or Boss grants a Barrier for {v}% of your Life, renewed every 12 seconds.'),
-  A('might',    'of Might',            'def', 'ccDR',         10, 20, 'Take {v}% less damage from Burning, Bleeding, Stunned or Vulnerable enemies.'),
-  A('phoenix',  'of the Phoenix',      'def', 'cheatDeath',   25, 50, 'Once per battle, a killing blow instead restores {v}% of your Life.'),
-  A('sanguine', 'Sanguine',            'def', 'killHeal',     2, 5,   'Killing an enemy heals you for {v}% of your Life.', null),
-  A('needle',   'of Needleflare',      'def', 'thornsAll',    40, 80, 'Your Thorns also strike every other enemy for {v}% of their damage.'),
-  A('slagarm',  'Slagplate',           'def', 'barrierDR',    10, 20, 'While you have a Barrier, take {v}% less damage.'),
-  A('stead',    'Steadfast',           'def', 'lowLifeDR',    12, 25, 'While below 50% Life, take {v}% less damage.'),
-  A('prospect', "Prospector's",        'util', 'gold',        20, 40, 'Enemies drop {v}% more gold.'),
-  A('swift',    'Wind Striker',        'util', 'killHaste',   10, 20, 'Killing an enemy grants +{v}% Attack Speed for 3 seconds.'),
-  A('kindle',   'of Kindling',         'util', 'basicHeat',   3, 6,   'Basic skills generate {v} more Heat.'),
-  A('recharge', 'Recharging',          'util', 'killCdr',     0.3, 0.7, 'Each kill takes {v} seconds off your cooldowns.'),
-  A('fortune',  'of Fortune',          'util', 'mf',          10, 20, 'Gain +{v}% Magic Find.'),
-  A('draught',  'of the Deep Draught', 'util', 'potionPlus',  20, 40, 'Your flask heals {v}% more and refills 20% faster.'),
-];
-D.ASPECT = {}; D.ASPECTS.forEach(a => D.ASPECT[a.id] = a);
 
 /* ------------------------------------------------------------- uniques */
 D.UNIQUES = [
@@ -296,7 +252,7 @@ D.UNIQUES = [
     flavor: 'Wound tight. Do not unwind.' },
 ];
 D.UNIQUE = {}; D.UNIQUES.forEach(u => D.UNIQUE[u.id] = u);
-/* text for the mods a unique or aspect grants that are plain stats */
+/* text for the mods a unique grants that are plain stats */
 D.PLAIN_STATS = { gold: 1, mf: 1, skAll: 1 };
 
 /* -------------------------------------------------------------- skills

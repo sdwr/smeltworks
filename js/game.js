@@ -13,16 +13,17 @@ G.fresh = function () {
   const S = {
     v: 2,
     hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null], tech: {} },
-    gear: {}, bag: [], stash: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 }, codex: {},
+    gear: {}, bag: [], stash: [], gold: 0, mats: { scrap: 0, dust: 0, soul: 0 }, orbs: { add: 0, remove: 0, chaos: 0, divine: 0 },
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
-    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false, false], sound: true, vol: 0.6, autoFlask: true },
-    stats: { kills: 0, deaths: 0, leg: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
+    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6, autoFlask: true },
+    stats: { kills: 0, deaths: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
     seen: {}, uid: 1,
   };
   for (const s of D.SLOTS) S.gear[s] = null;
   const w = I.roll(1, { slot: 'weapon', base: 'hammer', rar: 0 }); w.name = "Apprentice's Hammer"; w.isNew = 0;
   const c = I.roll(1, { slot: 'chest', rar: 0 }); c.name = 'Singed Apron'; c.isNew = 0;
   S.gear.weapon = w; S.gear.chest = c;
+  S.rarv = 1;
   return S;
 };
 G.init = function (saved) {
@@ -41,6 +42,18 @@ G.init = function (saved) {
     // saves from before Strength: the four affixes that were removed are rerolled into something the slot can take
     for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && !it.uniq) I.fixAffixes(it);
     S.afxv = 1;
+  }
+  if (!S.rarv) {
+    // saves from before the Legendary tier and its aspects were removed: a Legendary becomes a Rare that keeps its
+    // affixes and everything done to it, a Unique moves down into the freed tier, and the Codex is gone
+    for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it) {
+      if (it.uniq) it.rar = 3;
+      else if (it.rar >= 3) { it.rar = 2; it.name = I.makeName(it); }
+      delete it.aspect;
+    }
+    delete S.codex; delete S.stats.leg;
+    S.opts.salv = (S.opts.salv || []).slice(0, 3); while (S.opts.salv.length < 3) S.opts.salv.push(false);
+    S.rarv = 1;
   }
   if (!S.capv) {
     // saves from before the gear cap: anything above item level 50 comes down to it, and a Torment map is redrawn at the new monster levels
@@ -183,15 +196,23 @@ G.makeSpec = function (c) {
 
 /* ------------------------------------------------------------------- loot */
 G.bagCount = () => G.S.bag.filter(Boolean).length;
-/* A legendary power can be worn once. The slot of a worn piece that carries the same aspect or is the same Unique as
-   `it`, or null. `except` is a slot to ignore: the one `it` would replace. */
-G.powerKey = it => (it ? (it.uniq ? 'u:' + it.uniq : it.aspect ? 'a:' + it.aspect.id : null) : null);
+/* A Unique can be worn once. The slot of a worn piece that is the same Unique as `it`, or null. `except` is a slot
+   to ignore: the one `it` would replace. */
+G.powerKey = it => (it && it.uniq ? 'u:' + it.uniq : null);
 G.twinOf = function (it, except) {
   const k = G.powerKey(it); if (!k) return null;
   for (const s of D.SLOTS) { const w = G.S.gear[s]; if (s !== except && w && w !== it && G.powerKey(w) === k) return s; }
   return null;
 };
-/* the slots this piece may go in: its own, minus any that would leave the same power worn twice */
+/* What a piece is worth to this build: Damage and Toughness with it in its slot, against that same slot left empty.
+   A ring is judged in the slot it is worn in, or the first ring slot when it is not worn. */
+G.itemWorth = function (it) {
+  const S = G.S, slot = it.slot === 'ring' ? (S.gear.ring2 === it ? 'ring2' : 'ring1') : it.slot;
+  const g0 = Object.assign({}, S.gear), g1 = Object.assign({}, S.gear); g0[slot] = null; g1[slot] = it;
+  const a = Hr.compute(S, g0).rating, b = Hr.compute(S, g1).rating;
+  return { off: Math.round(b.off - a.off), def: Math.round(b.def - a.def) };
+};
+/* the slots this piece may go in: its own, minus any that would leave the same Unique worn twice */
 G.equipSlots = function (it, slotHint) {
   let slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
   if (slotHint && slots.includes(slotHint)) slots = [slotHint];
@@ -202,10 +223,10 @@ G.equipWhy = function (id, slotHint) {
   const f = G.findItem(id); if (!f || f.where === 'gear') return null;
   if (G.equipSlots(f.it, slotHint).length) return null;
   const s = G.twinOf(f.it, slotHint && f.it.slot === 'ring' ? slotHint : null) || G.twinOf(f.it), w = G.S.gear[s];
-  return `You already wear ${f.it.uniq ? 'that Unique' : 'the ' + D.ASPECT[f.it.aspect.id].name + ' aspect'}${w ? ' (' + w.name + ')' : ''}. Each legendary power can only be worn once.`;
+  return `You already wear ${w ? w.name : 'that Unique'}. A Unique can only be worn once.`;
 };
 /* Would this piece be better than what is in its slot? Judged on stats alone, so a piece you cannot wear yet because
-   its legendary power is already on another piece is still marked: you may want to swap the two. */
+   you already wear the same Unique is still marked: you may want to swap the two. */
 G.isUpgrade = function (it) {
   const S = G.S, slots = it.slot === 'ring' ? ['ring1', 'ring2'] : [it.slot];
   for (const s of slots) {
@@ -219,19 +240,15 @@ G.gainMats = function (y) { for (const k in y) G.S.mats[k] = (G.S.mats[k] || 0) 
 G.salvageItem = function (it, quiet) {
   const y = I.salvageYield(it);
   G.gainMats(y);
-  if (it.aspect) {
-    const cur = G.S.codex[it.aspect.id];
-    if (cur == null || it.aspect.r > cur) { G.S.codex[it.aspect.id] = it.aspect.r; G.emit('codex', { id: it.aspect.id, isNew: cur == null }); }
-  }
   if (!quiet) G.emit('salvage', { it, y });
   return y;
 };
 /* put an item in the bag, honouring the auto-salvage filter and a full bag. returns 'bag' | 'salvaged' */
 G.addItem = function (it) {
   const S = G.S;
-  if (it.rar === 3) S.stats.leg++; if (it.rar === 4) S.stats.uniq++;
+  if (it.uniq) S.stats.uniq++;
   it.upg = G.isUpgrade(it) ? 1 : 0;
-  if (it.rar <= 3 && S.opts.salv[it.rar] && !it.upg && !it.anc) { G.salvageItem(it, true); return 'salvaged'; }      // Ancestral gear is never auto-salvaged
+  if (!it.uniq && S.opts.salv[it.rar] && !it.upg && !it.anc) { G.salvageItem(it, true); return 'salvaged'; }      // Ancestral gear is never auto-salvaged
   // no room: the new piece is salvaged where it drops. Nothing already in the bag is touched.
   if (G.bagCount() >= D.BAG_SIZE) { G.salvageItem(it, true); G.emit('bagfull'); return 'salvaged'; }
   let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length;
@@ -272,7 +289,7 @@ G.dropsFor = function (m) {
     const key = m.id + tier;
     if (!S.stats.bosses[key]) {
       S.stats.bosses[key] = 1; out.first = true;
-      out.items.push(I.roll(m.lvl + 1, { rar: 3, tier, anc: G.ancestral() }));
+      out.items.push(I.roll(m.lvl + 1, { rar: 2, tier, anc: G.ancestral(), greater: 1 }));      // a first kill pays a Rare with a Greater affix
     } else S.stats.bosses[key]++;
     out.mats = { soul: 1 + tier, dust: 3 };
   } else if (m.champ) out.mats = { dust: 2 };
@@ -508,7 +525,7 @@ G.equip = function (id, slotHint) {
   if (!f || f.where === 'gear') return false;
   const it = f.it;
   const slots = G.equipSlots(it, slotHint);
-  if (!slots.length) return false;                         // the same legendary power is already worn elsewhere (G.equipWhy says where)
+  if (!slots.length) return false;                         // the same Unique is already worn elsewhere (G.equipWhy says where)
   let slot = slots[0];
   if (slots.length > 1) {
     if (!S.gear.ring1) slot = 'ring1'; else if (!S.gear.ring2) slot = 'ring2';
@@ -605,24 +622,12 @@ G.enchant = function (id, idx) {
   G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a, was }); G.save();
   return a;
 };
-G.imprint = function (id, aspectId) {
-  const f = G.findItem(id); if (!f) return false;
-  const it = f.it, r = G.S.codex[aspectId];
-  if (r == null || !I.canImprint(it, aspectId)) return false;
-  if (f.where === 'gear' && G.wornAspect(aspectId, f.slot)) return false;      // it is already on another piece you are wearing
-  if (!G.pay(I.imprintCost(it))) return false;
-  I.imprint(it, aspectId, r);
-  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'imprint', it }); G.save();
-  return true;
-};
-/* the slot of a worn piece carrying this aspect, other than `except` */
-G.wornAspect = function (aspectId, except) { for (const s of D.SLOTS) { const w = G.S.gear[s]; if (s !== except && w && w.aspect && w.aspect.id === aspectId) return s; } return null; };
 G.commission = function (slot) {
   const S = G.S, ilvl = G.areaLevel(), cost = { gold: I.commissionCost(ilvl) };
   if (G.bagCount() >= D.BAG_SIZE || !G.pay(cost)) return null;
   const it = I.roll(ilvl, { slot, mf: G.C.st.mf + 40, tier: S.world.tier, minRar: 1, boost: 1.5, anc: G.ancestral() });
   it.upg = G.isUpgrade(it) ? 1 : 0;
-  if (it.rar === 3) S.stats.leg++; if (it.rar === 4) S.stats.uniq++;
+  if (it.uniq) S.stats.uniq++;
   let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length; S.bag[i] = it;
   G.emit('forge', { kind: 'commission', it }); G.save();
   return it;

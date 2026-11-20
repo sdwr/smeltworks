@@ -19,10 +19,10 @@ text, load one back in, or wipe it.
 | A | Toggle Auto (explore and fight without waiting for you) |
 | 1 2 3 | Speed 1×, 2×, 4× |
 | Q | Drink the flask |
-| S F O C | Skills, Crafting, Commission, Codex |
+| S F O | Skills, Crafting, Commission |
 | T | Travel |
 
-The screen is three panes. Left: Skills, Crafting, Commission and the Codex. Middle: your character, bag and
+The screen is three panes. Left: Skills, Crafting and Commission. Middle: your character, bag and
 stash, centred. Right: the fight and the map, the same width as the left pane. On a window narrower than 1240px they stack instead.
 
 Mouse: click a glowing tile to fight there. Click more tiles to lay a route: they are numbered 1, 2, 3 and visited
@@ -48,8 +48,9 @@ the skill bar to drink it.
   has a bright frame and a gold item level, and is never auto-salvaged or caught by the bulk salvage buttons.
 - **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
   for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,
-  3-4 on Rare, 4 on Legendary. Skill ranks come from "+ to skills" affixes.
-- **Loot.** Ten gear slots, five rarities, 27 affixes, 30 legendary aspects and 12 uniques. Item level follows
+  3-4 on Rare, 4 on a Unique. Skill ranks come from "+ to skills" affixes.
+- **Loot.** Ten gear slots, four rarities (Common, Magic, Rare, Unique), 27 affixes and 12 Uniques, each with a
+  power of its own. There are no Legendaries and no aspects: a Rare is made by what you do to it. Item level follows
   monster level up to 50, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
 - **Stash.** Sixteen slots under the bag for gear you are keeping to craft with. Nothing in it is ever salvaged,
@@ -60,22 +61,24 @@ the skill bar to drink it.
   never crafted: the forge's reroll and every cube orb roll ordinary affixes. A Tempering Orb leaves a Greater
   affix Greater, but rerolling one at the forge or melting it with a Slag Orb gives it up.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
-- **The forge.** Masterwork, enchant (the Reroll button beside an affix), imprint and salvage. Rerolling costs a
+- **The forge.** Masterwork, enchant (the Reroll button beside an affix), transfigure and salvage. Rerolling costs a
   little more each time on the same piece and levels off at five times the first price.
 - **Masterworking.** 25 ranks, each +1% to everything on the piece. A strike at the forge adds 1 to 3 ranks. At
   rank 25, one more strike masterworks a single random affix (+25%, or +1 on a skills affix); striking again moves
   the masterwork to a different affix. Saves from the old system convert each upgrade to five ranks.
-- **Legendary aspects.** Salvaging a Legendary teaches its aspect to the Codex. To put one on gear, open a Rare or
-  Legendary piece on the bench and use Imprint, or click the aspect in the Codex and then the piece. A Rare
-  becomes Legendary.
+- **What a piece is worth.** The bench shows what the piece on it adds to your Damage and Toughness: your numbers
+  with it worn, against the same slot left empty. Whenever you add, remove or reroll an affix, masterwork or
+  transfigure, the change rises in green or sinks in red beside each number.
+- **Soulsteel.** From bosses, and from salvaging the exceptional: 3 for a Unique, 1 for each Greater affix on a
+  piece, 1 more if it is Ancestral. A boss's first kill pays a Rare with a guaranteed Greater affix.
 - **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the area's level.
 - **The flask.** Restores 35% of your Life and refills over 22 seconds. Drink it with Q. By default it also drinks
   itself below 35% Life, so Auto can run unattended; Settings turns that off.
 - **The cube.** Put in a piece of gear and an orb, press Transmute, take what you get. Kindling Orbs add a random
   affix (up to four, lifting Common to Magic to Rare on the way), Quenching Orbs remove one at random, Slag Orbs
   reroll them all, Tempering Orbs reroll the numbers (but not on Greater affixes, nor on the affix rerolled at the forge). Kindling and Quenching can be aimed at an affix type (see
-  "Cube types" below); the affix within the type is still random. Legendaries and Uniques cannot
-  be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on either. Kindling and Quenching Orbs are everyday materials: ordinary monsters drop them (5% a kill), and every elite and boss carries some. Slag and Tempering Orbs come from elites, bosses, chests and full clears.
+  "Cube types" below); the affix within the type is still random. Uniques cannot
+  be cubed, except that Tempering rerolls their numbers; the forge can still enchant one affix on them. Kindling and Quenching Orbs are everyday materials: ordinary monsters drop them (5% a kill), and every elite and boss carries some. Slag and Tempering Orbs come from elites, bosses, chests and full clears.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
   available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
   moment.
@@ -85,24 +88,26 @@ the skill bar to drink it.
   techniques give a reason to chase Attack Speed, Critical Strike Chance, Critical Strike Damage, Vulnerable Damage,
   Burn/Bleed Damage, Thorns, Cooldown Reduction, Heat Generation and Barrier Strength. The gear comparison leans
   toward the stats your techniques reward, so the upgrade arrows follow the build.
-- **Transfiguring.** The last step, on Legendary and Unique gear. One roll on a table, and then the piece is almost
-  always sealed for good: no more masterworking, rerolling, imprinting or cube. The chances are Diablo 4's, as
+- **Transfiguring.** The last step, on any piece of gear whatever its rarity. One roll on a table, and then the piece is almost
+  always sealed for good: no more masterworking, rerolling or cube. The chances are Diablo 4's, as
   measured by players for a transfiguration without a Tuning Prism:
 
   | | Indestructible | Item Quality | Fifth affix | Affix made Greater | Affix replaced | Stays open |
   | --- | --- | --- | --- | --- | --- | --- |
-  | Legendary | 22% | 27% | 38% | – | 13% | 4% |
+  | Common, Magic, Rare | 22% | 27% | 38% | – | 13% | 4% |
   | Unique | 18% | 26% | 44% | – | 13% | 3% |
-  | Ancestral Legendary | 14% | 20% | 28% | 28% | 10% | 4% |
+  | Ancestral Common, Magic, Rare | 14% | 20% | 28% | 28% | 10% | 4% |
   | Ancestral Unique | 15% | 22% | 27% | 25% | 11% | 4% |
 
   Item Quality is +1 to +15% to everything on the piece, on top of masterwork ranks. The fifth affix can be one the
   slot could never roll. Making an affix Greater is Ancestral only, and is the one way crafting produces a Greater
   affix. A replaced affix is chosen at random and can be your best. There is no durability in this game, so
   Indestructible does nothing: it is the dud, as in Diablo. A piece that stays open can be worked on as
-  before, or transfigured again.
-- **One of each legendary power.** The same aspect, or the same Unique, cannot be worn on two pieces. A second
-  copy can only replace the first, and an aspect already worn cannot be imprinted onto another worn piece.
+  before, or transfigured again. A piece with nothing to replace gains an affix instead, and gaining affixes
+  lifts its rarity as the cube does.
+- **One of each Unique.** The same Unique cannot be worn twice: a second copy of a ring can only replace the first.
+- **Old saves.** Legendaries become Rares and keep their affixes, masterwork ranks and rerolls; their aspects and
+  the Codex are gone. Uniques are untouched.
 - **Damage meter.** The arena shows measured DPS for the current fight, the average over the last ten, and which
   skills, burns and procs it came from.
 - **Auto.** Explores, fights, moves to the next area, and falls back to gather strength if it keeps dying.
@@ -173,7 +178,7 @@ Plain scripts, loaded in order by `index.html`, all hanging off one global `SW`.
 
 | File | What it holds |
 | --- | --- |
-| `js/data.js` | All the content: affixes, aspects, uniques, skills, monsters, bosses, areas, tuning constants |
+| `js/data.js` | All the content: affixes, uniques, skills, monsters, bosses, areas, tuning constants |
 | `js/items.js` | Rolling items, reading their stats, forge operations |
 | `js/hero.js` | The stat sheet, level curves, the power rating used for comparisons |
 | `js/combat.js` | The battle engine. No DOM. Emits events for the renderer |
@@ -181,7 +186,7 @@ Plain scripts, loaded in order by `index.html`, all hanging off one global `SW`.
 | `js/sprites.js` | Every sprite, drawn as character grids and painted through palettes |
 | `js/fx.js` | The arena canvas: actors, particles, damage numbers, loot beams |
 | `js/audio.js` | Synthesised sound effects |
-| `js/ui.js` | Everything in the DOM: map, gear, skills, forge, codex, tooltips, dialogs |
+| `js/ui.js` | Everything in the DOM: map, gear, skills, forge, tooltips, dialogs |
 | `js/main.js` | Boot and the frame loop |
 
 The first five files have no DOM in them, so they run under Node for tests.
