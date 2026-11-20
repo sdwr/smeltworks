@@ -120,6 +120,7 @@ D.AFFIX = {
   // offence. A single damage type rolls about a fifth higher than all-damage: enough to prefer it on a one-element
   // bar, not so much that plain Damage is a wasted affix (the two add together).
   str:     { t: '+{v} Strength',                lo: 3,  hi: 7,   sc: 'none', w: 9,  note: '+1% to all damage per point, multiplying everything else', slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'gloves', 'pants', 'boots', 'amulet', 'ring'] },
+  wdmg:    { t: '+{v}% Weapon Damage',          lo: 6,  hi: 12,  sc: 'none', w: 8,  note: 'raises the damage of the weapon itself, so it multiplies everything else', slots: ['weapon'] },
   dmgPct:  { t: '+{v}% Damage',                 lo: 6,  hi: 10,  sc: 'pct',  w: 10, slots: ['weapon', 'shield', 'lantern', 'ring', 'amulet'] },
   physPct: { t: '+{v}% Physical Damage',        lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   firePct: { t: '+{v}% Fire Damage',            lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
@@ -199,7 +200,7 @@ D.SLOT_FLAT = ['cdr', 'aspd', 'move', 'skHammer', 'skEmber', 'skStorm'];
    Each affix's first type is its family (D.AFFIX[k].cat), which gives it its colour.
    A slot only offers a type it has at least two affixes for (I.slotCats). */
 D.AFFIX_CAT = {
-  off:   { name: 'Offence', color: '#ff8a6a', desc: 'Anything that adds damage, wanted or not.', keys: ['str', 'dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite', 'thorns'] },
+  off:   { name: 'Offence', color: '#ff8a6a', desc: 'Anything that adds damage, wanted or not.', keys: ['str', 'wdmg', 'dmgPct', 'physPct', 'firePct', 'lightPct', 'dot', 'crit', 'critDmg', 'aspd', 'vuln', 'elite', 'thorns'] },
   def:   { name: 'Defence', color: '#8fd0ff', desc: 'Life, armor and everything else that keeps you standing.', keys: ['life', 'lifePct', 'armor', 'armorPct', 'dodge', 'dr', 'loh', 'regen', 'barrier'] },
   util:  { name: 'Utility', color: '#9be36a', desc: 'Cooldowns, Heat and movement, with Thorns, regeneration and Barrier mixed in.', keys: ['cdr', 'heat', 'move', 'thorns', 'regen', 'barrier'] },
   skill: { name: 'Skills',  color: '#ffd27a', desc: 'Strength, and ranks for one of the three disciplines.', keys: ['skHammer', 'skEmber', 'skStorm', 'str'] },
@@ -208,7 +209,7 @@ for (const k in D.AFFIX) D.AFFIX[k].cats = [];
 for (const c in D.AFFIX_CAT) for (const k of D.AFFIX_CAT[c].keys) { if (!D.AFFIX[k].cats.length) D.AFFIX[k].cat = c; D.AFFIX[k].cats.push(c); }
 for (const k in D.AFFIX) D.AFFIX[k].id = k;
 /* labels for the stat sheet */
-D.STAT_LABEL = { str: 'Strength', dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
+D.STAT_LABEL = { str: 'Strength', wdmg: 'Weapon damage', dmgPct: 'Damage', physPct: 'Physical', firePct: 'Fire', lightPct: 'Lightning', dot: 'Burn/Bleed', crit: 'Crit chance', critDmg: 'Crit damage',
   aspd: 'Attack speed', vuln: 'Vulnerable', elite: 'vs Elites', life: 'Life', armor: 'Armor', dodge: 'Dodge', dr: 'Dmg reduction', loh: 'Life on hit',
   regen: 'Life / sec', thorns: 'Thorns', flask: 'Flask healing', barrier: 'Barrier strength', move: 'Movement speed', orbFind: 'Orb find', cdr: 'Cooldown red.', heat: 'Heat gen', gold: 'Gold find', mf: 'Magic find' };
 

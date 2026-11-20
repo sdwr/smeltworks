@@ -304,8 +304,8 @@ function renderGear() {
   let h = '<div class="doll"><div class="dcol">' + DOLL_L.map(dollSlot).join('') + '</div>';
   h += `<div class="dmid"><div class="portrait">${wk ? `<img class="pw" src="${SP.url(wk.spr, wk.pal, 6)}" alt="">` : ''}<img class="ph" src="${SP.url('hero', 'hero', 8)}" alt=""></div>`;
   // the two halves of Power, side by side: the same Damage and Toughness the gear tooltips compare against
-  h += `<div class="power two"><div data-tip="Damage: an estimate of what you deal each second, from your stats and the skills and techniques on your bar. Weapon damage, attack speed, damage bonuses, Strength, critical strikes and Vulnerable all go in. Aspect and unique powers are not counted."><span>Damage</span><b>${U.fmt(C.rating.off)}</b></div>` +
-    `<div class="tough" data-tip="Toughness: how much punishment you can take. Your Life, divided by what armor, damage reduction and dodge let through against monsters of this area, plus a few seconds of healing."><span>Toughness</span><b>${U.fmt(C.rating.def)}</b></div></div></div>`;
+  h += `<div class="power two"><div data-tip="Damage: a score for how hard you hit, from your stats and the skills and techniques on your bar. Weapon damage, attack speed, damage bonuses, Strength, critical strikes and Vulnerable all go in. It is on the same scale as Toughness, so it is not your damage per second: the meter in the arena shows that. Unique powers are not counted."><span>Damage</span><b>${U.fmt(C.rating.off)}</b></div>` +
+    `<div class="tough" data-tip="Toughness: a score for how much punishment you can take. Your Life, divided by what armor, damage reduction and dodge let through against monsters of this area, plus a few seconds of healing. It is on the same scale as Damage: a build with the two about level is balanced."><span>Toughness</span><b>${U.fmt(C.rating.def)}</b></div></div></div>`;
   h += '<div class="dcol">' + DOLL_R.map(dollSlot).join('') + '</div></div>';
   $('tab-gear').innerHTML = h;
   h = '<div class="stats"><div class="scol"><h4>Offence</h4>';
@@ -394,7 +394,7 @@ function worthHtml(it) {
   const age = UI.worthLast && UI.worthLast.id === it.id ? performance.now() - UI.worthLast.t : Infinity, wl = age < WORTH_MS ? UI.worthLast : null, d = `style="animation-delay:-${Math.round(age)}ms"`;
   const chip = v => (!wl ? '' : v ? `<em class="${v > 0 ? 'up' : 'dn'}" ${d}>${v > 0 ? '▲' : '▼'} ${U.fmt(Math.abs(v))}</em>` : `<em class="eq" ${d}>◆ same</em>`);
   const box = (cls, label, v, dv) => `<div class="${cls} ${wl && dv ? (dv > 0 ? 'up' : 'dn') : ''}" ${wl && dv ? d : ''}><span>${label}</span><b>${v < 0 ? '−' : '+'}${U.fmt(Math.abs(v))}</b>${chip(dv)}</div>`;
-  return `<div class="an-worth" data-tip="What this piece adds for you: your Damage and Toughness with it worn, against the same slot left empty. It depends on the rest of your gear and the skills on your bar, and counts stats only, not a Unique's power.">` +
+  return `<div class="an-worth" data-tip="What this piece adds for you: your Damage and Toughness with it worn, against the same slot left empty (for a weapon, bare hands that swing as fast). It depends on the rest of your gear and the skills on your bar, and counts stats only, not a Unique's power.">` +
     box('dmg', 'Damage', w.off, wl ? wl.off : 0) + box('tough', 'Toughness', w.def, wl ? wl.def : 0) + '</div>';
 }
 /* called when something has just been done to a piece: compare with what the bench last showed */
@@ -407,6 +407,9 @@ function worthChanged(it) {
 function renderCraft() {
   const S = G.S, f = UI.forgeId ? G.findItem(UI.forgeId) : null;
   if (!f) { UI.forgeId = null; UI.cubeLast = null; }
+  if (f && UI.cubeCat && !I.slotCats(f.it).includes(UI.cubeCat)) UI.cubeCat = null;      // this piece's slot does not offer the type that was aimed at
+  const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
+  const able = !!f && aims && !I.cubeCheck(f.it, orb, cat);      // the orb could do something to this piece (whether or not you hold one)
   let h = '';
   if (!f) h += '<div class="anvil empty"><b>The bench is empty</b><p>Click any piece of gear, worn or in your bag or stash, to bring it here. Then use the cube to add and remove affixes, or the forge to masterwork it, reroll an affix and, last of all, transfigure it.</p></div>';
   else {
@@ -416,21 +419,25 @@ function renderCraft() {
     h += worthHtml(it);
     const imp = I.implicit(it);
     h += `<div class="main-stat">${imp.dmg ? `<b>${U.fmt(imp.dmg)}</b> damage per hit, ${imp.aps.toFixed(2)} attacks per second` : imp.armor ? `<b>${U.fmt(imp.armor)}</b> armor` : imp.life ? `<b>${U.fmt(imp.life)}</b> life` : `<b>+${imp.dmgPct}%</b> damage`}</div>`;
+    // what the cube is aimed at shows on the piece itself: the affixes a Quenching Orb could take are marked with
+    // their odds, and a Kindling Orb adds an empty line for the affix it would bring
+    const risk = able && orb === 'remove' ? it.affixes.map((a, i) => i).filter(i => !cat || I.inCat(it.affixes[i].k, cat)) : [];
     h += '<ul class="aff-list">';
     it.affixes.forEach((a, i) => {
+      const atRisk = risk.includes(i);
       const fresh = last.idx === i || last.orb === 'chaos' || (last.orb === 'divine' && (last.idxs || []).includes(i)), ok = I.canEnchant(it, i);
-      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
-        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
+      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''} ${atRisk ? 'aim-rm' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
+        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (atRisk ? `<em class="rmt" data-tip="${risk.length === 1 ? 'The Quenching Orb as it is aimed would remove this affix: it is the only one that matches.' : `The Quenching Orb as it is aimed removes one of the ${risk.length} marked affixes at random.`}">✕ ${risk.length === 1 ? 'removed' : '1 in ' + risk.length}</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
+    if (able && orb === 'add') { const C = cat ? D.AFFIX_CAT[cat] : null, n = I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat).length;
+      h += `<li class="aim-add" style="--c:${C ? C.color : '#e9dfcd'}"><span><u></u>+ ${C ? C.name + ' affix' : 'An affix of any type'}</span><em>${n === 1 ? 'the one listed below' : 'one of the ' + n + ' listed below'}</em></li>`; }
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
     h += '</ul>';
     if (it.uniq) h += `<div class="an-asp">✦ ${I.powerText(it)}</div>`;
     h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.sealed ? '<span>✧ Sealed</span>' : it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
   }
   // ---- the cube
-  if (f && UI.cubeCat && !I.slotCats(f.it).includes(UI.cubeCat)) UI.cubeCat = null;      // this piece's slot does not offer the type that was aimed at
-  const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
   const why = !f ? 'Bring a piece of gear to the bench first.' : f.it.sealed ? I.SEALED : !(S.orbs[orb] > 0) ? `You have no ${O.name}s. They drop from ${D.ORB_BASIC.includes(orb) ? 'ordinary monsters, and always from elites and bosses' : 'elites, bosses and chests'}.` : I.cubeCheck(f.it, orb, cat);
   h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em>${S.orbs[orb] || 0}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
   if (aims) {
@@ -457,14 +464,13 @@ function renderCraft() {
   if (aims) {
     // spell out what the orb could do to this piece: the affixes it might add, or the ones it might take
     const kind = cat ? D.AFFIX_CAT[cat].name + ' affix' : 'affix', dot = k => `<u style="background:${D.AFFIX_CAT[D.AFFIX[k].cat].color}"></u>`;
-    const able = f && !I.cubeCheck(f.it, orb, cat);
-    let opts = [];
+    let opts = [], nRm = 0;
     if (able && orb === 'add') opts = I.affixPool(I.poolKey(f.it), f.it.affixes.map(a => a.k), cat).map(a => dot(a.id) + affName(a.id) + (I.slotMult(f.it, a.id) !== 1 ? ` <em data-tip="Worth ${I.slotMult(f.it, a.id)} times as much on a ${D.BASES[f.it.base].name.toLowerCase()} as on most slots.">×${I.slotMult(f.it, a.id)}</em>` : ''));
-    if (able && orb === 'remove') opts = f.it.affixes.map((a, i) => ({ a, i })).filter(o => !cat || I.inCat(o.a.k, cat)).map(o => dot(o.a.k) + I.affixText(f.it, o.a, o.i));
+    if (able && orb === 'remove') nRm = f.it.affixes.filter(a => !cat || I.inCat(a.k, cat)).length;
     if (!why || able) {
       const n = opts.length, of = n > 1 ? ` One of these ${n}:` : '';
       say = orb === 'add' ? (n === 1 ? `Adds the one ${kind} this piece can still take:` : `Adds one random ${kind}${cat ? '' : ' of any type'}.${of}`)
-        : (n === 1 ? `Removes the only ${kind} on it:` : `Removes one random ${kind}${cat ? '' : ' of any type'}.${of}`);
+        : (nRm === 1 ? `Removes the only ${kind} on it, marked ✕ above.` : `Removes one random ${kind}${cat ? '' : ' of any type'}: one of the ${nRm} marked ✕ above.`);
       if (why) say = why + ' ' + say;
     }
     if (opts.length) list = `<ul class="cube-list ${orb}">${opts.map(o => `<li>${o}</li>`).join('')}</ul>`;

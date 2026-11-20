@@ -19,7 +19,7 @@ const RARE_SUF = {
   amulet: ['Heart', 'Eye', 'Tear', 'Locket', 'Charm', 'Star', 'Knot'],
   ring: ['Band', 'Loop', 'Coil', 'Circle', 'Signet', 'Spiral'],
 };
-const MAGIC_PRE = { str: 'Mighty', dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', lightPct: 'Crackling', dot: 'Festering', crit: 'Keen', critDmg: 'Savage', aspd: 'Quick',
+const MAGIC_PRE = { str: 'Mighty', wdmg: 'Honed', dmgPct: 'Brutal', physPct: 'Jagged', firePct: 'Smoldering', lightPct: 'Crackling', dot: 'Festering', crit: 'Keen', critDmg: 'Savage', aspd: 'Quick',
   vuln: 'Exposing', elite: 'Slaying', life: 'Stout', lifePct: 'Hale', armor: 'Sturdy', armorPct: 'Plated', dodge: 'Nimble', dr: 'Warding', loh: 'Thirsting', regen: 'Mending',
   thorns: 'Barbed', flask: 'Brimming', barrier: 'Shielding', move: 'Fleet', orbFind: 'Seeking', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
 

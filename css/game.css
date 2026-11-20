@@ -255,7 +255,9 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 .orb-btn img { width: 34px; } .orb-btn b { font: 600 14px/1.15 var(--serif); color: var(--c); margin: 1px 0 2px; } .orb-btn span { font-size: 10.5px; color: var(--dim); }
 .orb-btn i { position: absolute; right: 5px; top: 3px; font: 700 13px var(--sans); font-style: normal; } .orb-btn.on { border-color: var(--c); background: #2c2636; box-shadow: inset 0 0 12px color-mix(in srgb, var(--c) 30%, transparent); }
 .cube-item { border: 1px solid var(--line2); border-radius: 3px; background: #100e15; padding: 8px 10px; margin-bottom: 8px; }
-.aff-list li.fresh span { color: var(--good); } .aff-list li em { font-style: normal; font-size: 11px; color: var(--good); } .aff-list li.gone span { text-decoration: line-through; color: var(--dimmer); } .aff-list li.gone em { color: var(--bad); }
+.aff-list li.aim-rm { margin: 1px 0; background: rgba(88,184,232,.11); box-shadow: inset 3px 0 0 #58b8e8; border-radius: 2px; } .aff-list li em.rmt { color: #8fd6ff; font-weight: 700; white-space: nowrap; }
+.aff-list li.aim-add { margin-top: 3px; padding: 3px 8px; border: 1px dashed color-mix(in srgb, var(--c) 60%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--c) 7%, transparent); } .aff-list li.aim-add > span { color: var(--c); font-style: italic; } .aff-list li.aim-add u { background: var(--c); } .aff-list li.aim-add em { color: var(--dim); white-space: nowrap; }
+.aff-list li.fresh span { color: var(--good); } .aff-list li em { font-style: normal; font-size: 11px; color: var(--good); margin-left: auto; padding-left: 8px; } .aff-list li em + em { margin-left: 0; } .aff-list li.gone span { text-decoration: line-through; color: var(--dimmer); } .aff-list li.gone em { color: var(--bad); }
 
 /* commission head, records */
 .cx-head b { font: 700 20px var(--serif); color: var(--hot); } .cx-head span { display: block; color: var(--dim); font-size: 12px; margin-bottom: 8px; }

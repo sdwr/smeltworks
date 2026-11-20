@@ -35,9 +35,10 @@ H.skillNums = function (sk, rank) {
 };
 
 /* Build the full combat sheet from the save state. gearOverride lets the UI ask "what if". */
-H.compute = function (S, gearOverride) {
+/* bareAps: how fast empty hands swing (1 a second unless told otherwise; see G.itemWorth) */
+H.compute = function (S, gearOverride, bareAps) {
   const gear = gearOverride || S.gear, lvl = H.gearLevel(gear);
-  const st = { dmg: 0, aps: 1, str: 0, dmgPct: 0, physPct: 0, firePct: 0, lightPct: 0, dot: 0, crit: 5, critDmg: 50, aspd: 0, vuln: 0, elite: 0,
+  const st = { dmg: 0, aps: 1, str: 0, wdmg: 0, dmgPct: 0, physPct: 0, firePct: 0, lightPct: 0, dot: 0, crit: 5, critDmg: 50, aspd: 0, vuln: 0, elite: 0,
     life: 0, lifePct: 0, armor: 0, armorPct: 0, dodge: 0, dr: 0, loh: 0, regen: 0, thorns: 0, cdr: 0, heat: 0, gold: 0, mf: 0, flask: 0, move: 0, orbFind: 0, barrier: 0,
     skHammer: 0, skEmber: 0, skStorm: 0, skAll: 0 };
   const mods = {};
@@ -50,7 +51,8 @@ H.compute = function (S, gearOverride) {
     const m = I.mods(it);
     for (const k in m) { if (k in st) st[k] += m[k]; else mods[k] = (mods[k] || 0) + m[k]; }
   }
-  if (!hasWeapon) { st.dmg = Math.round(4 * D.flat(lvl)); st.aps = 1; }
+  if (!hasWeapon) { st.dmg = Math.round(4 * D.flat(lvl)); st.aps = bareAps || 1; }
+  if (st.wdmg) st.dmg = Math.round(st.dmg * (1 + st.wdmg / 100));      // Weapon Damage: the weapon's own number, before anything else multiplies it
   // skills
   const ranks = {};
   for (const id of H.selected(S)) { const sk = D.SKILL[id]; ranks[id] = 1 + st.skAll + st['sk' + D.DISC[sk.disc].name]; }
@@ -86,6 +88,7 @@ H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * 
    Damage   = weapon damage × attacks per second × (1 + additive damage %) × (1 + Strength %) × crit × Vulnerable uptime × skill ranks,
               with small credit for cooldown reduction and Heat generation when the bar has skills that use them.
    Toughness = life ÷ (what armor, damage reduction and dodge let through), plus a few seconds of healing. */
+H.RATING_SCALE = 3;
 H.rating = function (C) {
   const st = C.st, m = C.mods;
   const els = { phys: 0, fire: 0, light: 0 }; let n = 0, burn = 0, cds = 0, cores = 0;
@@ -114,6 +117,10 @@ H.rating = function (C) {
   let def = st.maxLife / ((1 - dr) * (1 - st.dr / 100) * (1 - st.dodge / 100));
   def += (st.regen + st.loh * st.aps * (1 + st.aspd / 100) * 1.2) * 9;
   def *= (1 + st.flask / 100 * 0.06) * (1 + (C.bar.includes('ironskin') ? st.barrier / 100 * (0.06 + lean.barrier) : 0));
-  return { off, def, power: Math.round(Math.sqrt(off * def) * 1.2 * (1 + st.move / 100 * 0.04)) };   // a nod to Movement Speed, which is neither
+  /* Damage and Toughness are shown side by side, so they are put on one scale. Raw, they are damage per second and
+     effective Life, and Life runs about nine times the larger across builds and stages of the game. Damage is
+     tripled and Toughness cut to a third: their product, and so Power, is exactly what it was. */
+  const power = Math.round(Math.sqrt(off * def) * 1.2 * (1 + st.move / 100 * 0.04));   // a nod to Movement Speed, which is neither
+  return { off: off * H.RATING_SCALE, def: def / H.RATING_SCALE, power };
 };
 })();

@@ -49,7 +49,7 @@ the skill bar to drink it.
 - **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
   for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,
   3-4 on Rare, 4 on a Unique. Skill ranks come from "+ to skills" affixes.
-- **Loot.** Ten gear slots, four rarities (Common, Magic, Rare, Unique), 27 affixes and 12 Uniques, each with a
+- **Loot.** Ten gear slots, four rarities (Common, Magic, Rare, Unique), 28 affixes and 12 Uniques, each with a
   power of its own. There are no Legendaries and no aspects: a Rare is made by what you do to it. Item level follows
   monster level up to 50, and drops lean towards the slots where your gear has fallen behind. Tooltips compare against what
   you are wearing. The bag holds 24; when it is full, new drops are salvaged on the spot.
@@ -67,8 +67,13 @@ the skill bar to drink it.
   rank 25, one more strike masterworks a single random affix (+25%, or +1 on a skills affix); striking again moves
   the masterwork to a different affix. Saves from the old system convert each upgrade to five ranks.
 - **What a piece is worth.** The bench shows what the piece on it adds to your Damage and Toughness: your numbers
-  with it worn, against the same slot left empty. Whenever you add, remove or reroll an affix, masterwork or
+  with it worn, against the same slot left empty (a weapon against bare hands that swing as fast). Whenever you add, remove or reroll an affix, masterwork or
   transfigure, the change rises in green or sinks in red beside each number.
+- **Weapon Damage.** An Offence affix that only weapons roll: +6 to 12% to the weapon's own damage at any item
+  level. Every skill is a percentage of weapon damage, so it multiplies everything else, as Strength does.
+- **The cube shows its aim on the piece.** With a Quenching Orb chosen, the affixes it could take are marked on the
+  piece with their odds ("1 in 3"). With a Kindling Orb, the piece gains an empty line for the affix to come, and the
+  cube lists what it could be.
 - **Soulsteel.** From bosses, and from salvaging the exceptional: 3 for a Unique, 1 for each Greater affix on a
   piece, 1 more if it is Ancestral. A boss's first kill pays a Rare with a guaranteed Greater affix.
 - **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the area's level.
@@ -118,7 +123,7 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 
 | Slot | Offence | Defence | Utility | Skills |
 | --- | --- | --- | --- | --- |
-| Weapon | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Elites | Life, Life on hit, Life per second |  |  |
+| Weapon | Strength, Weapon damage, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Elites | Life, Life on hit, Life per second |  |  |
 | Shield | Strength, Damage, Elites, Thorns | Life, Armor, % Armor, Damage reduction, Barrier | Cooldown |  |
 | Lantern | Strength, Damage, Physical, Fire, Lightning, Crit chance, Elites | Barrier | Cooldown, Heat |  |
 | Helm | Strength, Burn/Bleed, Elites, Thorns | Life, Armor, Life per second, Barrier | Cooldown | yes |

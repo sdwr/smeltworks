@@ -205,11 +205,13 @@ G.twinOf = function (it, except) {
   return null;
 };
 /* What a piece is worth to this build: Damage and Toughness with it in its slot, against that same slot left empty.
-   A ring is judged in the slot it is worn in, or the first ring slot when it is not worn. */
+   A ring is judged in the slot it is worn in, or the first ring slot when it is not worn. A weapon is judged against
+   bare hands that swing as fast as it does: bare hands are otherwise a little faster than a hammer, which would make
+   your Life on Hit land more often and the hammer look like it costs you Toughness. */
 G.itemWorth = function (it) {
   const S = G.S, slot = it.slot === 'ring' ? (S.gear.ring2 === it ? 'ring2' : 'ring1') : it.slot;
   const g0 = Object.assign({}, S.gear), g1 = Object.assign({}, S.gear); g0[slot] = null; g1[slot] = it;
-  const a = Hr.compute(S, g0).rating, b = Hr.compute(S, g1).rating;
+  const a = Hr.compute(S, g0, it.slot === 'weapon' ? I.implicit(it).aps : 0).rating, b = Hr.compute(S, g1).rating;
   return { off: Math.round(b.off - a.off), def: Math.round(b.def - a.def) };
 };
 /* the slots this piece may go in: its own, minus any that would leave the same Unique worn twice */

@@ -766,7 +766,31 @@ test('Item worth: what a piece adds to Damage and Toughness against an empty slo
   // masterworking raises both, removing the damage affix takes the damage away and leaves the life
   while (ring.up < 25) assert.ok(G.upgrade(ring.id)); const w1 = G.itemWorth(ring); assert.ok(w1.off > w0.off && w1.def > w0.def, 'masterwork ranks lift both');
   assert.ok(G.cube(ring.id, 'remove', 'off')); const w2 = G.itemWorth(ring); assert.equal(ring.affixes.map(a => a.k).join(), 'life'); assert.equal(w2.off, 0); assert.ok(w2.def > 0);
+  // a slow weapon does not cost Toughness: Life on Hit elsewhere is judged at the weapon's own speed, with and without it
+  const loh = I.roll(30, { rar: 2, slot: 'ring' }); loh.affixes = [{ k: 'loh', r: 0.9, g: 0 }]; S.gear.ring2 = loh;
+  for (const base of ['hammer', 'sword', 'axe']) { const wpn = I.roll(30, { rar: 0, slot: 'weapon', base }), ww = G.itemWorth(wpn); assert.equal(ww.def, 0, base + ' with no affixes adds no Toughness, and takes none'); assert.ok(ww.off > 0); }
+  const lw = I.roll(30, { rar: 2, slot: 'weapon', base: 'hammer' }); lw.affixes = [{ k: 'life', r: 0.5, g: 0 }]; assert.ok(G.itemWorth(lw).def > 0, 'Life on a weapon still counts');
   const plain = I.roll(30, { rar: 0, slot: 'ring' }), wp = G.itemWorth(plain); assert.equal(wp.off, 0); assert.ok(wp.def > 0, 'a Common ring is only its life');
+});
+test('Weapon Damage: an Offence affix for weapons that raises the weapon\'s own damage', (SW, G, D, I, H) => {
+  const A = D.AFFIX.wdmg; assert.equal(A.slots.join(), 'weapon'); assert.ok(I.inCat('wdmg', 'off')); assert.equal(A.cat, 'off'); assert.ok(D.AFFIX_CAT.off.keys.includes('wdmg'));
+  let seen = 0; for (let i = 0; i < 400; i++) { const it = I.roll(30, { rar: 2 }); if (it.affixes.some(a => a.k === 'wdmg')) { seen++; assert.equal(it.slot, 'weapon'); } } assert.ok(seen > 3, 'it does roll: ' + seen);
+  const S = G.S, w = I.roll(30, { rar: 2, slot: 'weapon', base: 'sword' }); w.affixes = [{ k: 'life', r: 0.5, g: 0 }]; S.gear.weapon = w; G.recompute();
+  const base = G.C.st.dmg, off = G.C.rating.off; assert.equal(base, I.implicit(w).dmg);
+  w.affixes.push({ k: 'wdmg', r: 0.5, g: 0 }); G.recompute(); const v = I.affixValue(w, w.affixes[1], 1); assert.ok(v >= 8 && v <= 10, '6 to 12 percent at any level, so about 9 at a middling roll: ' + v); assert.equal(I.affixRange(w, w.affixes[1], 1), I.affixRange(Object.assign({}, w, { ilvl: 5 }), w.affixes[1], 1), 'the same range at every item level');
+  assert.equal(G.C.st.dmg, Math.round(base * (1 + v / 100)), 'the weapon hits that much harder'); assert.ok(Math.abs(G.C.rating.off / off - (1 + v / 100)) < 0.005, 'and so does everything built on it');
+  assert.ok(I.affixText(w, w.affixes[1], 1).includes('Weapon Damage')); assert.ok(G.itemWorth(w).off > 0);
+  // the cube can aim for it and at it
+  S.orbs = { add: 99, remove: 9, chaos: 0, divine: 0 }; S.bag[0] = I.roll(30, { rar: 0, slot: 'weapon' }); const c = S.bag[0]; let got = false;
+  for (let i = 0; i < 40 && !got; i++) { c.affixes = []; c.rar = 0; G.cube(c.id, 'add', 'off'); got = c.affixes[0].k === 'wdmg'; } assert.ok(got, 'Kindling aimed at Offence can add it');
+  assert.ok(G.cube(c.id, 'remove', 'off')); assert.equal(c.affixes.length, 0, 'and Quenching aimed at Offence takes it');
+});
+test('Damage and Toughness share a scale, and Power is what it always was', (SW, G, D, I, H) => {
+  const S = G.S; for (const s of D.SLOTS) S.gear[s] = I.roll(40, { rar: 2, slot: s.replace(/\d/, '') }); G.recompute();
+  const r = G.C.rating, raw = { off: r.off / H.RATING_SCALE, def: r.def * H.RATING_SCALE };
+  assert.equal(r.power, Math.round(Math.sqrt(raw.off * raw.def) * 1.2 * (1 + G.C.st.move / 100 * 0.04)), 'Power comes from the unscaled pair');
+  assert.ok(Math.abs(Math.sqrt(r.off * r.def) / Math.sqrt(raw.off * raw.def) - 1) < 1e-9, 'scaling one up and the other down leaves their product alone');
+  const ratio = r.def / r.off; assert.ok(ratio > 0.1 && ratio < 10, 'a fully dressed smith has the two within one order of magnitude: ' + ratio.toFixed(2));
 });
 test('Saves survive an export and import', (SW, G, D, I) => {
   G.S.gold = 4242; G.S.bag[3] = I.roll(12, { rar: 2 }); G.S.orbs.chaos = 7;
