@@ -413,10 +413,10 @@ const affName = k => { const n = affBare(k); return D.AFFIX[k].t.includes('{v}%'
 /* What the piece on the bench adds to Damage and Toughness. After anything is done to it (cube, reroll, masterwork,
    transfigure) the change rises in green or sinks in red beside each number for a moment. A redraw part-way through
    picks the animation up where it was, by starting it in the past. */
-const WORTH_MS = 2600;
+const WORTH_MS = 2600, AGE = '\u0001age';
 function worthHtml(it) {
   const w = G.itemWorth(it); UI.worth = { id: it.id, off: w.off, def: w.def };
-  const age = UI.worthLast && UI.worthLast.id === it.id ? performance.now() - UI.worthLast.t : Infinity, wl = age < WORTH_MS ? UI.worthLast : null, d = `style="animation-delay:-${Math.round(age)}ms"`;
+  const age = UI.worthLast && UI.worthLast.id === it.id ? performance.now() - UI.worthLast.t : Infinity, wl = age < WORTH_MS ? UI.worthLast : null, d = `style="animation-delay:${AGE}ms"`;      // AGE is filled in only when the panel is really redrawn (see put)
   const chip = v => (!wl ? '' : v ? `<em class="${v > 0 ? 'up' : 'dn'}" ${d}>${v > 0 ? '▲' : '▼'} ${U.fmt(Math.abs(v))}</em>` : `<em class="eq" ${d}>◆ same</em>`);
   const box = (cls, label, v, dv) => `<div class="${cls} ${wl && dv ? (dv > 0 ? 'up' : 'dn') : ''}" ${wl && dv ? d : ''}><span>${label}</span><b>${v < 0 ? '−' : '+'}${U.fmt(Math.abs(v))}</b>${chip(dv)}</div>`;
   return `<div class="an-worth" data-tip="What this piece adds for you: your Damage and Toughness with it worn, against the same slot left empty (for a weapon, bare hands that swing as fast). It depends on the rest of your gear and the skills on your bar, and counts stats only, not a Unique's power.">` +
@@ -520,7 +520,7 @@ function renderCraft() {
     h += transfigHtml(it);
     if (f.where === 'bag') { const y = I.salvageYield(it); h += `<div class="op slim"><div class="op-t"><b>Salvage</b><span>Break it down for ${Object.keys(y).map(k => y[k] + ' ' + MAT_NAME[k]).join(', ')}.</span></div><div class="op-a"><button class="danger" data-act="salvage-one">Salvage</button></div></div>`; }
   }
-  $('tab-craft').innerHTML = h;
+  put('tab-craft', h, x => x.split(AGE).join(String(-Math.round(UI.worthLast ? performance.now() - UI.worthLast.t : 0))));
 }
 /* Transfiguring: the last step. Shows the odds for this kind of piece, and asks twice, because it is final. */
 const TF_TIP = { indes: 'Indestructible: nothing changes. This is the dud.', quality: `Item Quality: +1 to +${D.TRANSFIG_QUALITY}% to everything on the piece, beyond its masterwork ranks.`, affix: 'A fifth affix. It can be one this slot could never roll.',
@@ -547,7 +547,7 @@ function renderCommission() {
   h += `<div class="op-a" style="justify-content:flex-start">${costHtml(cc)}<span class="note">each. You have ${U.fmt(S.gold)} gold${G.bagCount() >= D.BAG_SIZE ? ', but your bag is full' : ''}.</span></div><div class="com-row">` +
     D.ITEM_SLOTS.map(s => { const worn = (s === 'ring' ? [S.gear.ring1, S.gear.ring2] : [S.gear[s]]).map(x => (x ? x.ilvl : '–')).join(' / ');
       return `<button class="com" data-act="commission" data-slot="${s}" ${G.canPay(cc) ? '' : 'disabled'} data-tip="Cast a ${D.SLOT_NAME[s].toLowerCase()}. You are wearing item level ${worn}."><img src="${SP.url(D.BASES[D.BASES_BY_SLOT[s][0]].spr, D.material(lvl).pal, 3)}" alt=""><b>${D.SLOT_NAME[s]}</b><span>wearing ${worn}</span></button>`; }).join('') + '</div>';
-  $('tab-commission').innerHTML = h;
+  put('tab-commission', h);
 }
 
 function recordsHtml() {
@@ -556,7 +556,14 @@ function recordsHtml() {
 }
 
 /* -------------------------------------------------------------- render */
+/* Replace a panel's markup only when it has changed. A redraw swaps every button for a new one, and a click only
+   counts if the press and the release land on the same element, so needless redraws eat clicks. */
+const lastHtml = {};
+function put(id, h, fill) { if (lastHtml[id] !== h) { lastHtml[id] = h; $(id).innerHTML = fill ? fill(h) : h; } }
 UI.render = function () {
+  // while a button is held down nothing is redrawn under it: the changes wait for the release (or 1.2 s, whichever
+  // comes first). Kills pay gold many times a second in a fight, and each payment used to redraw the forge.
+  if (UI.pressT && performance.now() - UI.pressT < 1200) return;
   const d = UI.dirty; UI.dirty = {};
   if (d.top) renderTop();
   if (d.hud) renderHudBar();
@@ -732,6 +739,10 @@ function go(area, tier) {
   G.startExpedition(area, tier); UI.closeModal(); G.save();
 }
 UI.bind = function () {
+  const release = () => { UI.pressT = 0; };
+  document.addEventListener('pointerdown', e => { UI.pressT = e.button === 0 ? performance.now() : 0; }, true);
+  for (const ev of ['pointerup', 'pointercancel', 'dragstart']) document.addEventListener(ev, release, true);
+  window.addEventListener('blur', release);
   document.addEventListener('pointerdown', () => A.unlock(), { once: false, passive: true });
   document.addEventListener('mousemove', e => {
     const el = e.target.closest && e.target.closest('[data-item],[data-skill],[data-tile],[data-tip]');

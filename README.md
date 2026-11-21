@@ -144,6 +144,9 @@ the skill bar to drink it.
   Fire, blue for Lightning); hover one for the type, or the split when a skill deals two.
 - **The purse.** Gold, ember dust and soulsteel sit at the head of the character pane. Salvaging pops a large green
   +amount in the middle of the pane, and anything you pay for at the forge or the cube pops a red −amount there.
+- **Clicks are never eaten by a redraw.** A panel's markup is replaced only when it has changed, and nothing is
+  redrawn under a button while it is held down, so a click on Transmute or Masterwork counts the first time even in
+  the middle of a fight.
 - **Routes survive a reload.** A planned route is saved with the game, so reloading the page keeps both the numbers
   on the map and the walking.
 - **Auto.** Explores, fights, starts the next run after a fall, moves on to the next level, and steps back a level if three runs in a row end at the door.
