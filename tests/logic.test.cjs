@@ -502,8 +502,9 @@ test('Salvage pays more ember dust for the exceptional, and there is no soulstee
   const anc = I.roll(50, { slot: 'ring', rar: 2, anc: true }); anc.affixes.forEach(a => { a.g = 0; }); assert.equal(I.salvageYield(anc).dust, 9, 'and five for being Ancestral');
   assert.equal(I.salvageYield(I.roll(50, { unique: 'coil', rar: 3 })).dust, 12);
   G.S.bag[0] = rare; G.S.mats = { dust: 0 }; assert.ok(G.salvage(rare.id)); assert.equal(G.S.mats.dust, 10); assert.equal(G.S.mats.soul, undefined); assert.equal(G.S.codex, undefined, 'there is no Codex to learn into');
-  // transfiguring asks for gold and ember dust only, and a boss drops no material of its own
-  const c = I.transfigCost(rare); assert.equal(Object.keys(c).join(), 'gold,dust'); assert.equal(c.dust, 40);
+  // transfiguring asks for gold only, and a boss drops no material of its own
+  const c = I.transfigCost(rare); assert.equal(Object.keys(c).join(), 'gold', 'gold only: no ember dust'); assert.ok(c.gold > 0);
+  { const x = I.roll(50, { rar: 2, slot: 'ring' }); G.S.bag[3] = x; const g = G.S.gold, d = G.S.mats.dust; G.S.gold = I.transfigCost(x).gold; G.S.mats.dust = 0; assert.ok(G.transfigure(x.id), 'transfigured with no dust at all'); assert.equal(G.S.gold, 0); assert.equal(G.S.mats.dust, 0); G.S.gold = g; G.S.mats.dust = d; }
   const d = G.dropsFor({ def: D.BOSSES.grukk, id: 'grukk', lvl: 7, boss: true }); assert.equal(Object.keys(d.mats).join(), 'dust');
   const old = G.fresh(); old.mats.soul = 44; G.init(old); assert.equal(old.mats.soul, undefined, 'old saves lose theirs');
   // a boss's first kill pays a Rare that always has one, from the third level on

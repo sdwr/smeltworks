@@ -253,7 +253,7 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 I.SEALED = 'It has been transfigured and is sealed: nothing more can be done to it.';
 /* any piece can be transfigured; Uniques and Ancestral gear roll on their own rows of the table */
 I.tfKind = it => (it.uniq ? (it.anc ? 'ancUniq' : 'uniq') : it.anc ? 'ancGear' : 'gear');
-I.transfigCost = it => ({ gold: Math.round(500 * I.goldScale(it.ilvl)), dust: 40 });      // gold and ember dust: nothing that only bosses drop
+I.transfigCost = it => ({ gold: Math.round(500 * I.goldScale(it.ilvl)) });      // gold only: no ember dust, and nothing that only bosses drop
 I.OFFER_FIRST = 'The cube has made its offer for this piece. Pick one of the three first.';
 I.transfigCheck = it => (it.sealed ? I.SEALED : null);
 /* Roll the table once. Returns { kind, v?, idx?, was?, open } and changes the piece. */
