@@ -588,6 +588,8 @@ G.winCell = function () {
 };
 
 /* -------------------------------------------------------- player actions */
+/* pieces with a free transmute waiting to be answered, worn ones first */
+G.freeWaiting = () => Object.values(G.S.gear).concat(G.S.bag, G.S.stash || []).filter(it => it && it.offer && it.offerFree);
 G.findItem = function (id) {
   const S = G.S;
   for (const s of D.SLOTS) if (S.gear[s] && S.gear[s].id === id) return { it: S.gear[s], where: 'gear', slot: s };

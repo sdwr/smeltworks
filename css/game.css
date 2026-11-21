@@ -62,7 +62,9 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 #combat.cooling #cooldown { display: flex; animation: fdin .4s; }
 #cooldown b { font: 700 26px var(--serif); letter-spacing: 1px; color: #e9dfcd; text-shadow: 0 2px 10px #000; } #cooldown i { font: 700 84px/1 var(--serif); font-style: normal; color: #fff; text-shadow: 0 0 24px rgba(255,255,255,.35), 0 3px 14px #000; font-variant-numeric: tabular-nums; }
 #cooldown span { max-width: 34ch; font-size: 13px; color: #cfc8ba; text-shadow: 0 1px 6px #000; }
-#xpbar { position: relative; flex: 0 0 100%; height: 15px; background: #0c0a10; border: 1px solid var(--line2); border-radius: 3px; overflow: hidden; }
+#xprow { flex: 0 0 100%; display: flex; gap: 6px; align-items: center; }
+#xpfree { flex: none; padding: 0 8px; height: 17px; font: 700 11px/15px var(--sans); color: #1a1408; background: linear-gradient(#ffe9a8, #ffb347); border: 1px solid #fff3c4; border-radius: 3px; box-shadow: 0 0 8px rgba(255,179,71,.7); cursor: pointer; white-space: nowrap; animation: freeGlow 1.1s ease-in-out infinite alternate; }
+#xpbar { position: relative; flex: 1 1 auto; min-width: 0; height: 15px; background: #0c0a10; border: 1px solid var(--line2); border-radius: 3px; overflow: hidden; }
 #xpbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#b08a3a, #7a5a22); transition: width .3s; } #xpbar.full i { background: linear-gradient(#ffe9a8, #ffb347); animation: xp-full 1s ease-in-out infinite alternate; } @keyframes xp-full { to { filter: brightness(1.35); } }
 #xpbar span { position: absolute; inset: 0; display: grid; place-items: center; font: 600 10.5px var(--sans); color: #e9dfcd; text-shadow: 0 1px 2px #000; white-space: pre; }
 #arena { position: relative; border: 1px solid var(--line2); border-radius: 4px; overflow: hidden; background: #000; box-shadow: inset 0 0 60px #000; }
@@ -264,8 +266,9 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 .cube-list { list-style: none; margin: 5px 0 4px; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 5px; } .cube-list li { padding: 2px 7px 2px 6px; font-size: 12.5px; color: #e9dfcd; background: rgba(0,0,0,.38); border: 1px solid #4a3a1c; border-radius: 3px; white-space: nowrap; }
 .cube-list em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--hot); margin-left: 3px; }
 .cube-list u { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 2px; } .cube-list.remove li { border-color: #2f5a70; }
-.it.offer-free { box-shadow: 0 0 10px #ffd27a, inset 0 0 8px rgba(255,210,122,.35); }
-.it.offer-free::after { content: '✦'; position: absolute; right: 0; top: -3px; z-index: 3; font: 700 15px/1 var(--sans); color: #fff3c4; text-shadow: 0 0 6px #ffb347, 0 0 2px #fff; animation: twinkle 1s ease-in-out infinite; pointer-events: none; }
+.it.offer-free { outline: 2px solid #ffe08a; outline-offset: 1px; z-index: 2; box-shadow: 0 0 10px 2px #ffd27a, inset 0 0 10px rgba(255,210,122,.5); animation: freeGlow 1.1s ease-in-out infinite alternate; }
+@keyframes freeGlow { from { box-shadow: 0 0 6px 1px rgba(255,210,122,.8), inset 0 0 8px rgba(255,210,122,.35); outline-color: #ffd27a; } to { box-shadow: 0 0 20px 6px rgba(255,190,90,.95), inset 0 0 14px rgba(255,230,160,.7); outline-color: #fff6d0; } }
+.it.offer-free::after { content: '✦'; position: absolute; right: -4px; top: -7px; z-index: 3; font: 700 20px/1 var(--sans); color: #fff3c4; text-shadow: 0 0 6px #ffb347, 0 0 2px #fff; animation: twinkle 1s ease-in-out infinite; pointer-events: none; }
 .it.offer-free::before { content: ''; position: absolute; inset: -3px; z-index: 3; pointer-events: none; background: radial-gradient(circle at 18% 22%, #fff 0 1.3px, transparent 2.2px), radial-gradient(circle at 80% 62%, #ffe9a8 0 1.3px, transparent 2.2px), radial-gradient(circle at 34% 84%, #fff 0 1.1px, transparent 2px), radial-gradient(circle at 62% 12%, #ffd27a 0 1px, transparent 2px), radial-gradient(circle at 92% 90%, #fff 0 1.2px, transparent 2px); animation: sparkle 1.3s steps(5) infinite; }
 @keyframes twinkle { 0%, 100% { transform: scale(.7) rotate(0); opacity: .6; } 50% { transform: scale(1.25) rotate(45deg); opacity: 1; } } @keyframes sparkle { 0%, 100% { opacity: .15; transform: scale(.94) rotate(-4deg); } 50% { opacity: 1; transform: scale(1.04) rotate(4deg); } }
 .cube-say b.free { color: #ffe9a8; }
@@ -306,7 +309,7 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 #tab-craft.j-cap .aff-list li.mw { animation: j-in .7s cubic-bezier(.2,.9,.3,1.25) both; --jc: #ffd27a; }
 #tab-craft.j-tf .anvil { animation: j-tfa 1.2s ease-out; } @keyframes j-tfa { 0% { border-color: var(--jc); box-shadow: 0 0 0 2px var(--jc), 0 0 80px var(--jc), inset 0 0 60px color-mix(in srgb, var(--jc) 40%, transparent); transform: scale(1.012); } 40% { transform: none; } }
 #tab-craft.j-tf .tf-res { animation: j-res .55s cubic-bezier(.2,.9,.3,1.35) both; } @keyframes j-res { 0% { transform: scale(.55); opacity: 0; filter: brightness(2.5); } }
-@media (prefers-reduced-motion: reduce) { #tab-craft[class*="j-"] * { animation: none !important; } .it.offer-free::before, .it.offer-free::after, #xpbar.full i { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #tab-craft[class*="j-"] * { animation: none !important; } .it.offer-free, #xpfree, .it.offer-free::before, .it.offer-free::after, #xpbar.full i { animation: none; } }
 .tier-tag { display: inline-block; min-width: 22px; margin-right: 6px; padding: 0 3px; font: 700 10.5px/15px var(--sans); text-align: center; border-radius: 2px; color: #1a1408; background: #e9c46a; vertical-align: 1px; }
 .tier-tag.d1 { background: #9aa3b5; } .tier-tag.d2 { background: #6f6a78; color: #e6e0d4; } .tier-tag.d3 { background: #4a4552; color: #b9b2a6; }
 .aff-list li.aim-rm { margin: 1px 0; background: rgba(88,184,232,.11); box-shadow: inset 3px 0 0 #58b8e8; border-radius: 2px; } .aff-list li em.sft { color: var(--dim); white-space: nowrap; } .aff-list li em.rmt { color: #8fd6ff; font-weight: 700; white-space: nowrap; }

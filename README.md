@@ -127,7 +127,8 @@ the skill bar to drink it.
   into "Leave it be". A piece that transfiguring seals loses its offer.
 - **Free transmutes.** Kills fill a bar at the head of the character pane (1 for a monster, 4 for an elite, 12 for a
   boss, 30 to fill). When it is full, one piece you are wearing that has no offer waiting gets a transmute for
-  nothing: it sparkles until you take one of its three offers. If every worn piece is busy the bar waits, full.
+  nothing: it gets a pulsing gold border and sparkles until you take one of its three offers, and a count beside the
+  bar says how many are waiting (click it to bring the next one to the bench). If every worn piece is busy the bar waits, full.
   Monsters well below your gear level fill it more slowly, and those 13 levels below not at all.
 - **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 15; a
   masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix; rerolling an affix

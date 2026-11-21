@@ -1138,6 +1138,7 @@ test('The transmute bar: kills fill it, and a full bar gives one worn piece a fr
   const first = given; S.xp = D.XP_NEED - 1; kill(); assert.notEqual(given, first); assert.ok(S.gear.weapon.offer && S.gear.chest.offer);
   // with every worn piece busy, the bar stays full and waits
   S.xp = D.XP_NEED - 1; given = null; kill(); kill(); assert.equal(given, null); assert.ok(S.xp >= D.XP_NEED); assert.ok(S.xp <= D.XP_NEED * 2, 'and does not bank more than one more');
+  assert.equal(G.freeWaiting().length, 2, 'both are counted as waiting'); assert.ok(G.freeWaiting().every(x => x.offerFree));
   // taking an offer frees the piece, and the waiting transmute lands on it at once
   assert.ok(G.pickTransmute(first.id, 0)); assert.equal(given, first, 'the held transmute went to the piece that came free'); assert.equal(first.offer.length, 3); assert.equal(first.offerFree, 1);
   assert.ok(G.pickTransmute(first.id, 0)); assert.equal(first.offerFree, undefined);
