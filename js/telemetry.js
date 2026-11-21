@@ -10,8 +10,8 @@
        session   a random id for this page load
        run       a random id for the run on the current map
    and the types are
-     session_start  { tier, area, level, playtime, kills, falls, gear, off, def, bar, fresh }
-     run_end        { why: fell|left|cleared, tier, area, level, rooms, secs, kills, gear, off, def, bar,
+     session_start  { tier, area, level, playtime, kills, falls, gear, off, def, bar, build, fresh }
+     run_end        { why: fell|left|cleared, tier, area, level, rooms, secs, kills, gear, off, def, bar, build,
                       boss, killer, first, falls, playtime, craft: { ... counts since the last run_end } }
      error          { message, stack }
    Events wait in a queue in localStorage and are posted together; a failed post leaves them for next time. */
@@ -65,7 +65,9 @@ T.flush = function () {
 T.farewell = function () { if (!T.enabled()) return; const body = T.env.get(QUEUE); if (body && T.env.beacon(D.TELEMETRY.url, body)) T.env.set(QUEUE, null); };
 
 /* ---- what is said */
-const snap = () => { const S = G.S, r = (G.C && G.C.rating) || {}; return { gear: Hr.gearLevel(S.gear), off: Math.round(r.off || 0), def: Math.round(r.def || 0), bar: S.hero.bar.filter(Boolean) }; };
+/* the discipline most of the bar belongs to, or 'mixed' when no one has three of the five */
+const build = bar => { const n = {}; for (const id of bar) { const d = D.SKILL[id] && D.SKILL[id].disc; if (d) n[d] = (n[d] || 0) + 1; } const top = Object.keys(n).sort((a, b) => n[b] - n[a])[0]; return top && n[top] >= 3 ? top : bar.length ? 'mixed' : 'none'; };
+const snap = () => { const S = G.S, r = (G.C && G.C.rating) || {}, bar = S.hero.bar.filter(Boolean); return { gear: Hr.gearLevel(S.gear), off: Math.round(r.off || 0), def: Math.round(r.def || 0), bar, build: build(bar) }; };
 const newRun = () => { const S = G.S; T.run = uid(); T.mark = { time: S.stats.time, kills: S.stats.kills }; T.killer = null; };
 T.sessionStart = function () {
   const S = G.S, W = S.world;

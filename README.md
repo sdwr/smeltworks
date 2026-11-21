@@ -88,7 +88,7 @@ the skill bar to drink it.
 - **What a piece is worth.** The bench shows what the piece on it adds to your Damage and Toughness: your numbers
   with it worn, against the same slot left empty (a weapon against bare hands that swing as fast). Whenever you add, remove or reroll an affix, masterwork or
   transfigure, the change rises in green or sinks in red beside each number. Each affix in the bench's list also
-  says what it alone adds (the piece with it against the piece without it); affixes multiply one another, so those
+  says what it alone adds, as a number in the colour of Damage or Toughness (the piece with it against the piece without it); affixes multiply one another, so those
   do not quite sum to the total. These estimates are on the bench only, not in tooltips.
 - **Weapon Damage.** An Offence affix that only weapons roll: +6 to 12% to the weapon's own damage at any item
   level. Every skill is a percentage of weapon damage, so it multiplies everything else, as Strength does.

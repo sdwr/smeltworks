@@ -1239,7 +1239,7 @@ test('Play data: nothing leaves without the hosted address and a yes; then runs,
   T.setEnabled(true); assert.ok(T.asked() && T.enabled());
   assert.equal(posts.length, 1); assert.equal(posts[0].url, D.TELEMETRY.url); let ev = JSON.parse(posts[0].body.trim());
   assert.equal(ev.type, 'session_start'); assert.equal(ev.game, 'SMELTWORKS'); assert.equal(ev.version, D.VERSION); assert.equal(ev.install, 'abc'); assert.ok(ev.session && ev.run && /^\d{4}-\d\d-\d\dT/.test(ev.time)); assert.equal(ev.os, 'Test');
-  assert.equal(ev.data.level, 1); assert.equal(ev.data.bar.join(), 'strike,sunder,quake,ironskin,meteor'); assert.equal(ev.data.fresh, true);
+  assert.equal(ev.data.level, 1); assert.equal(ev.data.bar.join(), 'strike,sunder,quake,ironskin,meteor'); assert.equal(ev.data.fresh, true); assert.equal(ev.data.build, 'hammer');
   return Promise.resolve().then(() => {
     assert.equal(lines().length, 0, 'a post that worked empties the queue');
     // a run that is walked away from, with what was crafted on the way

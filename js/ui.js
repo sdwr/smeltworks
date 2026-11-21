@@ -488,8 +488,8 @@ function worthHtml(it) {
 /* what one affix adds, beside it on the bench: Damage and Toughness, each only when it is not nothing */
 function affWorth(w) {
   if (!w || (!w.off && !w.def)) return '<i class="aw none" data-tip="This affix changes neither your Damage nor your Toughness rating with the build you have now.">–</i>';
-  const n = (v, cls, label) => (v ? `<b class="${cls}">${v < 0 ? '−' : '+'}${Math.abs(v) < 10 ? Math.abs(v) : U.fmt(Math.abs(v))} ${label}</b>` : '');
-  return `<i class="aw" data-tip="What this affix alone adds for you: your Damage and Toughness with it on the piece, against the piece without it. The affixes multiply each other, so they do not quite add up to the total above.">${n(w.off, 'd', 'dmg')}${n(w.def, 't', 'tough')}</i>`;
+  const n = (v, cls) => (v ? `<b class="${cls}">${v < 0 ? '−' : '+'}${Math.abs(v) < 10 ? Math.abs(v) : U.fmt(Math.abs(v))}</b>` : '');
+  return `<i class="aw" data-tip="What this affix alone adds for you: <b style=&quot;color:var(--hot)&quot;>Damage</b> and <b style=&quot;color:#8fd0ff&quot;>Toughness</b>, with it on the piece against the piece without it. The affixes multiply each other, so they do not quite add up to the total above.">${n(w.off, 'd')}${n(w.def, 't')}</i>`;
 }
 /* called when something has just been done to a piece: compare with what the bench last showed */
 function worthChanged(it) {
