@@ -236,14 +236,25 @@ I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Ma
 /* Uniques cannot be cubed (no adding, removing or rerolling affixes), though Temper can reroll their
    numbers and the forge can enchant one affix. */
 I.fixed = it => !!it.uniq;
-/* any piece with affixes, Uniques included: one affix of your choosing, and then only that one */
-I.canEnchant = (it, idx) => !it.sealed && it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);
+/* Rerolling an affix at the forge. Any piece with affixes, Uniques included: one affix of your choosing, and then
+   only that one (it is locked against everything the cube does). A reroll does not replace the affix outright: the
+   new one is held beside the old (it.pend = { idx, a }) until the player takes it or keeps the old one, and until
+   then nothing else may change the piece's affixes. */
+I.PEND_FIRST = 'Choose between the old affix and the new one first.';
+I.canEnchant = (it, idx) => !it.sealed && !it.pend && it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
-  const na = rollAffix(I.poolKey(it), have, tier || 0, null, true, it.ilvl);      // plain: crafting never makes a Greater affix, so rerolling a Greater one gives it up
-  it.affixes[idx] = na; it.ench = idx; it.enchN = (it.enchN || 0) + 1;
-  if (it.rar === 1) it.name = I.makeName(it);
+  const na = rollAffix(I.poolKey(it), have, tier || 0, null, true, it.ilvl);      // plain: crafting never makes a Greater affix, so taking the new one over a Greater one gives that up
+  it.pend = { idx, a: na }; it.ench = idx; it.enchN = (it.enchN || 0) + 1;
   return na;
+};
+/* answer the choice: take the new affix, or keep the old one. Returns { take, idx, a (the one now on the piece), other } */
+I.enchantPick = function (it, take) {
+  const p = it.pend; if (!p) return null;
+  delete it.pend;
+  const old = it.affixes[p.idx];
+  if (take) { it.affixes[p.idx] = p.a; if (it.rar === 1) it.name = I.makeName(it); }
+  return { take: !!take, idx: p.idx, a: it.affixes[p.idx], other: take ? old : p.a };
 };
 I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 
@@ -255,7 +266,7 @@ I.SEALED = 'It has been transfigured and is sealed: nothing more can be done to 
 I.tfKind = it => (it.uniq ? (it.anc ? 'ancUniq' : 'uniq') : it.anc ? 'ancGear' : 'gear');
 I.transfigCost = it => ({ gold: Math.round(500 * I.goldScale(it.ilvl)) });      // gold only: no ember dust, and nothing that only bosses drop
 I.OFFER_FIRST = 'The cube has made its offer for this piece. Pick one of the three first.';
-I.transfigCheck = it => (it.sealed ? I.SEALED : null);
+I.transfigCheck = it => (it.sealed ? I.SEALED : it.pend ? I.PEND_FIRST : null);
 /* Roll the table once. Returns { kind, v?, idx?, was?, open } and changes the piece. */
 I.transfigure = function (it) {
   const odds = D.TRANSFIG[I.tfKind(it)];
@@ -388,6 +399,7 @@ I.offerMend = function (it) {
 /* null when a transmute can be bought for this piece, or why not */
 I.offerCheck = function (it) {
   if (it.sealed) return I.SEALED;
+  if (it.pend) return I.PEND_FIRST;
   if (it.offer) return I.OFFER_FIRST;
   return I.cubeOptions(it).some(o => o.op !== 'pass') ? null : it.uniq ? 'Every affix on this Unique is Greater or locked. There is nothing left for the cube to renumber.' : 'There is nothing the cube can do with this piece.';
 };

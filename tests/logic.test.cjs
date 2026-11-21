@@ -2,6 +2,8 @@
 const assert = require('node:assert/strict');
 const { load, play } = require('./harness.cjs');
 let n = 0;
+/* Reroll an affix at the forge and take the new one, as the forge did before it offered the choice. */
+function rr(SW, id, idx) { const a = SW.game.enchant(id, idx); if (a) SW.game.enchantPick(id, true); return a; }
 /* Apply one cube option straight to a piece, as if it had been offered and picked. Null when it would do nothing. */
 function cube(SW, id, op, cat, extra) { const G = SW.game, I = SW.items, f = G.findItem(id), o = Object.assign({ op }, cat ? { cat } : {}, extra || {}); if (!f || f.it.offer || !I.cubeValid(f.it, o)) return null; f.it.offer = [o]; return G.pickTransmute(id, 0); }
 const OLD = { add: 'add', remove: 'remove', chaos: 'recast', divine: 'values' };
@@ -300,10 +302,10 @@ test('A Unique can have one affix rerolled at the forge, and can be Tempered, bu
     const it = I.roll(50, { unique: u.id, rar: 3 }); S.bag[0] = it;
     assert.equal(it.uniq, u.id); const power = I.powerText(it), name = it.name, keys = it.affixes.map(a => a.k);
     for (let i = 0; i < it.affixes.length; i++) assert.ok(I.canEnchant(it, i), u.id + ': any one affix to begin with');
-    assert.ok(G.enchant(it.id, 1), u.id); assert.equal(it.ench, 1); assert.equal(it.affixes.length, keys.length);
+    assert.ok(rr(SW, it.id, 1), u.id); assert.equal(it.ench, 1); assert.equal(it.affixes.length, keys.length);
     assert.notEqual(it.affixes[1].k, keys[1], 'it becomes a different affix'); assert.ok(D.AFFIX[it.affixes[1].k].slots.includes(I.poolKey(it)), 'one its slot can roll'); assert.ok(!it.affixes[1].g, 'never Greater');
     assert.equal(new Set(it.affixes.map(a => a.k)).size, it.affixes.length, 'no doubles'); it.affixes.forEach((a, i) => { if (i !== 1) assert.equal(a.k, keys[i], 'the others are untouched'); });
-    assert.equal(G.enchant(it.id, 0), null, 'only the affix first chosen, as on any gear'); assert.ok(G.enchant(it.id, 1), 'and that one again');
+    assert.equal(rr(SW, it.id, 0), null, 'only the affix first chosen, as on any gear'); assert.ok(rr(SW, it.id, 1), 'and that one again');
     assert.equal(it.name, name); assert.equal(I.powerText(it), power, 'its unique power is untouched'); assert.equal(it.rar, 3);
     for (const orb of ['add', 'remove', 'chaos']) assert.equal(cube(SW, it.id, OLD[orb]), null, u.id + ' refuses ' + orb);
     assert.ok(cube(SW, it.id, 'values'), 'Tempering still works');
@@ -457,7 +459,7 @@ test('Transfiguring: the last step, with Diablo 4\'s odds, and it seals the piec
   it = leg(false); const keys = it.affixes.map(x => x.k); r = force(it, 'replace'); assert.equal(it.affixes.length, 4); assert.ok(r.was && it.affixes[r.idx].k !== keys[r.idx] && it.affixes[r.idx].t, 'one affix is swapped for a new one'); assert.equal(it.affixes.filter((x, i) => x.k === keys[i]).length, 3);
   // sealed means sealed
   it = leg(false); S.bag[0] = it; it.up = 10; do { it.sealed = 0; it.tf = []; force(it, 'quality'); } while (!it.sealed);
-  assert.equal(G.upgrade(it.id), null, 'no masterworking'); assert.equal(G.enchant(it.id, 0), null, 'no reroll');
+  assert.equal(G.upgrade(it.id), null, 'no masterworking'); assert.equal(rr(SW, it.id, 0), null, 'no reroll');
   for (const orb of ['add', 'remove', 'chaos', 'divine']) assert.equal(cube(SW, it.id, OLD[orb]), null, 'no ' + orb); assert.equal(G.transfigure(it.id), null, 'and no second transfiguration');
   assert.ok(/sealed/.test(I.offerCheck(it)) && /sealed/.test(I.upgradeCheck(it))); assert.equal(G.buyTransmute(it.id), null); assert.equal(I.cubeOptions(it).length, 0);
   assert.ok(G.equip(it.id), 'it can still be worn'); assert.ok(G.unequip('ring1')); assert.equal(G.salvage(it.id), true, 'and salvaged');
@@ -483,7 +485,7 @@ test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   let prev = first;
   for (let n = 1; n <= 30; n++) { it.enchN = n; const c = I.enchantCost(it).gold; assert.ok(c >= prev && c <= prev * 1.45, `step ${n}: ${prev} -> ${c}`); prev = c; }
   assert.ok(prev <= first * 5.05, 'never more than five times the first price'); assert.equal(Object.keys(I.enchantCost(it)).join(), 'gold', 'gold only: no ember dust');
-  { const S = G.S, x = I.roll(40, { slot: 'ring', rar: 2 }); S.bag[0] = x; S.gold = 1e9; S.mats.dust = 0; assert.ok(G.enchant(x.id, 0), 'a reroll with no dust at all'); assert.equal(S.mats.dust, 0); assert.ok(S.gold < 1e9); S.gold = 0; assert.equal(G.enchant(x.id, 0), null, 'but not without gold'); }
+  { const S = G.S, x = I.roll(40, { slot: 'ring', rar: 2 }); S.bag[0] = x; S.gold = 1e9; S.mats.dust = 0; assert.ok(rr(SW, x.id, 0), 'a reroll with no dust at all'); assert.equal(S.mats.dust, 0); assert.ok(S.gold < 1e9); S.gold = 0; assert.equal(rr(SW, x.id, 0), null, 'but not without gold'); }
 });
 test('Masterworking cannot be bought without the materials', (SW, G, D, I) => {
   const it = I.roll(20, { slot: 'ring', rar: 2 }); G.S.bag[0] = it; G.S.gold = 0;
@@ -492,8 +494,8 @@ test('Masterworking cannot be bought without the materials', (SW, G, D, I) => {
 test('Enchanting locks the item to one affix slot', (SW, G, D, I) => {
   const it = I.roll(20, { slot: 'ring', rar: 2 }); G.S.bag[0] = it; G.S.gold = 1e9; G.S.mats.dust = 99;
   const before = it.affixes[1].k;
-  assert.ok(G.enchant(it.id, 1)); assert.notEqual(it.affixes[1].k, before);
-  assert.equal(G.enchant(it.id, 0), null, 'a different affix is refused'); assert.ok(G.enchant(it.id, 1));
+  assert.ok(rr(SW, it.id, 1)); assert.notEqual(it.affixes[1].k, before);
+  assert.equal(rr(SW, it.id, 0), null, 'a different affix is refused'); assert.ok(rr(SW, it.id, 1));
 });
 test('Salvage pays more ember dust for the exceptional, and there is no soulsteel', (SW, G, D, I) => {
   const rare = I.roll(20, { slot: 'ring', rar: 2 }); rare.affixes.forEach(a => { a.g = 0; });
@@ -804,12 +806,12 @@ test('Greater affixes come from drops only: no cube orb and no forge reroll can 
   const res = cube(SW, it.id, 'add'); assert.ok(!res.crit && !it.affixes[1].g, 'Kindling never rolls Greater');
   cube(SW, it.id, 'recast'); assert.equal(I.greaterCount(it), 0, 'nor does Slag');
   assert.ok(!cube(SW, it.id, 'values').crit); assert.equal(I.greaterCount(it), 0, 'nor does Tempering');
-  S.gold = 1e12; S.mats.dust = 9999; for (let k = 0; k < 20; k++) { G.enchant(it.id, 0); assert.equal(I.greaterCount(it), 0, 'nor does the forge reroll'); }
+  S.gold = 1e12; S.mats.dust = 9999; for (let k = 0; k < 20; k++) { rr(SW, it.id, 0); assert.equal(I.greaterCount(it), 0, 'nor does the forge reroll'); }
   // what is already Greater: Tempering keeps it, a forge reroll gives it up
   for (const a of it.affixes) a.g = 1; const was = it.affixes.map(a => a.k).join();
   const dustBefore = S.mats.dust; assert.equal(cube(SW, it.id, 'values'), null, 'with every affix Greater there is nothing for Tempering to do'); assert.equal(S.mats.dust, dustBefore, 'and nothing is spent');
   assert.ok(it.affixes.every(a => a.g) && it.affixes.map(a => a.k).join() === was);
-  G.enchant(it.id, 0); assert.equal(it.affixes[0].g, 0, 'the rerolled affix is ordinary'); assert.equal(it.affixes[1].g, 1, 'the others are untouched');
+  rr(SW, it.id, 0); assert.equal(it.affixes[0].g, 0, 'the rerolled affix is ordinary'); assert.equal(it.affixes[1].g, 1, 'the others are untouched');
   S.world.cleared = [5]; G.startExpedition(4, 0, true);      // the last level: Greater affixes drop there
   for (let k = 0; k < 2000; k++) { const c = G.commission('ring'); if (c && I.greaterCount(c)) { g = -1; break; } S.bag.fill(null); S.bag[0] = it; }
   assert.equal(g, -1, 'a commissioned piece is a fresh roll, so it can still come with one');
@@ -822,12 +824,12 @@ test('Uniques cannot be cubed, but can be enchanted and Tempered; everything els
   for (const orb of ['add', 'remove', 'chaos']) for (const cat of [null, 'off', 'def']) assert.equal(cube(SW, u.id, OLD[orb], cat), null, orb);
   assert.equal(u.affixes.map(a => a.k).join(), keys); assert.equal(S.mats.dust, 99, 'nothing was spent');
   assert.ok(cube(SW, u.id, 'values'), 'Tempering rerolls its numbers'); assert.equal(u.affixes.map(a => a.k).join(), keys);
-  assert.ok(G.enchant(u.id, 1), 'the forge can enchant one affix'); assert.notEqual(u.affixes.map(a => a.k).join(), keys);
-  assert.equal(G.enchant(u.id, 0), null, 'and only that one'); assert.equal(u.uniq, 'coil');
+  assert.ok(rr(SW, u.id, 1), 'the forge can enchant one affix'); assert.notEqual(u.affixes.map(a => a.k).join(), keys);
+  assert.equal(rr(SW, u.id, 0), null, 'and only that one'); assert.equal(u.uniq, 'coil');
   assert.ok(G.upgrade(u.id), 'masterworking works too');
   // a Rare stays cubable whatever is done to it, and keeps its name
   const name = rare.name;
-  assert.ok(cube(SW, rare.id, 'remove')); assert.ok(cube(SW, rare.id, 'add')); assert.ok(G.enchant(rare.id, 0)); assert.ok(G.upgrade(rare.id));
+  assert.ok(cube(SW, rare.id, 'remove')); assert.ok(cube(SW, rare.id, 'add')); assert.ok(rr(SW, rare.id, 0)); assert.ok(G.upgrade(rare.id));
   assert.ok(cube(SW, rare.id, 'remove')); assert.ok(cube(SW, rare.id, 'add')); assert.equal(rare.rar, 2); assert.equal(rare.name, name);
 });
 test('Tempering leaves Greater affixes and the forge-rerolled affix alone', (SW, G, D, I) => {
@@ -1028,7 +1030,7 @@ test('Affix tiers: each a higher band than the last, unlocked by item level, and
   assert.equal(I.affixTier(it, { k: 'crit', r: 0.1, g: 1, ti: 1 }), 5); assert.equal(I.affixTier(it, { k: 'crit', r: 0.1, g: 0 }), 5);
   assert.ok(I.affixValue(it, { k: 'crit', r: 0, g: 1, ti: 1 }, null) > D.tierBand(D.AFFIX.crit, 5)[1] * 1.4, 'a Greater affix is the top of the best tier, times 1.5');
   // rerolling at the forge and Kindle roll a tier the piece allows; skill ranks have none
-  for (let i = 0; i < 40; i++) { const r = G.enchant(it.id, 0) || {}; assert.ok(it.affixes[0].ti >= 1 && it.affixes[0].ti <= 5); it.ench = -1; it.enchN = 0; }
+  for (let i = 0; i < 40; i++) { const r = rr(SW, it.id, 0) || {}; assert.ok(it.affixes[0].ti >= 1 && it.affixes[0].ti <= 5); it.ench = -1; it.enchN = 0; }
   const low = I.roll(6, { rar: 0, slot: 'helm' }); S.bag[1] = low; cube(SW, low.id, 'add'); assert.equal(low.affixes[0].ti, 1);
   assert.equal(I.affixValue(low, { k: 'skHammer', r: 0.9, g: 0, ti: 1 }, null), I.affixValue(it, { k: 'skHammer', r: 0.9, g: 0, ti: 5 }, null));
   for (let i = 0; i < 30; i++) { const u = I.roll(44, { unique: 'coil', rar: 3 }); assert.ok(u.affixes.every(a => a.ti === 5), 'a Unique is all best tier'); }
@@ -1170,19 +1172,19 @@ test('The forge reroll and transfiguring work while the cube\'s offer waits, and
   const mk = () => { const it = I.roll(45, { rar: 2, slot: 'gloves' }); it.affixes = [{ k: 'life', r: 0.5, g: 0, ti: 2 }, { k: 'armor', r: 0.5, g: 0, ti: 2 }, { k: 'crit', r: 0.5, g: 0, ti: 2 }]; S.bag[0] = it; return it; };
   // an option that still applies is left alone
   let it = mk(); it.offer = [{ op: 'add' }, { op: 'pass' }, { op: 'shuffle' }]; assert.ok(I.canEnchant(it, 0)); assert.equal(I.transfigCheck(it), null);
-  let ev = null; G.on((t, d) => { if (t === 'forge') ev = d; });
-  assert.ok(G.enchant(it.id, 2)); assert.equal(it.ench, 2); assert.equal(ev.swapped, 0); assert.equal(it.offer.map(I.cubeKey).join(), 'add:::,pass:::,shuffle:::');
+  let ev = null; G.on((t, d) => { if (t === 'forge' && d.kind === 'enchant') ev = d; });      // the roll is what locks the affix, so that is when the offer is put right
+  assert.ok(rr(SW, it.id, 2)); assert.equal(it.ench, 2); assert.equal(ev.swapped, 0); assert.equal(it.offer.map(I.cubeKey).join(), 'add:::,pass:::,shuffle:::');
   // one aimed at the affix that is now locked turns into "Leave it be" where it stands; the rest are untouched
   for (let i = 0; i < 60; i++) {
     it = mk(); it.offer = [{ op: 'remove', cat: 'off' }, { op: 'add' }, { op: 'perfect' }]; it.offerFree = 1;
-    assert.ok(G.enchant(it.id, 2)); assert.equal(it.offer.length, 3); assert.equal(it.offerFree, 1);
+    assert.ok(rr(SW, it.id, 2)); assert.equal(it.offer.length, 3); assert.equal(it.offerFree, 1);
     const stillOff = I.cubeValid(it, { op: 'remove', cat: 'off' });      // only if the reroll... never: the one Offence affix is the locked one
     assert.equal(stillOff, false); assert.equal(ev.swapped, 1);
     assert.equal(I.cubeKey(it.offer[0]), 'pass:::', 'the blocked option does nothing now'); assert.equal(I.cubeKey(it.offer[1]), 'add:::'); assert.equal(I.cubeKey(it.offer[2]), 'perfect:::');
     const before = JSON.stringify(it.affixes), r = G.pickTransmute(it.id, 0); assert.equal(r.op, 'pass'); assert.equal(JSON.stringify(it.affixes), before, 'and taking it changes nothing'); assert.equal(it.offer, undefined);
   }
   // every option blocked: three ways to do nothing, and the offer is still there to be answered
-  it = mk(); it.affixes = [{ k: 'crit', r: 0.5, g: 0, ti: 2 }]; it.offer = [{ op: 'remove' }, { op: 'reroll' }, { op: 'perfect' }]; assert.ok(G.enchant(it.id, 0)); assert.equal(it.offer.map(I.cubeKey).join(), 'pass:::,pass:::,pass:::'); assert.equal(ev.swapped, 3);
+  it = mk(); it.affixes = [{ k: 'crit', r: 0.5, g: 0, ti: 2 }]; it.offer = [{ op: 'remove' }, { op: 'reroll' }, { op: 'perfect' }]; assert.ok(rr(SW, it.id, 0)); assert.equal(it.offer.map(I.cubeKey).join(), 'pass:::,pass:::,pass:::'); assert.equal(ev.swapped, 3);
   // transfiguring: a piece that is sealed loses its offer, one that stays open keeps an offer that still applies
   let lost = 0, kept = 0;
   for (let i = 0; i < 300; i++) {
@@ -1319,6 +1321,34 @@ test('After the boss the smith walks to the next level: a few real seconds, then
   G.leave(2, 0, true); G.startExpedition(0, 0, true); assert.equal(G.leaving, null); for (let i = 0; i < 200; i++) G.update(0.05); assert.equal(W.area, 0);
   // with rooms left and Clear everything on, Auto finishes the map first
   S.opts.auto = true; S.opts.full = true; G.completeCell(W.map.cells.find(c => c.type === 'boss')); G.phase = 'idle'; G.phaseT = 0; G.update(0.05); assert.equal(G.leaving, null, 'not yet: there are rooms left');
+});
+test('A forge reroll holds the new affix beside the old one until you take it or keep the old', (SW, G, D, I) => {
+  const S = G.S; S.gold = 1e9; S.mats.dust = 1e6; const ev = []; G.on((t, d) => { if (t === 'forge') ev.push(d); });
+  const mk = () => { const it = I.roll(44, { slot: 'ring', rar: 2 }); it.affixes = [{ k: 'crit', r: 0.3, g: 0, ti: 2 }, { k: 'life', r: 0.6, g: 0, ti: 3 }, { k: 'firePct', r: 0.4, g: 1, ti: 5 }]; S.bag[0] = it; return it; };
+  let it = mk(); const before = JSON.stringify(it.affixes), gold = S.gold, cost = I.enchantCost(it).gold;
+  const na = G.enchant(it.id, 1); assert.ok(na); assert.equal(S.gold, gold - cost, 'the gold is spent on the roll'); assert.equal(JSON.stringify(it.affixes), before, 'nothing on the piece has changed yet');
+  assert.equal(it.pend.idx, 1); assert.equal(it.pend.a, na); assert.equal(it.ench, 1); assert.ok(!it.affixes.some(a => a.k === na.k), 'the new one is an affix the piece does not have'); assert.ok(!na.g, 'and never Greater');
+  assert.ok(D.AFFIX[na.k].slots.includes('ring')); assert.equal(ev[0].kind, 'enchant');
+  // until the choice is made: no second reroll, no transmute bought or taken, no transfiguring; masterworking and wearing are fine
+  for (let i = 0; i < 3; i++) { assert.ok(!I.canEnchant(it, i)); assert.equal(G.enchant(it.id, i), null); } assert.equal(S.gold, gold - cost);
+  assert.equal(I.offerCheck(it), I.PEND_FIRST); assert.equal(G.buyTransmute(it.id), null); assert.equal(I.transfigCheck(it), I.PEND_FIRST); assert.equal(G.transfigure(it.id), null);
+  it.offer = [{ op: 'add' }]; assert.equal(G.pickTransmute(it.id, 0), null, 'an offer already waiting has to wait a little longer'); assert.equal(it.affixes.length, 3); delete it.offer;
+  assert.ok(G.upgrade(it.id)); assert.ok(G.equip(it.id)); const w = G.pendWorth(it); assert.ok(w && typeof w.off === 'number'); assert.equal(JSON.stringify(it.affixes), before, 'working out what it is worth changes nothing');
+  const copy = JSON.parse(JSON.stringify(S)); assert.equal(copy.gear.ring1.pend.a.k, na.k, 'the choice is saved with the piece');
+  // keep the old one
+  let r = G.enchantPick(it.id, false); assert.equal(r.take, false); assert.equal(JSON.stringify(it.affixes), before); assert.equal(it.pend, undefined); assert.equal(ev[ev.length - 1].kind, 'enchantPick'); assert.equal(ev[ev.length - 1].take, false);
+  assert.equal(G.enchantPick(it.id, true), null, 'only once'); assert.equal(it.ench, 1, 'the affix chosen for rerolling stays the one');
+  assert.ok(I.canEnchant(it, 1) && !I.canEnchant(it, 0)); assert.ok(I.enchantCost(it).gold > cost, 'and the next reroll costs more');
+  // take the new one
+  const nb = G.enchant(it.id, 1); r = G.enchantPick(it.id, true); assert.equal(r.take, true); assert.equal(it.affixes[1], nb); assert.equal(it.affixes[0].k, 'crit'); assert.equal(it.affixes[2].k, 'firePct'); assert.equal(it.pend, undefined);
+  assert.equal(new Set(it.affixes.map(a => a.k)).size, 3); assert.equal(I.offerCheck(it), null, 'and the cube is open again');
+  // a Greater affix: keeping it keeps it Greater; taking the new one gives that up, and says so
+  it = mk(); G.enchant(it.id, 2); G.enchantPick(it.id, false); assert.equal(it.affixes[2].g, 1); assert.ok(!ev[ev.length - 1].lostGreater);
+  G.enchant(it.id, 2); G.enchantPick(it.id, true); assert.equal(it.affixes[2].g, 0); assert.ok(ev[ev.length - 1].lostGreater);
+  // the cube still cannot touch the affix chosen for rerolling
+  for (let n = 0; n < 60; n++) { const kept = JSON.stringify(it.affixes[it.ench]); const offer = G.buyTransmute(it.id); if (!offer) break; G.pickTransmute(it.id, Math.floor(SW.util.rng() * offer.length)); assert.equal(JSON.stringify(it.affixes[it.ench]), kept); }
+  // a saved choice that no longer makes sense is dropped on load
+  it = mk(); G.enchant(it.id, 0); it.pend.a = { k: 'life', r: 0.5, g: 0, ti: 1 }; const bad = JSON.parse(JSON.stringify(S)); G.init(bad); assert.equal(G.S.bag[0].pend, undefined, 'it would have doubled an affix');
 });
 test('Depth: how far this run has got, how far the last one got, and the deepest ever on the level', (SW, G, D, I) => {
   const S = G.S, W = S.world, clear = x => { const c = W.map.cells.find(k => k.x === x && k.type !== 'wall'); G.completeCell(c); return c; };

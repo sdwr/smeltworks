@@ -78,10 +78,15 @@ the skill bar to drink it.
   Greater: the maximum roll for that affix, and then half again on top, marked with a gold star. A Greater affix
   never rolls low, and its value sits above the range shown beside it. The chance rises in Torment. Greater affixes are found,
   never crafted: the forge's reroll and everything the cube offers roll ordinary affixes. Rerolling values leaves a Greater
-  affix as it is, but rerolling one at the forge, or losing it to a cube offer that replaces affixes, gives it up.
+  affix as it is, but taking the new affix over one at the forge, or losing it to a cube offer that replaces affixes, gives it up.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
 - **The forge.** Masterwork, enchant (the Reroll button beside an affix), transfigure and salvage. Rerolling costs a
   little more each time on the same piece and levels off at five times the first price.
+- **A reroll is a choice.** Rerolling does not replace the affix outright. The new affix appears on the same line,
+  after the old one and an arrow, each with what it would add to Damage and Toughness, and you press Keep old or
+  Take new. The gold is spent either way. Until you choose, the piece cannot be rerolled again, transmuted or
+  transfigured (masterworking and wearing it are fine). A Greater affix can therefore be rerolled safely: keep it
+  if the new one is no better.
 - **Masterworking.** 25 ranks, each +1% to everything on the piece. A strike at the forge adds 1 to 3 ranks. At
   rank 25, one more strike masterworks a single random affix (+25%, or +1 on a skills affix); striking again moves
   the masterwork to a different affix. Saves from the old system convert each upgrade to five ranks.
@@ -99,7 +104,7 @@ the skill bar to drink it.
 - **The cube.** You do not choose what the cube does. You buy a transmute for a piece (2 ember dust for its first, 3 more for each one after, up to 25; free transmutes cost
   nothing and do not raise the price) and the cube
   offers three things it could do to that piece; you must take one before you can buy another for it. The offer
-  stays with the piece until you do, and while it waits the forge will not reroll or transfigure that piece.
+  stays with the piece until you do.
   Hovering an offer lights up the affixes it could touch. What can be offered:
 
   | Offer | What it does |

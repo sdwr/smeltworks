@@ -394,6 +394,13 @@ input[type=range] { accent-color: var(--ember); width: 220px; }
 .sect { margin: 14px 0 6px; font: 600 15px var(--serif); color: var(--ember); border-bottom: 1px solid var(--line); padding-bottom: 3px; }
 .aff-list li .aw { flex: none; margin-left: auto; padding-left: 8px; font-style: normal; font-size: 11.5px; white-space: nowrap; font-variant-numeric: tabular-nums; } .aff-list li em ~ .aw { margin-left: 0; }
 .aff-list li .aw b { font-weight: 700; } .aff-list li .aw b.d { color: var(--hot); } .aff-list li .aw b.t { color: #8fd0ff; } .aff-list li .aw b + b { margin-left: 7px; } .aff-list li .aw.none { color: var(--dimmer); }
+/* a reroll waiting to be chosen: old affix, arrow, new affix and the two buttons on one line (wrapping only when it must) */
+.aff-list li.pend { flex-wrap: wrap; justify-content: flex-start; gap: 3px 8px; margin: 2px 0; padding: 4px 6px 4px 8px; border: 1px dashed #b9a4ff; border-radius: 3px; background: rgba(185,164,255,.08); }
+.aff-list li.pend .p-line { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13.5px; color: var(--text); }      /* old, arrow, new on one line when they fit; otherwise the arrow and the new affix drop to a second line of the same row, and nothing is cut short */
+.aff-list li.pend .p-old, .aff-list li.pend .p-new { display: flex; align-items: center; white-space: nowrap; } .aff-list li.pend .p-old .p-txt { color: var(--dim); } .aff-list li.pend .p-new .p-txt { color: var(--good); font-weight: 600; } .aff-list li.pend .p-arrow { color: #b9a4ff; font-weight: 700; }
+.aff-list li.pend .p-go { display: flex; align-items: center; gap: 8px; }
+.aff-list li.pend .aw { margin-left: 6px; padding-left: 0; } .aff-list li.pend .tier-tag { opacity: .85; }
+.aff-list li.pend .p-btns { margin-left: auto; display: flex; gap: 5px; } .aff-list li.pend .p-btns button { margin-left: 0; } .aff-list li.pend button.go { border-color: #7fe08a; color: #d6ffd9; background: linear-gradient(#2f6a36, #1d4a25); }
 .an-worth { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 6px; }
 .an-worth > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 4px 10px; border: 1px solid var(--line); border-radius: 3px; background: #16131c; overflow: hidden; }
 .an-worth span { color: var(--dim); font-size: 11px; } .an-worth b { font: 700 19px var(--serif); color: var(--hot); white-space: nowrap; } .an-worth .tough b { color: #8fd0ff; }

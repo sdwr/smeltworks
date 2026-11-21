@@ -31,6 +31,7 @@ G.fresh = function () {
 G.init = function (saved) {
   G.S = saved || G.fresh(); G.leaving = null;
   const S = G.S;
+  for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && it.pend && !(it.pend.a && D.AFFIX[it.pend.a.k] && it.affixes[it.pend.idx] && !it.affixes.some((x, k) => k !== it.pend.idx && x.k === it.pend.a.k))) delete it.pend;      // a reroll choice that no longer makes sense is dropped
   S.bag = S.bag.filter(Boolean); while (S.bag.length < D.BAG_SIZE) S.bag.push(null);   // fixed slots, so items can be arranged
   if (!S.curv) {
     // saves from before ember dust was the one crafting material: orbs are worth what their recipe now costs, and
@@ -704,13 +705,26 @@ G.transfigure = function (id) {
   G.recompute(); G.refreshUpgrades(); if (res.offer < 0) G.freeTransmute(); G.emit('forge', { kind: 'transfigure', it, res }); G.save();
   return res;
 };
+/* reroll an affix: pays, and holds the new affix beside the old one until G.enchantPick answers */
 G.enchant = function (id, idx) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
   if (!I.canEnchant(it, idx) || !G.pay(I.enchantCost(it))) return null;
-  const was = it.affixes[idx].g, a = I.enchant(it, idx, G.S.world.tier), swapped = I.offerMend(it);      // an option aimed at the affix now locked becomes "Leave it be"
-  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a, was, swapped }); G.save();
+  const a = I.enchant(it, idx, G.S.world.tier), swapped = I.offerMend(it);      // a waiting option aimed at the affix now locked becomes "Leave it be"
+  G.emit('forge', { kind: 'enchant', it, a, idx, swapped }); G.save();
   return a;
+};
+G.enchantPick = function (id, take) {
+  const f = G.findItem(id); if (!f || !f.it.pend) return null;
+  const it = f.it, res = I.enchantPick(it, take);
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchantPick', it, take: res.take, idx: res.idx, a: res.a, lostGreater: res.take && !!res.other.g }); G.save();
+  return res;
+};
+/* what the affix waiting to be chosen would add in the old one's place (see G.affixWorth) */
+G.pendWorth = function (it) {
+  const p = it.pend; if (!p) return null;
+  const old = it.affixes[p.idx]; it.affixes[p.idx] = p.a;
+  try { return G.affixWorth(it)[p.idx]; } finally { it.affixes[p.idx] = old; }
 };
 G.commission = function (slot) {
   const S = G.S, ilvl = G.areaLevel(), cost = { gold: I.commissionCost(ilvl) };
@@ -734,7 +748,7 @@ G.buyTransmute = function (id) {
 };
 G.pickTransmute = function (id, n) {
   const S = G.S, f = G.findItem(id), o = f && f.it.offer && f.it.offer[n];
-  if (!o) return null;
+  if (!o || f.it.pend) return null;                          // a reroll waiting to be chosen comes first
   const it = f.it, res = I.cubeValid(it, o) ? I.cubeApply(it, o, S.world.tier) : { op: 'pass', o, idxs: [] };      // an option that can no longer do anything costs its pick and nothing else
   delete it.offer; delete it.offerFree; it.isNew = 0;
   G.recompute(); G.refreshUpgrades(); G.freeTransmute();      // a full bar may have been waiting for a piece to come free

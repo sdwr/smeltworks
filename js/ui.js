@@ -520,9 +520,14 @@ function renderCraft() {
     h += '<ul class="aff-list">';
     const aw = G.affixWorth(it);
     it.affixes.forEach((a, i) => {
+      if (it.pend && it.pend.idx === i) {      // a reroll waiting to be chosen: the old affix and the new one on one line
+        const na = it.pend.a, dot = x => `<u style="background:${D.AFFIX_CAT[I.catOf(it, x.k)].color}" data-tip="${D.AFFIX_CAT[I.catOf(it, x.k)].name}"></u>`, one = (x, w, cls) => `<span class="${cls}">${dot(x)}${tierTag(it, x)}${x.g ? '<b class="gst">★</b>' : ''}<span class="p-txt" data-tip="${esc(I.affixText(it, x, i))} ${I.affixRange(it, x, i)}">${I.affixText(it, x, i)}</span>${affWorth(w)}</span>`;
+        h += `<li class="pend" data-ai="${i}"><span class="p-line">${one(a, aw[i], 'p-old')}<span class="p-go"><b class="p-arrow">→</b>${one(na, G.pendWorth(it), 'p-new')}</span></span><span class="p-btns"><button class="small" data-act="ench-keep" data-tip="Keep the affix you had. The gold is spent either way.">Keep old</button><button class="small go" data-act="ench-take" data-tip="${a.g ? '<b class=&quot;neg&quot;>The old affix is Greater, and the new one is not.</b> ' : ''}Take the new affix in its place.">Take new</button></span></li>`;
+        return;
+      }
       const fresh = last.idx === i || (last.idxs || []).includes(i) || (UI.tfLast && UI.tfLast.id === it.id && UI.tfLast.res.idx === i), ok = I.canEnchant(it, i);
       h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}" data-ai="${i}"><span><u style="background:${D.AFFIX_CAT[I.catOf(it, a.k)].color}" data-tip="${D.AFFIX_CAT[I.catOf(it, a.k)].name}"></u>${tierTag(it, a)}${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
-        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : moved[i] != null ? `<em class="${moved[i] < 0 ? 'dnt' : ''}">${moved[i] > 0 ? '▲ ' + moved[i] + (moved[i] > 1 ? ' tiers' : ' tier') : moved[i] < 0 ? '▼ ' + -moved[i] + (moved[i] < -1 ? ' tiers' : ' tier') : 'already at the top'}</em>` : (last.idxs || []).includes(i) ? `<em>${last.op === 'shuffle' ? 'moved' : last.op === 'reroll' || last.op === 'recast' ? 'new' : 'rerolled'}</em>` : '') + (it.ench === i && !it.sealed && !it.uniq ? `<em class="sft" data-tip="You rerolled this affix at the forge, so it is locked: nothing the cube does will remove it, replace it, renumber it or change its tier. Only the forge changes it now.">locked</em>` : '') + affWorth(aw[i]) + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
+        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : moved[i] != null ? `<em class="${moved[i] < 0 ? 'dnt' : ''}">${moved[i] > 0 ? '▲ ' + moved[i] + (moved[i] > 1 ? ' tiers' : ' tier') : moved[i] < 0 ? '▼ ' + -moved[i] + (moved[i] < -1 ? ' tiers' : ' tier') : 'already at the top'}</em>` : (last.idxs || []).includes(i) ? `<em>${last.op === 'shuffle' ? 'moved' : last.op === 'reroll' || last.op === 'recast' ? 'new' : 'rerolled'}</em>` : '') + (it.ench === i && !it.sealed && !it.uniq ? `<em class="sft" data-tip="You rerolled this affix at the forge, so it is locked: nothing the cube does will remove it, replace it, renumber it or change its tier. Only the forge changes it now.">locked</em>` : '') + affWorth(aw[i]) + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Reroll this affix into another, and then choose between the new one and the old one. Once you pick an affix, it is the only one this piece can have rerolled, and the cube will not touch it. Each reroll on a piece costs a little more gold, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
@@ -801,8 +806,7 @@ UI.onGame = function (type, d) {
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind !== 'commission') worthChanged(d.it);
       if (JUICE[d.kind]) JUICE[d.kind](d);
-      if (d.kind === 'enchant') UI.cubeLast = { itemId: d.it.id, idx: d.it.ench, op: 'ench' };      // so the new affix is shown as new
-      if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');
+      if (d.kind === 'enchantPick') { UI.cubeLast = d.take ? { itemId: d.it.id, idx: d.idx, op: 'ench' } : null; JUICE.enchant(d); if (d.lostGreater) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad'); }      // a taken affix is shown as new
       { const n = d.kind === 'enchant' ? d.swapped : d.kind === 'transfigure' ? d.res.offer : 0;      // what became of the cube's waiting offer
         if (n < 0) UI.toast('Sealed: the cube\'s offer for this piece is lost.', 'bad');
         else if (n > 0) UI.toast(n === 1 ? 'One of the cube\'s options no longer applies. It is now "Leave it be".' : `${n} of the cube's options no longer apply. They are now "Leave it be".`); }
@@ -929,7 +933,7 @@ UI.bind = function () {
       return;
     }
     if ((el = t.closest('[data-tech]'))) { const [sk, id] = el.dataset.tech.split(':'); if (G.setTech(sk, id)) A.play('click'); hideTip(); return; }
-    if ((el = t.closest('[data-pick]'))) { if (!G.pickTransmute(UI.forgeId, +el.dataset.pick)) deny('That offer is gone.'); return; }
+    if ((el = t.closest('[data-pick]'))) { if (!G.pickTransmute(UI.forgeId, +el.dataset.pick)) { const f = G.findItem(UI.forgeId); deny(f && f.it.pend ? I.PEND_FIRST : 'That offer is gone.'); } return; }
     if ((el = t.closest('[data-skill][data-tree]'))) {
       const id = el.dataset.skill, was = G.skillOn(id), msg = G.toggleSkill(id);
       if (msg) deny(msg); else A.play(was ? 'click' : 'learn');
@@ -948,9 +952,10 @@ UI.bind = function () {
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that.'); }
       else if (act === 'transfigure') {
         if (UI.tfArm !== UI.forgeId) { UI.tfArm = UI.forgeId; A.play('click'); mark('forge'); }       // first click arms it, the second does it
-        else { UI.tfArm = null; if (!G.transfigure(UI.forgeId)) deny('You cannot afford that.'); }
+        else { UI.tfArm = null; if (!G.transfigure(UI.forgeId)) { const f = G.findItem(UI.forgeId); deny((f && I.transfigCheck(f.it)) || 'You cannot afford that.'); } }
       }
-      else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to enchant this.'); }
+      else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to reroll this.'); }
+      else if (act === 'ench-keep' || act === 'ench-take') G.enchantPick(UI.forgeId, act === 'ench-take');
       else if (act === 'salvage-one') { const id = UI.forgeId; UI.forgeId = null; G.salvage(id); }
       else if (act === 'commission') { if (G.bagCount() >= D.BAG_SIZE) deny('Your bag is full.'); else if (!G.commission(el.dataset.slot)) deny('Not enough gold.'); }
       return;

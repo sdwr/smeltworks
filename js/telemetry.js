@@ -91,7 +91,7 @@ T.onGame = function (type, d) {
     case 'offer': count('bought'); break;
     case 'freeTransmute': count('free'); break;
     case 'cube': count('pick_' + d.res.op); break;
-    case 'forge': count(d.kind === 'transfigure' ? 'transfigure_' + d.res.kind : d.kind); break;
+    case 'forge': count(d.kind === 'transfigure' ? 'transfigure_' + d.res.kind : d.kind === 'enchantPick' ? (d.take ? 'reroll_take' : 'reroll_keep') : d.kind); break;
     case 'salvage': case 'autoSalvage': count('salvage'); break;
     case 'salvageAll': count('salvage', d.n); break;
   }
