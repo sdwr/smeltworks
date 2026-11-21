@@ -27,7 +27,8 @@ stash, centred. Right: the fight and the map, the same width as the left pane. O
 
 Mouse: click a glowing tile to fight there. Click more tiles to lay a route: they are numbered 1, 2, 3 and visited
 in that order whether Auto is on or off (Auto only chooses when the route is empty). A route can run through
-unexplored tiles, a click on a numbered tile takes it off, and falling clears it. If the smith is walking with no
+unexplored tiles, and falling clears it. A click on a numbered tile takes it off along with every stop after it; if
+that was the room the smith was walking to, they stop at the nearest cleared tile (once the fight has begun it is too late). If the smith is walking with no
 route set, a click sends them to that room instead. Click any piece of gear to put it on the crafting bench. Right-click
 a piece to equip it, or to take it off if you are wearing it. The bench's Clear button only empties the bench. Shift-right-click salvages it, Alt-click locks it,
 Ctrl-click sends it to the stash (or back). Drag items to rearrange the bag and stash, onto the paper doll to
@@ -90,15 +91,19 @@ the skill bar to drink it.
   | Reroll values | New numbers inside each affix's tier, for all affixes or one type |
   | Polish the values | Every number rolled again, kept only if better |
   | Perfect one value | One random affix gets the best number of its tier |
-  | Two up, one down | Two random affixes rise a tier or two (never past what the piece can roll), one falls a tier or two. Needs three affixes |
+  | Two up, one down | Two random affixes rise a tier or two (never past what the piece can roll), another falls a tier or two. Needs three affixes, and is only offered when two of them have room to rise and a third has room to fall: never on a piece that can only roll tier 1 |
   | Raise the lowest tier | The lowest-tier affix rises one tier |
   | Sacrifice an affix | One random affix is removed; every other rises one tier |
   | Shuffle the order | Changes which affix is first and last |
   | Leave it be | Nothing happens |
 
-  Adding is the commonest offer for a piece with room; the three are of different kinds whenever the piece allows.
+  Adding is much the commonest offer: a piece with room for another affix is offered a way to add one about five
+  times in six. The three are of different kinds whenever the piece allows.
   The affix you rerolled at the forge is locked (and marked so): no offer removes it, replaces it, renumbers it or
   moves its tier. Greater affixes keep their number and tier. A Unique is only ever offered ways to renumber it.
+  While an offer waits the piece can still be masterworked, rerolled at the forge and transfigured. If the reroll
+  locks an affix that an option was aimed at, or the change leaves an option with nothing to do, the cube swaps
+  that option for a new one. A piece that transfiguring seals loses its offer.
 - **Free transmutes.** Kills fill a bar at the head of the character pane (1 for a monster, 4 for an elite, 12 for a
   boss, 30 to fill). When it is full, one piece you are wearing that has no offer waiting gets a transmute for
   nothing: it sparkles until you take one of its three offers. If every worn piece is busy the bar waits, full.
@@ -142,8 +147,8 @@ the skill bar to drink it.
   the fight and the map go grey under a count, and the bench stays open. The count is in real seconds whatever the
   game speed. Auto remembers a boss that beat it and clears the map before trying again; after three runs in a row
   that end in the first two columns it steps back a level.
-- **Depth.** Beside the damage meter: how deep this run has got, how deep the last one got, and your deepest ever
-  on this level, counted in columns (the boss is in the last).
+- **Depth.** Beside the damage meter: how far this run has got, how far the last one got, and your best ever on
+  this level, counted in rooms cleared (fights, chests and shrines alike).
 - **Rarity comes in gradually.** The first rooms drop Common and Magic gear and nothing else. Rares begin at level 5
   (about 3% by the end of the first level, 12% in the second, a quarter in the third, nearly half in the fifth);
   every boss pays one. No affix is Greater before level 20, then 1%, 2% and 3% of them through the last three
@@ -202,17 +207,21 @@ Slots have different pools, on Diablo's pattern. Shields and lanterns count as d
 | Slot | Offence | Defence | Utility | Skills |
 | --- | --- | --- | --- | --- |
 | Weapon | Strength, Weapon damage, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Elites | Life, Life on hit, Life per second |  |  |
-| Shield | Strength, Damage, Elites, Thorns | Life, Armor, % Armor, Damage reduction, Barrier | Cooldown |  |
+| Shield |  | Life, Armor, % Armor, Damage reduction, Barrier | Cooldown, Thorns | Strength, skill ranks |
 | Lantern | Strength, Damage, Physical, Fire, Lightning, Crit chance, Elites | Barrier | Cooldown, Heat |  |
-| Helm | Strength, Burn/Bleed, Elites, Thorns | Life, Armor, Life per second, Barrier | Cooldown | yes |
-| Chest | Strength, Burn/Bleed, Elites, Thorns | Life, % Life, Armor, Damage reduction, Life per second, Barrier | Heat |  |
-| Gloves | Strength, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable, Elites, Thorns | Life, Armor, Life on hit | Heat | yes |
-| Pants | Strength, Burn/Bleed, Elites, Thorns | Life, Armor, Dodge, Damage reduction, Life per second, Barrier |  |  |
+| Helm |  | Life, Armor, Life per second, Barrier | Cooldown, Thorns | Strength, skill ranks |
+| Chest |  | Life, % Life, Armor, Damage reduction, Life per second, Barrier | Heat, Thorns | Strength, skill ranks |
+| Gloves | Strength, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable, Elites, Thorns | Life, Armor, Life on hit | Heat | skill ranks |
+| Pants |  | Life, Armor, Dodge, Damage reduction, Life per second, Barrier | Thorns | Strength, skill ranks |
 | Boots | Strength | Life, Armor, Dodge, Life per second | Heat, Movement speed |  |
-| Amulet | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat | yes |
+| Amulet | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed | % Life, % Armor, Dodge, Barrier | Cooldown, Heat | skill ranks |
 | Ring | Strength, Damage, Physical, Fire, Lightning, Burn/Bleed, Crit chance, Crit damage, Attack speed, Vulnerable | Life, Life on hit, Life per second | Cooldown, Heat |  |
 
-Each affix is listed under its family, which is also its colour in the game. Strength is the main stat: it can roll
+Each affix is listed under the type it counts as on that slot, which is also its colour in the game. Skill ranks
+are + to Hammer, Ember and Storm skills. Armour is not for offence: helm, chest, pants and shield roll no damage
+affixes and the cube never offers them an Offence option. What they have instead is Skills, which there means
+Strength and the three kinds of skill rank; their Thorns counts as Utility. (Gear found before this change keeps any
+damage affix it already had.) Strength is the main stat: it can roll
 on every slot, and each point multiplies all damage by 1%, separately from the other damage affixes. Walking from
 one room to the next takes three seconds; Movement Speed (boots only) shortens it. A room that has to be fought for
 is approached as far as its doorway, fought from there, and walked into once it is won.
@@ -226,7 +235,7 @@ rolled a strong offensive affix has to be paid more to carry a defensive one.
 
 | Slot | What is worth more there |
 | --- | --- |
-| Weapon | Defence affixes ×2, Strength ×2 |
+| Weapon | everything ×2: every affix on a weapon rolls at twice what it would on an ordinary piece (Weapon Damage included; Attack Speed apart) |
 | Gloves | Defence affixes ×1.5 |
 | Ring | Defence affixes ×1.25 |
 | Amulet | everything ×1.5 |

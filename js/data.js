@@ -148,16 +148,16 @@ D.AFFIX = {
   // bar, not so much that plain Damage is a wasted affix (the two add together).
   str:     { t: '+{v} Strength',                lo: 3,  hi: 7,   sc: 'none', w: 9,  note: '+1% to all damage per point, multiplying everything else', slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'gloves', 'pants', 'boots', 'amulet', 'ring'] },
   wdmg:    { t: '+{v}% Weapon Damage',          lo: 6,  hi: 12,  sc: 'none', w: 8,  note: 'raises the damage of the weapon itself, so it multiplies everything else', slots: ['weapon'] },
-  dmgPct:  { t: '+{v}% Damage',                 lo: 6,  hi: 10,  sc: 'pct',  w: 10, slots: ['weapon', 'shield', 'lantern', 'ring', 'amulet'] },
+  dmgPct:  { t: '+{v}% Damage',                 lo: 6,  hi: 10,  sc: 'pct',  w: 10, slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   physPct: { t: '+{v}% Physical Damage',        lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   firePct: { t: '+{v}% Fire Damage',            lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
   lightPct:{ t: '+{v}% Lightning Damage',       lo: 7,  hi: 12,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'ring', 'amulet'] },
-  dot:     { t: '+{v}% Burn and Bleed Damage',  lo: 12, hi: 20,  sc: 'pct',  w: 6,  slots: ['weapon', 'helm', 'chest', 'gloves', 'pants', 'ring', 'amulet'] },
+  dot:     { t: '+{v}% Burn and Bleed Damage',  lo: 12, hi: 20,  sc: 'pct',  w: 6,  slots: ['weapon', 'gloves', 'ring', 'amulet'] },
   crit:    { t: '+{v}% Critical Strike Chance', lo: 2,  hi: 4.5, sc: 'none', w: 8,  dp: 1, slots: ['weapon', 'gloves', 'lantern', 'ring', 'amulet'] },
   critDmg: { t: '+{v}% Critical Strike Damage', lo: 10, hi: 18,  sc: 'pct',  w: 8,  slots: ['weapon', 'gloves', 'ring', 'amulet'] },
   aspd:    { t: '+{v}% Attack Speed',           lo: 3,  hi: 7,   sc: 'none', w: 8,  dp: 1, slots: ['weapon', 'gloves', 'ring', 'amulet'] },
   vuln:    { t: '+{v}% Vulnerable Damage',      lo: 8,  hi: 14,  sc: 'pct',  w: 6,  slots: ['gloves', 'ring'] },
-  elite:   { t: '+{v}% Damage to Elites',       lo: 10, hi: 16,  sc: 'pct',  w: 6,  slots: ['weapon', 'shield', 'lantern', 'helm', 'chest', 'gloves', 'pants'] },
+  elite:   { t: '+{v}% Damage to Elites',       lo: 10, hi: 16,  sc: 'pct',  w: 6,  slots: ['weapon', 'lantern', 'gloves'] },
   thorns:  { t: '+{v} Thorns',                  lo: 5,  hi: 9,   sc: 'flat', w: 6,  slots: ['shield', 'helm', 'chest', 'gloves', 'pants'] },
   // defence
   life:    { t: '+{v} Maximum Life',            lo: 14, hi: 22,  sc: 'flat', w: 12, slots: ['weapon', 'shield', 'helm', 'chest', 'gloves', 'pants', 'boots', 'ring'] },
@@ -174,9 +174,9 @@ D.AFFIX = {
   heat:    { t: '+{v}% Heat Generation',        lo: 5,  hi: 10,  sc: 'none', w: 6,  slots: ['lantern', 'chest', 'gloves', 'boots', 'ring', 'amulet'] },
   move:    { t: '+{v}% Movement Speed',         lo: 15, hi: 30,  sc: 'none', w: 9,  slots: ['boots'] },
   // skills
-  skHammer:{ t: '+{v} to Hammer Skills',        lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
-  skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
-  skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['helm', 'gloves', 'amulet'] },
+  skHammer:{ t: '+{v} to Hammer Skills',        lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['shield', 'helm', 'chest', 'gloves', 'pants', 'amulet'] },
+  skEmber: { t: '+{v} to Ember Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['shield', 'helm', 'chest', 'gloves', 'pants', 'amulet'] },
+  skStorm: { t: '+{v} to Storm Skills',         lo: 1,  hi: 2.49, sc: 'none', w: 4, int: 1, slots: ['shield', 'helm', 'chest', 'gloves', 'pants', 'amulet'] },
 };
 /* Transfiguring: the last thing done to a piece, of any rarity. One roll on the table below, and then the piece is almost always
    sealed: no more masterworking, rerolling or cube. The chances are Diablo 4's, as measured by players
@@ -198,8 +198,8 @@ D.TRANSFIG_NAME = { indes: 'Indestructible', quality: 'Item Quality', affix: 'A 
 D.TRANSFIG_QUALITY = 15;     // the most Item Quality one transfiguration can add
 /* The same affix is worth more on some slots than others. The reasoning is opportunity cost: a slot that could
    have rolled a strong offensive affix has to be paid more to carry a defensive one, or nobody would take it.
-     weapon   Defence and Strength x2. A weapon has ten offensive affixes competing for four places, so life on it
-              has to be worth giving one up; and the weapon is where the main stat belongs.
+     weapon   everything x2. The weapon is the piece a build is made around: whatever it rolls, it rolls at twice
+              what the same affix would be on armour (Weapon Damage, which only weapons have, included).
      gloves   Defence x1.5. They are the crit and speed slot, so life and armor there come dear.
      ring     Defence x1.25. The same argument, more gently, so that an amulet still beats a ring.
      amulet   everything x1.5. The one-of-a-kind slot.
@@ -207,13 +207,17 @@ D.TRANSFIG_QUALITY = 15;     // the most Item Quality one transfiguration can ad
    are the same on every slot: they are capped or counted in whole steps, and a bigger roll on one slot would just
    make that slot the only place to take them. */
 D.SLOT_MULT = {
-  weapon: { def: 2, str: 2 },
+  weapon: { off: 2, def: 2, util: 2 },
   gloves: { def: 1.5 },
   ring:   { def: 1.25 },
   amulet: { off: 1.5, def: 1.5, util: 1.5 },
 };
 D.SLOT_FLAT = ['cdr', 'aspd', 'move', 'skHammer', 'skEmber', 'skStorm'];
-/* Affix types: what Kindle and Quench can be aimed at in the cube. Four of them, after Diablo 4's tuning
+/* The armour slots are not for offence. Helm, chest, pants and shield roll no damage affixes and are never offered
+   the Offence type; what they have instead is Skills: Strength and ranks for each discipline. (Strength and Thorns
+   still roll there, and count as Skills and Utility.) */
+D.NO_OFFENCE = ['helm', 'chest', 'pants', 'shield'];
+/* Affix types: what the cube's offers can be for. Four of them, after Diablo 4's tuning
    prisms (Aggressive, Protector's, Pragmatic, Adept's), and a few affixes sit in two:
      Strength             Offence and Skills
      Thorns               Offence and Utility

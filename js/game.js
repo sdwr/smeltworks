@@ -85,7 +85,7 @@ G.init = function (saved) {
     W.area = Math.min(D.AREAS.length - 1, Math.floor(W.area / 3), W.cleared[W.tier] || 0);
     W.map = null; S.lvlv = 1;
   }
-  G.path = []; G.target = null; G.route = [];      // never carry tiles over from another map: they would be walked to without being shown
+  G.path = []; G.target = null; G.route = []; G.halting = false;      // never carry tiles over from another map: they would be walked to without being shown
   if (!S.world.map) { S.world.route = []; G.startExpedition(S.world.area, S.world.tier, true); }
   for (const xy of S.world.route || []) { const c = G.cell(xy[0], xy[1]); if (G.canRoute(c)) G.route.push(c); }      // the route as it was planned, on this map's own tiles
 };
@@ -177,12 +177,12 @@ G.startExpedition = function (area, tier, quiet) {
   W.pos = { x: 0, y: 2 }; W.shrine = null; W.shrineN = 0;
   G.persist.hp = 1;                                         // a new map is begun whole
   W.map.bossFalls = (W.falls && W.falls.key === tier + ':' + area && W.falls.boss) || 0;      // what Auto remembers of this level's boss
-  G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.route = [];
+  G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.route = []; G.halting = false;
   if (!quiet) G.emit('expedition');
   G.emit('map');
 };
-/* How deep a run got: the furthest column in which a room was cleared (the boss is in the last, D.MAP_W - 1). Kept for
-   each level: the run in progress, the last one finished, and the deepest ever. */
+/* How deep a run got: the number of rooms cleared in it (fights, chests and shrines alike; the camp does not count).
+   Kept for each level: the run in progress, the last one finished, and the most ever. */
 G.depthRec = function (area, tier) { const W = G.S.world, k = tier + ':' + area; W.depth = W.depth || {}; return W.depth[k] || (W.depth[k] = { now: 0, last: null, best: 0 }); };
 /* a run has begun once any room beyond the camp has been cleared */
 G.runBegun = map => map.cells.filter(c => c.state === 'done').length > 1;
@@ -370,15 +370,13 @@ G.canRoute = function (c) {
   if (!c || c.type === 'wall' || c.state === 'done' || G.route.includes(c)) return false;
   return G.neighbors(G.S.world.map, c).some(n => n.state === 'done' || G.route.includes(n));
 };
-/* Click a tile: add it to the route, or take it off again. Returns 'added', 'redirected', 'removed', 'busy' or null. */
+/* Click a tile: add it to the route, or take it off again, and every stop after it with it. Taking off the stop
+   the smith is walking to calls the walk off. Returns 'added', 'redirected', 'removed', 'busy' or null. */
 G.routeToggle = function (c) {
   const i = G.route.indexOf(c);
   if (i >= 0) {
-    if (c === G.target && G.phase !== 'idle') return 'busy';              // already walking there or fighting for it
-    G.route.splice(i, 1);
-    // anything further along that was only reachable through the removed tile goes too
-    const keep = []; for (const x of G.route) if (G.neighbors(G.S.world.map, x).some(n => n.state === 'done' || keep.includes(n))) keep.push(x);
-    G.route = keep; G.emit('route'); return 'removed';
+    if (c === G.target && G.phase !== 'idle') { if (G.phase !== 'travel') return 'busy'; G.halt(); }      // the fight for it has begun: too late
+    G.route = G.route.slice(0, i); G.emit('route'); return 'removed';
   }
   if (!G.canRoute(c)) return null;
   const turn = !G.route.length && G.phase === 'travel' && c !== G.target && G.canEnter(c);    // on the move with no route: go there now
@@ -386,12 +384,23 @@ G.routeToggle = function (c) {
   const res = turn && G.redirect(c) ? 'redirected' : 'added';
   G.emit('route'); return res;
 };
-G.clearRoute = function () { G.route = G.phase !== 'idle' && G.route[0] === G.target ? [G.target] : []; G.emit('route'); };
+G.clearRoute = function () { if (G.route[0] === G.target) G.halt(); G.route = G.phase !== 'idle' && G.phase !== 'travel' && G.route[0] === G.target ? [G.target] : []; G.emit('route'); };
+/* Call the walk off. The smith goes on to the tile ahead if that is a cleared one, and otherwise turns round to the
+   tile just left; either way they stop there. */
+G.halt = function () {
+  const W = G.S.world, next = G.path[0], from = G.cell(W.pos.x, W.pos.y);
+  if (G.phase !== 'travel') return false;
+  if (!next) { G.phase = 'idle'; G.phaseT = 0; G.target = null; return true; }
+  if (G.path.length > 1) G.path = [next];
+  else { W.pos = { x: next.x, y: next.y }; G.phaseT = G.stepTime() - G.phaseT; G.path = [from]; }      // same spot, now walking the other way
+  G.target = G.path[0]; G.halting = true; G.emit('travel', { path: G.path });
+  return true;
+};
 /* Change course mid-walk. The smith either finishes the step under way and goes on from that tile, or turns round,
    whichever gets to the new room sooner. */
 G.redirect = function (c) {
   const W = G.S.world, step = G.stepTime(), next = G.path[0], from = G.cell(W.pos.x, W.pos.y);
-  if (G.phase !== 'travel' || !next) return false;
+  if (G.phase !== 'travel' || !next || G.halting) return false;      // a walk called off is finished first
   const f = U.clamp(G.phaseT / step, 0, 1);
   const on = G.path.length > 1 ? G.findPath(c, next) : null;           // carry on to the next tile (only if it is a cleared one)
   const back = from.state === 'done' ? G.findPath(c, from) : null;     // turn back to the tile just left
@@ -406,7 +415,7 @@ G.isFight = c => !!c && c.type !== 'chest' && c.type !== 'shrine';
    doorway of the room being fought for. After a win: walking the rest of the way in. After a fall: back where they came from. */
 G.tokenPos = function () {
   const p = G.S.world.pos, t = G.target; let to = null, f = 0;
-  if (G.phase === 'travel' && G.path.length) { to = G.path[0]; f = U.clamp(G.phaseT / G.stepTime(), 0, G.path.length === 1 && G.isFight(t) ? D.DOOR : 1); }
+  if (G.phase === 'travel' && G.path.length) { to = G.path[0]; f = U.clamp(G.phaseT / G.stepTime(), 0, G.path.length === 1 && G.isFight(t) && !G.halting ? D.DOOR : 1); }
   else if (G.phase === 'battle' && t) { to = t; f = D.DOOR; }
   else if (G.phase === 'won' && t) { to = t; f = D.DOOR + (1 - D.DOOR) * U.clamp(1 - G.phaseT / (G.wonT || 0.9), 0, 1); }
   else if (G.phase === 'dead' && t) { to = t; f = D.DOOR * U.clamp(G.phaseT / 0.6, 0, 1); }      // steps back in the last moments
@@ -416,7 +425,7 @@ G.enterCell = function (c) {
   if (G.phase !== 'idle' || G.S.world.cool > 0 || !G.canEnter(c)) return false;
   const path = G.findPath(c);
   if (!path) return false;
-  G.path = path; G.target = c; G.phase = 'travel'; G.phaseT = 0;
+  G.path = path; G.target = c; G.phase = 'travel'; G.phaseT = 0; G.halting = false;
   G.emit('travel', { path });
   return true;
 };
@@ -467,6 +476,10 @@ G.update = function (dt) {
   if (G.phase === 'travel') {
     G.phaseT += dt; G.rest(dt);
     const step = G.stepTime();
+    if (G.halting) {                                          // a walk called off: reach the tile and stand there
+      if (!G.path.length || G.phaseT >= step) { const c = G.path[0]; if (c) W.pos = { x: c.x, y: c.y }; G.path = []; G.target = null; G.halting = false; G.phase = 'idle'; G.phaseT = 0.3; G.emit('moved'); }
+      return;
+    }
     while (G.path.length > 1 && G.phaseT >= step) { G.phaseT -= step; const c = G.path.shift(); W.pos = { x: c.x, y: c.y }; G.emit('moved'); }
     // a room that has to be fought for is approached only as far as its doorway; chests and shrines are walked straight into
     const last = G.isFight(G.target) ? step * D.DOOR : step;
@@ -498,7 +511,7 @@ G.update = function (dt) {
       let to = W.area;
       if (S.opts.auto && W.falls.early >= 3 && W.area > 0) { to = W.area - 1; W.falls = null; G.emit('fallback', { to: D.AREAS[to].name }); }
       G.deathStreak = 0;
-      W.map.fell = 1; G.startExpedition(to, W.tier, true); G.emit('rerun', { area: to, depth: t ? t.x : 0, falls: W.falls ? W.falls.n : 0 });
+      W.map.fell = 1; G.startExpedition(to, W.tier, true); G.emit('rerun', { area: to, falls: W.falls ? W.falls.n : 0 });
       G.save();
     }
     return;
@@ -520,8 +533,8 @@ G.arrive = function (c) {
 };
 G.completeCell = function (c) {
   const S = G.S, W = S.world, map = W.map;
+  if (c.state !== 'done') { const r = G.depthRec(W.area, W.tier); r.now++; r.best = Math.max(r.best, r.now); }
   c.state = 'done'; W.pos = { x: c.x, y: c.y };
-  { const r = G.depthRec(W.area, W.tier); if (c.x > r.now) { r.now = c.x; r.best = Math.max(r.best, r.now); } }
   if (G.route.includes(c)) { G.route = G.route.filter(x => x !== c); G.emit('route'); }
   G.reveal(map, c);
   if (c.type === 'boss') {
@@ -656,15 +669,16 @@ G.transfigure = function (id) {
   const it = f.it;
   if (I.transfigCheck(it) || !G.pay(I.transfigCost(it))) return null;
   const res = I.transfigure(it);
-  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'transfigure', it, res }); G.save();
+  res.offer = I.offerMend(it);                                // the cube's waiting offer: put right, or lost with the sealing
+  G.recompute(); G.refreshUpgrades(); if (res.offer < 0) G.freeTransmute(); G.emit('forge', { kind: 'transfigure', it, res }); G.save();
   return res;
 };
 G.enchant = function (id, idx) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
   if (!I.canEnchant(it, idx) || !G.pay(I.enchantCost(it))) return null;
-  const was = it.affixes[idx].g, a = I.enchant(it, idx, G.S.world.tier);
-  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a, was }); G.save();
+  const was = it.affixes[idx].g, a = I.enchant(it, idx, G.S.world.tier), swapped = I.offerMend(it);      // an option aimed at the affix now locked is swapped for another
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a, was, swapped }); G.save();
   return a;
 };
 G.commission = function (slot) {

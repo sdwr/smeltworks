@@ -190,7 +190,7 @@ function tileTip(c) {
     chest: 'Free loot. No fight.', shrine: `Restores your Life, and gives a blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
   if (c.type === 'wall') return '<div class="tt plain"><b>Impassable rock</b><br>Solid stone. There is no way through: the smith has to go round.</div>';
   const stop = G.route.indexOf(c);
-  const plan = stop >= 0 ? `<br><i class="hot">Stop ${stop + 1} on your route. Click to take it off.</i>` : G.canRoute(c) ? `<br><i>Click to ${G.route.length ? 'add it to your route' : G.phase === 'travel' && G.canEnter(c) ? 'head here instead' : 'go here'}.</i>` : '';
+  const plan = stop >= 0 ? `<br><i class="hot">Stop ${stop + 1} on your route. Click to take it off${stop < G.route.length - 1 ? ', and every stop after it' : G.target === c && G.phase === 'travel' ? ': the smith stops walking there' : ''}.</i>` : G.canRoute(c) ? `<br><i>Click to ${G.route.length ? 'add it to your route' : G.phase === 'travel' && G.canEnter(c) ? 'head here instead' : 'go here'}.</i>` : '';
   if (c.state === 'hidden') return `<div class="tt plain"><b>Unexplored</b><br>Clear a neighbouring tile to see what is here.${plan}</div>`;
   let h = `<div class="tt plain"><b>${names[c.type]}</b>` + (c.type !== 'start' && c.type !== 'wall' && c.type !== 'shrine' ? ` <span class="${lvlCls(c.lvl, G.S.world.tier, true)}">Level ${c.lvl}</span>` : '') + `<br>${desc[c.type]}`;
   if (c.state === 'done') h += '<br><i>Cleared.</i>';
@@ -316,9 +316,9 @@ function renderMeter() {
     h += `<div class="m-row" data-tip="<b>${esc(name)}</b>: ${types}. ${kind}${Math.round(by[k] / dmg * 100)}% of your damage over ${fights.length === 1 ? 'this fight' : 'these ' + fights.length + ' fights'}."><i style="width:${by[k] / top * 100}%;background:${METER_EL[main] || '#8a8478'}"></i><span><u style="background:${METER_EL[main] || '#8a8478'}"></u>${name}</span><b>${Math.round(by[k] / dmg * 100)}%</b></div>`;
   }
   if (UI.meterHtml !== h) { UI.meterHtml = h; $('meter').innerHTML = h; }
-  // how deep this run is, how deep the last one got, and the deepest ever on this level
-  const W = G.S.world, r = G.depthRec(W.area, W.tier), end = D.MAP_W - 1, show = v => (v == null ? '–' : v >= end ? 'Boss' : v + ' / ' + end);
-  const dh = `<div><span>This run</span><b>${show(r.now)}</b></div><div><span>Last run</span><b>${show(r.last)}</b></div><div><span>Deepest</span><b class="${r.best >= end ? 'won' : ''}">${show(r.best)}</b></div>`;
+  // rooms cleared this run, in the last run, and the most ever in one run on this level
+  const W = G.S.world, r = G.depthRec(W.area, W.tier), show = v => (v == null ? '–' : v);
+  const dh = `<p>Rooms cleared</p><div><span>This run</span><b>${show(r.now)}</b></div><div><span>Last run</span><b>${show(r.last)}</b></div><div><span>Best</span><b>${show(r.best)}</b></div>`;
   if (UI.depthHtml !== dh) { UI.depthHtml = dh; $('depth').innerHTML = dh; }
 }
 
@@ -368,7 +368,7 @@ function renderHint() {
     t = emptySlots() > 0 ? `You fell, and a new run begins. You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}: open Skills and fill them.`
       : S.bag.some(b => b && b.upg) ? 'You fell, and a new run begins. Something in your bag is better than what you wear: look for the green arrow.'
         : 'You fell, and a new run begins. That is how a level goes: each run drops more gear and dust, so wear the best of it, masterwork it, and you will get a room or two deeper.';
-  else if (G.route.length > 1) t = 'The smith follows your route in order. Click a numbered tile to take it off.';
+  else if (G.route.length > 1) t = 'The smith follows your route in order. Click a numbered tile to take it off, and every stop after it.';
   else if (!S.seen.route && S.stats.kills > 6 && emptySlots() === 0) t = 'Click several tiles to plan a route: the smith visits them in the order shown, with Auto on or off.';
   else if (emptySlots() > 0) t = `You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}. Open Skills and fill them: every skill is free.`;
   else if (S.bag.some(b => b && b.upg)) t = 'Something in your bag is better than what you are wearing. Look for the green arrow.';
@@ -507,7 +507,7 @@ function renderCraft() {
     h += '<ul class="aff-list">';
     it.affixes.forEach((a, i) => {
       const fresh = last.idx === i || (last.idxs || []).includes(i) || (UI.tfLast && UI.tfLast.id === it.id && UI.tfLast.res.idx === i), ok = I.canEnchant(it, i);
-      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}" data-ai="${i}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${tierTag(it, a)}${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
+      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}" data-ai="${i}"><span><u style="background:${D.AFFIX_CAT[I.catOf(it, a.k)].color}" data-tip="${D.AFFIX_CAT[I.catOf(it, a.k)].name}"></u>${tierTag(it, a)}${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
         (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : moved[i] != null ? `<em class="${moved[i] < 0 ? 'dnt' : ''}">${moved[i] > 0 ? '▲ ' + moved[i] + (moved[i] > 1 ? ' tiers' : ' tier') : moved[i] < 0 ? '▼ ' + -moved[i] + (moved[i] < -1 ? ' tiers' : ' tier') : 'already at the top'}</em>` : (last.idxs || []).includes(i) ? `<em>${last.op === 'shuffle' ? 'moved' : last.op === 'reroll' || last.op === 'recast' ? 'new' : 'rerolled'}</em>` : '') + (it.ench === i && !it.sealed && !it.uniq ? `<em class="sft" data-tip="You rerolled this affix at the forge, so it is locked: nothing the cube does will remove it, replace it, renumber it or change its tier. Only the forge changes it now.">locked</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
@@ -574,6 +574,7 @@ function transfigHtml(it) {
   const odds = D.TRANSFIG[kind], c = I.transfigCost(it), armed = UI.tfArm === it.id, unfinished = (it.up || 0) < D.MW_MAX;
   h += '<div class="tf-odds">' + D.TRANSFIG_KINDS.filter(k => odds[k]).map(k => `<span class="${k === 'replace' ? 'bad' : k === 'indes' ? 'dud' : ''}" data-tip="${TF_TIP[k]}"><b>${odds[k]}%</b>${D.TRANSFIG_NAME[k]}</span>`).join('') +
     `<span class="open" data-tip="The chance the piece is not sealed afterwards. It can then be worked on as before, or transfigured again."><b>${odds.open}%</b>Stays open</span></div>`;
+  if (it.offer) h += '<p class="note warn">The cube\'s offer for this piece is still waiting. If the piece is sealed, the offer is lost.</p>';
   if (unfinished) h += `<p class="note warn">This piece is at masterwork rank ${it.up || 0} of ${D.MW_MAX}. Once sealed it cannot be masterworked further.</p>`;
   h += `<div class="op-a">${costHtml(c)}<button class="${armed ? 'danger' : ''}" data-act="transfigure" ${G.canPay(c) ? '' : 'disabled'}>${armed ? 'Yes, transfigure it<small>this cannot be undone</small>' : 'Transfigure'}</button></div></div>`;
   return h;
@@ -755,6 +756,9 @@ UI.onGame = function (type, d) {
       if (JUICE[d.kind]) JUICE[d.kind](d);
       if (d.kind === 'enchant') UI.cubeLast = { itemId: d.it.id, idx: d.it.ench, op: 'ench' };      // so the new affix is shown as new
       if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');
+      { const n = d.kind === 'enchant' ? d.swapped : d.kind === 'transfigure' ? d.res.offer : 0;      // what became of the cube's waiting offer
+        if (n < 0) UI.toast('Sealed: the cube\'s offer for this piece is lost.', 'bad');
+        else if (n > 0) UI.toast(n === 1 ? 'One of the cube\'s options no longer applied. It offers another.' : `${n} of the cube's options no longer applied. It offers others.`); }
       if (d.kind === 'transfigure') { UI.tfLast = { id: d.it.id, res: d.res }; A.play(d.res.kind === 'replace' ? 'salvage' : d.res.kind === 'indes' ? 'forge' : 'master'); UI.toast(`Transfigured: ${D.TRANSFIG_NAME[d.res.kind]}${d.res.kind === 'quality' ? ' +' + d.res.v : d.res.kind === 'indes' ? ' (nothing changed)' : ''}${d.res.open ? '. It was not sealed.' : ''}`, d.res.kind === 'replace' ? 'bad' : d.res.kind === 'indes' ? '' : 'good'); }
       if (d.kind === 'upgrade') { UI.mwLast = { id: d.it.id, ranks: d.ranks, t: performance.now() }; if (d.mw >= 0) UI.toast('Masterworked: ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good'); }
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
@@ -863,7 +867,7 @@ UI.bind = function () {
       const r = G.routeToggle(c);
       if (r === 'added' || r === 'redirected') { A.play('click'); if (G.phase === 'idle') G.phaseT = 0; if (G.route.length > 1) S.seen.route = 1; }
       else if (r === 'removed') A.play('click');
-      else if (r === 'busy') deny('The smith is already on the way there.');
+      else if (r === 'busy') deny('The fight for that room has already begun.');
       else if (c.type !== 'wall' && c.state !== 'done') deny('That tile is not connected yet. Pick one next to a cleared tile, or next to a tile already on your route.');
       tipKey = ''; hideTip();
       return;
