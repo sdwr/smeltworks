@@ -117,8 +117,9 @@ the skill bar to drink it.
   | Shuffle the order | Changes which affix is first and last |
   | Leave it be | Nothing happens |
 
-  Adding is much the commonest offer: a piece with room for another affix is offered a way to add one about five
-  times in six. The three are of different kinds whenever the piece allows.
+  Adding is much the commonest offer: a piece with room for another affix is offered a way to add one more than nine
+  times in ten, and two different ways (an affix of any type and one of a named type, say) more often than not. Every
+  other kind turns up once at most in an offer.
   The affix you rerolled at the forge is locked (and marked so): no offer removes it, replaces it, renumbers it or
   moves its tier. Greater affixes keep their number and tier. A Unique is only ever offered ways to renumber it.
   While an offer waits the piece can still be masterworked, rerolled at the forge and transfigured. If the reroll

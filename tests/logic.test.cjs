@@ -1036,7 +1036,7 @@ test('The cube: a transmute is bought, offers three options for that piece, and 
   const it = I.roll(44, { rar: 2, slot: 'gloves' }); it.affixes = it.affixes.slice(0, 3); S.bag[0] = it;
   assert.equal(I.offerCheck(it), null); const offer = G.buyTransmute(it.id);
   assert.equal(S.mats.dust, 100 - D.CUBE_COST); assert.equal(offer.length, 3); assert.equal(it.offer, offer);
-  assert.equal(new Set(offer.map(I.cubeKey)).size, 3, 'three different options'); assert.equal(new Set(offer.map(o => o.op)).size, 3, 'of three different kinds'); assert.ok(offer.every(o => I.cubeValid(it, o)), 'each of which would do something');
+  assert.equal(new Set(offer.map(I.cubeKey)).size, 3, 'three different options'); assert.ok(new Set(offer.map(o => o.op)).size >= 2 && offer.filter(o => o.op !== 'add').length === new Set(offer.filter(o => o.op !== 'add').map(o => o.op)).size, 'of different kinds, adding apart'); assert.ok(offer.every(o => I.cubeValid(it, o)), 'each of which would do something');
   for (const o of offer) { const L = I.cubeLabel(o); assert.ok(L.title && L.desc && I.CUBE_COLOR[L.fam]); }
   // no second transmute for this piece until one is taken; another piece is its own matter
   assert.equal(G.buyTransmute(it.id), null); assert.equal(S.mats.dust, 100 - D.CUBE_COST, 'and nothing is charged for trying'); assert.ok(/Pick one/.test(I.offerCheck(it)));
@@ -1051,8 +1051,10 @@ test('The cube: a transmute is bought, offers three options for that piece, and 
   // what gets offered: adding is the commonest thing for a piece with room, and never offered to a full one
   const count = {}; for (let i = 0; i < 600; i++) { const x = I.roll(44, { rar: 2, slot: 'ring' }); x.affixes = x.affixes.slice(0, 2); for (const o of I.cubeOffer(x)) count[o.op] = (count[o.op] || 0) + 1; }
   assert.ok(count.add > count.remove && count.add > count.recast * 2, JSON.stringify(count)); assert.equal(count.tiers, undefined, 'two up, one down needs three affixes');
-  { let withAdd = 0; for (let i = 0; i < 600; i++) { const x = I.roll(44, { rar: 2, slot: 'chest' }); x.affixes = x.affixes.slice(0, 3); x.affixes.forEach((q, k) => { q.g = 0; q.ti = 1 + k; }); if (I.cubeOffer(x).some(o => o.op === 'add')) withAdd++; }
-    assert.ok(withAdd > 480 && withAdd < 570, 'a piece with room is offered an add about five times in six: ' + withAdd + ' of 600'); }
+  { let withAdd = 0, two = 0, three = 0; for (let i = 0; i < 600; i++) { const x = I.roll(44, { rar: 2, slot: 'chest' }); x.affixes = x.affixes.slice(0, 3); x.affixes.forEach((q, k) => { q.g = 0; q.ti = 1 + k; }); const o = I.cubeOffer(x), adds = o.filter(q => q.op === 'add');
+      if (adds.length) withAdd++; if (adds.length === 2) { two++; assert.notEqual(I.cubeKey(adds[0]), I.cubeKey(adds[1]), 'two different ways to add'); } if (adds.length > 2) three++;
+      assert.equal(new Set(o.filter(q => q.op !== 'add').map(q => q.op)).size, o.length - adds.length, 'every other kind turns up once at most'); }
+    assert.ok(withAdd > 530, 'a piece with room is nearly always offered an add: ' + withAdd + ' of 600'); assert.ok(two > 290 && two < 420, 'and two of them more often than not: ' + two + ' of 600'); assert.equal(three, 0, 'never three while there is anything else'); }
   const full = I.roll(44, { rar: 2, slot: 'ring' }); while (full.affixes.length < 4) cube(SW, (S.bag[2] = full).id, 'add'); S.bag[2] = full;
   for (let i = 0; i < 200; i++) assert.ok(I.cubeOffer(full).every(o => o.op !== 'add' && o.op !== 'convert' || o.op === 'convert'));
   full.affixes.forEach((a, i) => { a.g = 0; a.ti = 1 + i; });

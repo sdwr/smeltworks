@@ -351,8 +351,8 @@ I.cubeValid = function (it, o) {
   return false;
 };
 /* how often each kind of option turns up, shared among its valid variants. Adding is much the commonest: a piece
-   with room for another affix is offered a way to add one about five times in six. */
-I.CUBE_W = { add: 70, remove: 20, reroll: 20, convert: 8, recast: 7, values: 12, polish: 5, perfect: 4, tiers: 10, raise: 5, sacrifice: 4, shuffle: 3, pass: 3 };
+   with room for another affix is offered a way to add one more than nine times in ten, and two ways more often than not. */
+I.CUBE_W = { add: 100, remove: 20, reroll: 20, convert: 8, recast: 7, values: 12, polish: 5, perfect: 4, tiers: 10, raise: 5, sacrifice: 4, shuffle: 3, pass: 3 };
 I.cubeOptions = function (it) {
   const cats = I.slotCats(it), out = [], C = [null].concat(cats);
   for (const cat of C) { out.push({ op: 'add', cat }); out.push({ op: 'remove', cat }); out.push({ op: 'reroll', cat }); out.push({ op: 'values', cat });
@@ -361,11 +361,14 @@ I.cubeOptions = function (it) {
   for (const op of ['recast', 'polish', 'perfect', 'tiers', 'raise', 'sacrifice', 'shuffle', 'pass']) out.push({ op });
   return out.map(o => { for (const k in o) if (o[k] == null) delete o[k]; return o; }).filter(o => I.cubeValid(it, o));
 };
-/* three of them: different kinds where the piece allows it, each kind as likely as its weight says */
+/* Three of them, each kind as likely as its weight says. They are of different kinds where the piece allows it,
+   except adding: a piece with room is often offered two ways to add (I.CUBE_TWICE), though never three while there
+   is anything else to offer. */
+I.CUBE_TWICE = { add: 2 };
 I.cubeOffer = function (it, n) {
   const all = I.cubeOptions(it), offer = []; n = n || D.CUBE_OFFER;
   while (offer.length < n && all.length) {
-    const fresh = all.filter(o => !offer.some(x => x.op === o.op)), from = fresh.length ? fresh : all, count = {};
+    const fresh = all.filter(o => offer.filter(x => x.op === o.op).length < (I.CUBE_TWICE[o.op] || 1)), from = fresh.length ? fresh : all, count = {};
     for (const o of from) count[o.op] = (count[o.op] || 0) + 1;
     const o = U.wpick(from, x => I.CUBE_W[x.op] / count[x.op]);
     offer.push(o); all.splice(all.indexOf(o), 1);
