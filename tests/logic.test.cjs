@@ -482,7 +482,8 @@ test('Rerolling an affix gets dearer gently and levels off', (SW, G, D, I) => {
   const it = I.roll(40, { slot: 'ring', rar: 2 }), first = I.enchantCost(it).gold;
   let prev = first;
   for (let n = 1; n <= 30; n++) { it.enchN = n; const c = I.enchantCost(it).gold; assert.ok(c >= prev && c <= prev * 1.45, `step ${n}: ${prev} -> ${c}`); prev = c; }
-  assert.ok(prev <= first * 5.05, 'never more than five times the first price'); assert.ok(I.enchantCost(it).dust <= 5);
+  assert.ok(prev <= first * 5.05, 'never more than five times the first price'); assert.equal(Object.keys(I.enchantCost(it)).join(), 'gold', 'gold only: no ember dust');
+  { const S = G.S, x = I.roll(40, { slot: 'ring', rar: 2 }); S.bag[0] = x; S.gold = 1e9; S.mats.dust = 0; assert.ok(G.enchant(x.id, 0), 'a reroll with no dust at all'); assert.equal(S.mats.dust, 0); assert.ok(S.gold < 1e9); S.gold = 0; assert.equal(G.enchant(x.id, 0), null, 'but not without gold'); }
 });
 test('Masterworking cannot be bought without the materials', (SW, G, D, I) => {
   const it = I.roll(20, { slot: 'ring', rar: 2 }); G.S.bag[0] = it; G.S.gold = 0;

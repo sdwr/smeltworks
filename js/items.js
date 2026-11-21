@@ -231,8 +231,8 @@ I.upgrade = function (it) {
   it.mw = [i];
   return { ranks: 0, mw: i };
 };
-/* Rerolling an affix costs more each time on the same piece, but gently: +40% of the first price per reroll, levelling off at five times it. */
-I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Math.round(45 * I.goldScale(it.ilvl) * (1 + 0.4 * n)), dust: 2 + Math.min(3, Math.floor(n / 3)) }; };
+/* Rerolling an affix costs gold only, no ember dust. It costs more each time on the same piece, but gently: +40% of the first price per reroll, levelling off at five times it. */
+I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Math.round(45 * I.goldScale(it.ilvl) * (1 + 0.4 * n)) }; };
 /* Uniques cannot be cubed (no adding, removing or rerolling affixes), though Temper can reroll their
    numbers and the forge can enchant one affix. */
 I.fixed = it => !!it.uniq;

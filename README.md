@@ -132,8 +132,8 @@ the skill bar to drink it.
   bar says how many are waiting (click it to bring the next one to the bench). If every worn piece is busy the bar waits, full.
   Monsters well below your gear level fill it more slowly, and those 13 levels below not at all.
 - **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 2 to 25, climbing with each one bought for the same piece; a
-  masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix; rerolling an affix
-  and transfiguring take dust beside their gold (transfiguring 40). Salvage pays 1 for a Common, 2 for a Magic, 4
+  masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix; transfiguring
+  takes 40 dust beside its gold. Rerolling an affix at the forge costs gold only. Salvage pays 1 for a Common, 2 for a Magic, 4
   for a Rare (plus 3 for each Greater affix and 5 if Ancestral) and 12 for a Unique. Elites and bosses always carry
   some, ordinary monsters a pinch 5% of the time, and chests and full clears add a little.
 - **Affix tiers.** Every affix comes in seven tiers, each a band of values that starts where the one below ends, and
