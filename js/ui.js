@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero, G = SW.game, SP = SW.sprites, A = SW.audio;
-const UI = SW.ui = { tab: 'skills', dirty: {}, forgeId: null, cubeLast: null, dragId: null, lastGold: -1 };
+const UI = SW.ui = { tab: 'craft', dirty: {}, forgeId: null, cubeLast: null, dragId: null, lastGold: -1 };
 const $ = id => document.getElementById(id);
 /* colour for a monster level against your gear level. In Torment gear is capped while monsters keep rising,
    so the comparison says nothing there and the level is left uncoloured. */

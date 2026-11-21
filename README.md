@@ -3,6 +3,11 @@
 An autobattler with Diablo-style loot. You fight down through a grid of battles, the fights play themselves, and
 your job is the build: skills, gear, and what you remake at the forge.
 
+Open `index.html` in a browser: there is nothing to build or install. The game opens on the Crafting tab.
+
+**Hosting.** The repository root is the site, so GitHub Pages can serve it as it is: Settings, Pages, "Deploy from a
+branch", `main`, `/ (root)`. No workflow and no build.
+
 ## Play
 
 Open `index.html` in a browser. There is no build step and nothing to install.
