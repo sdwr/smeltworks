@@ -226,6 +226,11 @@ function renderHudBar() {
 /* per-frame: orbs, cooldowns, xp, purse, boss bar */
 UI.frame = function () {
   moveToken();
+  if (G.leaving && UI.vic && UI.vic.moving) {                // the walk to the next level, in step with the game's count
+    const L = G.leaving, f = U.clamp(1 - L.t / D.LEAVE_TIME, 0, 1), e = f * f * (3 - 2 * f), n = D.AREAS.length - 1, x = (L.from + (L.to - L.from) * e) / n * 100, m = $('vic-mark'), fl = $('vic-fill');
+    if (m) { m.style.left = x + '%'; m.classList.toggle('walk', G.S.opts.speed > 0); m.classList.toggle('back', L.to < L.from); }
+    if (fl) { const a = Math.min(L.from, L.to) / n * 100; fl.style.left = (L.to >= L.from ? L.from / n * 100 : x) + '%'; fl.style.width = Math.abs(x - L.from / n * 100) + '%'; }
+  }
   const S = G.S, B = G.battle, h = B ? B.h : null, st = G.C.st;
   const hp = G.lifeFrac(), heat = (h ? h.heat : G.persist.heat == null ? 30 : G.persist.heat) / D.HEAT_MAX;
   const oh = $('orb-hp'); oh.firstElementChild.style.height = Math.max(0, hp * 100) + '%';
@@ -543,8 +548,8 @@ function renderCraft() {
     });
     h += '</div>';
   } else {
-    const why = I.offerCheck(f.it) || (G.canPay(I.offerCost(f.it)) ? null : `A transmute costs ${D.CUBE_COST} ember dust and you have ${U.fmt(S.mats.dust || 0)}. Salvage gear for more; elites and bosses always carry some.`);
-    h += `<div class="cube-box"><button class="big" data-act="buy-transmute" ${why ? 'disabled' : ''} data-tip="The cube draws three things it could do to this piece: add, remove or reroll an affix (sometimes of one type, sometimes the first or last), renumber it, move its tiers, and a few rarer ones. You then have to take one of the three before you can buy another transmute for this piece.">Buy a transmute <span class="cost ${G.canPay(I.offerCost(f.it)) ? '' : 'short'}"><i class="ci dust"></i>${D.CUBE_COST}</span></button></div>`;
+    const why = I.offerCheck(f.it) || (G.canPay(I.offerCost(f.it)) ? null : `This transmute costs ${I.offerCost(f.it).dust} ember dust and you have ${U.fmt(S.mats.dust || 0)}. Salvage gear for more; elites and bosses always carry some.`);
+    h += `<div class="cube-box"><button class="big" data-act="buy-transmute" ${why ? 'disabled' : ''} data-tip="The cube draws three things it could do to this piece: add, remove or reroll an affix (sometimes of one type, sometimes the first or last), renumber it, move its tiers, and a few rarer ones. You then have to take one of the three before you can buy another transmute for this piece. The first transmute for a piece costs ${D.CUBE_COST.first} ember dust and each one after costs ${D.CUBE_COST.step} more, up to ${D.CUBE_COST.cap}. Free transmutes cost nothing and do not raise the price.">Buy a transmute <span class="cost ${G.canPay(I.offerCost(f.it)) ? '' : 'short'}"><i class="ci dust"></i>${I.offerCost(f.it).dust}</span></button></div>`;
     const last = UI.cubeLast && UI.cubeLast.itemId === f.it.id && UI.cubeLast.o ? UI.cubeLast : null;      // (a forge reroll also sets cubeLast, without an option)
     h += `<p class="cube-say ${why ? 'no' : ''}">${why || (last ? `<b style="color:${I.CUBE_COLOR[I.cubeLabel(last.o).fam]}">${I.cubeLabel(last.o).title}.</b> ${last.removed ? 'Lost ' + last.removed + '. ' : ''}${last.was ? 'Gave up ' + last.was + '. ' : ''}${last.op === 'pass' ? 'Nothing changed. ' : ''}Buy another to see three new offers.` : 'You do not choose what the cube does: it offers three things, and you take one. The affix you rerolled at the forge is never touched.')}</p>`;
   }
@@ -624,9 +629,9 @@ UI.render = function () {
 UI.setTab = function (t) {
   UI.tab = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  for (const k of ['skills', 'craft', 'commission']) $('tab-' + k).classList.toggle('hidden', k !== t);
+  for (const k of ['skills', 'craft', 'commission', 'stats']) $('tab-' + k).classList.toggle('hidden', k !== t);
   $('panel').scrollTop = 0;
-  mark(t === 'craft' || t === 'commission' ? 'forge' : t); hideTip();
+  mark(t === 'craft' || t === 'commission' ? 'forge' : t === 'stats' ? 'gear' : t); hideTip();
 };
 /* bring a piece of gear to the crafting bench */
 UI.craft = function (id) {
@@ -642,6 +647,39 @@ UI.banner = function (title, sub, cls, ms) {
   const b = $('banner');
   b.className = 'show ' + (cls || ''); b.innerHTML = `<b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}`;
   clearTimeout(bannerT); bannerT = setTimeout(() => { b.className = ''; }, ms || 2200);
+};
+/* ---- a boss has fallen: the celebration card over the arena, and the walk to the next level ----
+   The card names the boss and the level, says what the level cost, and shows the five levels as a track. When the
+   smith sets off (G.leave) a marker moves along the track to where they are going; UI.frame keeps it in step with
+   the game's own count, so pausing pauses it. With Auto off the card offers the choice instead. */
+const CONFETTI = ['#ffd27a', '#ff8a2a', '#fff3c4', '#7fd4ff', '#9be36a', '#ff5a3a', '#c9b8ff'];
+function levelTrack(tier, from, to) {
+  const W = G.S.world, n = D.AREAS.length;
+  let h = '<div class="vic-track"><div class="vt-line"><i id="vic-fill"></i></div>';
+  D.AREAS.forEach((a, i) => { const done = W.cleared[tier] != null && i < W.cleared[tier]; h += `<div class="vt-node ${done ? 'done' : ''} ${i === from ? 'from' : ''} ${i === to ? 'to' : ''}" style="left:${i / (n - 1) * 100}%" data-tip="${esc(D.ACTS[a.act].name)}: level ${D.areaLevel(i, tier)}–${D.areaLevel(i, tier) + D.areaSpan(tier)}"><b>${done ? '✓' : i + 1}</b><span>${esc(D.ACTS[a.act].name)}</span></div>`; });
+  return h + `<img id="vic-mark" src="${SP.url('hero', 'hero', 2)}" alt="" style="left:${from / (n - 1) * 100}%"></div>`;
+}
+UI.victoryCard = function (d) {
+  const S = G.S, area = D.AREAS[d.area], act = D.ACTS[area.act], boss = D.BOSSES[act.boss], last = d.area === D.AREAS.length - 1, next = last ? null : D.AREAS[d.area + 1];
+  let conf = ''; for (let i = 0; i < 44; i++) { const a = Math.random() * Math.PI * 2, r = 90 + Math.random() * 230; conf += `<i style="--x:${Math.round(Math.cos(a) * r)}px;--y:${Math.round(Math.sin(a) * r * 0.7 - 30)}px;--r:${Math.round(Math.random() * 720 - 360)}deg;--c:${CONFETTI[i % CONFETTI.length]};--d:${Math.round(Math.random() * 260)}ms;--s:${5 + Math.round(Math.random() * 6)}px"></i>`; }
+  let h = `<div class="vic-card"><div class="vic-burst">${conf}</div><button class="vic-x" data-vic="close" title="Close">×</button>`;
+  h += `<div class="vic-kicker">${d.first ? 'First kill' : 'Slain again'}${d.tier ? ' · ' + D.TIERS[d.tier].name : ''}</div><h2>${esc(boss.name)}</h2><p class="vic-sub">${esc(act.name)} is cleared.${d.first && next ? ' The way down is open.' : ''}</p>`;
+  h += `<div class="vic-stats"><span><b>${d.rooms}</b>room${d.rooms === 1 ? '' : 's'} this run</span><span><b>${d.falls}</b>fall${d.falls === 1 ? '' : 's'} on the way</span><span><b>${Hr.gearLevel(S.gear)}</b>gear level</span></div>`;
+  h += levelTrack(d.tier, d.area, d.area) + '<div class="vic-move" id="vic-move"></div>';
+  h += `<div class="vic-btns" id="vic-btns">${next ? `<button class="big" data-vic="go" data-to="${next.idx}">On to ${esc(D.ACTS[next.act].name)}</button>` : '<button class="big" data-vic="travel">Travel</button>'}<button data-vic="again">Run it again</button><button data-vic="close">Stay and finish the map</button></div></div>`;
+  const v = $('victory'); v.innerHTML = h; v.className = 'show burst' + (S.opts.auto ? ' auto' : ''); UI.vic = { d, moving: false };
+  $('combat').classList.add('won-flash'); setTimeout(() => $('combat').classList.remove('won-flash'), 900);
+  clearTimeout(UI.vicT); if (S.opts.auto) UI.vicT = setTimeout(() => { if (UI.vic && !UI.vic.moving) UI.victoryClose(); }, 6500);      // Auto may still have rooms to clear: do not sit on the fight
+};
+UI.victoryClose = function () { clearTimeout(UI.vicT); $('victory').className = 'hidden'; UI.vic = null; };
+/* the smith sets off: say where to, and let the marker walk there */
+UI.victoryMove = function (L) {
+  const v = $('victory'), to = D.AREAS[L.to], act = D.ACTS[to.act], lvl = D.areaLevel(L.to, L.tier);
+  if (!UI.vic) { v.innerHTML = `<div class="vic-card slim">${levelTrack(L.tier, L.from, L.to)}<div class="vic-move" id="vic-move"></div></div>`; v.className = 'show'; UI.vic = { d: null }; }      // set off later, after the rest of the map
+  UI.vic.moving = true; clearTimeout(UI.vicT); v.classList.add('moving');
+  v.querySelectorAll('.vt-node').forEach((n, i) => n.classList.toggle('to', i === L.to));
+  const verb = L.to > L.from ? 'Descending to' : L.to < L.from ? 'Climbing back to' : 'Another run of';
+  $('vic-move').innerHTML = `<span>${verb} <b>${esc(act.name)}</b> · level ${lvl}–${lvl + D.areaSpan(L.tier)}</span>`;
 };
 UI.feed = function (html, cls) {
   const f = $('feed'), d = document.createElement('div');
@@ -684,7 +722,7 @@ UI.settings = function () {
   UI.modal(`<h2>Settings</h2>
     <div class="set"><label>Volume</label><input type="range" id="set-vol" min="0" max="100" value="${Math.round(S.opts.vol * 100)}"></div>
     <div class="set"><label>Flask</label><label class="chk"><input type="checkbox" id="set-flask" ${S.opts.autoFlask !== false ? 'checked' : ''}><span>Drink it automatically below 35% Life. You can always drink it yourself with Q.</span></label></div>
-    <div class="set"><label>Keys</label><span class="note">Q drinks the flask. Space pauses. A toggles Auto. 1, 2, 3 set the speed. S, F and O open Skills, Crafting and Commission. T travels.</span></div>
+    <div class="set"><label>Keys</label><span class="note">Q drinks the flask. Space pauses. A toggles Auto. 1, 2, 3 set the speed. S, F, O and C open Skills, Crafting, Commission and Stats. T travels.</span></div>
     <div class="set"><label>Records</label>${recordsHtml()}</div>
     ${SW.telemetry.hosted() ? `<div class="set"><label>Play data</label><label class="chk"><input type="checkbox" id="set-tele" ${SW.telemetry.enabled() ? 'checked' : ''}><span>Send anonymous notes on how your runs go (where they end, how long levels take, what you craft, and errors) to help balance the game. No name, no address, nothing typed.</span></label></div>` : ''}
     <div class="set"><label>Save</label><div><button class="small" id="set-export">Copy save to clipboard</button> <button class="small" id="set-import">Load a save from text</button><textarea id="set-text" class="hidden" placeholder="Paste a save here, then press Load again"></textarea></div></div>
@@ -715,18 +753,6 @@ UI.victory = function () {
     <p><b style="color:${D.TIERS[1].color}">Torment I is open.</b> The same descent, far deadlier. No Common gear drops there, Uniques come faster, more affixes roll Greater, and Ancestral gear appears. </p>
     <div class="mfoot"><button data-close="1">Keep farming here</button><button class="big" data-go="0" data-gotier="1">Enter Torment I</button></div>`, 'welcome');
 };
-UI.areaDone = function (d) {
-  const S = G.S, W = S.world, area = D.AREAS[d.area], last = d.area === D.AREAS.length - 1, next = last ? null : D.AREAS[d.area + 1];
-  let h = `<h2>${D.ACTS[area.act].name} cleared</h2>`;
-  let h0 = '';
-  if (d.first) h0 = `<p class="lead">${D.ACTS[area.act].name} is yours. ${D.BOSSES[D.ACTS[area.act].boss].name} left a Rare${d.tier > 0 || D.areaLevel(d.area, d.tier) >= 20 ? ' with a Greater affix' : ''}.${next ? ` ${D.ACTS[next.act].name} starts at monster level ${D.areaLevel(next.idx, d.tier)}: expect to fall there until your gear catches up.` : ''}</p>`;
-  else h0 = '<p class="lead">Cleared again.</p>';
-  h += h0;
-  if (last && d.first && W.cleared[d.tier + 1] != null) h += `<p><b style="color:${D.TIERS[d.tier + 1].color}">${D.TIERS[d.tier + 1].name} unlocked.</b> The whole descent again, far deadlier, with better loot. Open Travel to start it.</p>`;
-  h += '<div class="mfoot"><button data-close="1">Stay and finish the map</button><button data-again="1">Run it again</button>' + (next ? `<button class="big" data-go="${next.idx}" data-gotier="${d.tier}">On to ${D.ACTS[next.act].name}</button>` : '<button class="big" data-travel="1">Travel</button>') + '</div>';
-  UI.modal(h, 'done');
-};
-
 /* ------------------------------------------------------ game → ui glue */
 UI.onGame = function (type, d) {
   const S = G.S;
@@ -734,8 +760,8 @@ UI.onGame = function (type, d) {
     case 'stats': mark('gear', 'top', 'hud', 'forge', 'cube', 'skills', 'map'); break;
     case 'map': mark('map', 'top'); break;
     case 'moved': A.play('step', 0.1); break;
-    case 'expedition': mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); UI.banner(D.ACTS[D.AREAS[S.world.area].act].name, `${D.AREAS[S.world.area].name} · Level ${G.areaLevel()}–${G.areaLevel() + D.areaSpan(S.world.tier)}`, 'area', 1800); break;
-    case 'rerun': mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); break;
+    case 'expedition': UI.victoryClose(); mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); UI.banner(D.ACTS[D.AREAS[S.world.area].act].name, `${D.AREAS[S.world.area].name} · Level ${G.areaLevel()}–${G.areaLevel() + D.areaSpan(S.world.tier)}`, 'area', 1800); break;
+    case 'rerun': UI.victoryClose(); mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); break;
     case 'battleStart':
       SW.fx.battleStart(); S.seen.fought = 1; mark('map');
       if (d.spec.boss) { const b = D.BOSSES[d.spec.boss]; UI.banner(b.name, b.title, 'boss', 2600); }
@@ -746,11 +772,12 @@ UI.onGame = function (type, d) {
     case 'battleEnd': if (!d.win) SW.fx.clear(); mark('bag', 'map', 'top', 'skills', 'forge', 'gear'); break;
     case 'death': UI.banner('You fell', `The run is over. You keep everything you found. A new map opens in ${D.RUN_COOLDOWN} seconds.`, 'dead', 2400); mark('map'); break;
     case 'areaClear':
-      A.play('clear'); UI.banner(D.ACTS[D.AREAS[d.area].act].name + ' cleared', d.first ? 'The way on is open' : '', 'clear', 2400);
-      if (d.first && d.area === D.AREAS.length - 1 && d.tier === 0) setTimeout(() => UI.victory(), 1600);
-      else if (!S.opts.auto) setTimeout(() => { if (!S.opts.auto && $('modal').classList.contains('hidden')) UI.areaDone(d); }, 1500);
+      A.play('clear'); setTimeout(() => A.play('master'), 320); UI.victoryCard(d);
+      if (d.first && d.area === D.AREAS.length - 1 && d.tier === 0) setTimeout(() => UI.victory(), 2600);
       mark('top', 'map');
       break;
+    case 'leaving': UI.victoryMove(d); break;
+    case 'stay': if (UI.vic) { UI.vic.moving = false; $('victory').classList.remove('moving', 'auto'); $('vic-move').innerHTML = ''; } break;
     case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', `Ancestral gear drops there: ${Math.round(D.ANC_CHANCE[d.tier] * 100)}% of all drops`, 'boss', 3600), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
     case 'chest': A.play('chest'); SW.fx.spill(d.items, d.fate); UI.feed(`Chest: <b class="gold">${U.fmt(d.gold)} gold</b> and ${d.dust} ember dust`, ''); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag', 'map'); break;
     case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b>, ${d.dust} ember dust and a bonus piece`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
@@ -872,6 +899,13 @@ UI.bind = function () {
     if ((el = t.closest('[data-close]'))) return UI.closeModal();
     if (t.id === 'modal') return UI.closeModal();
     if ((el = t.closest('[data-tier]'))) return UI.travel(+el.dataset.tier);
+    if ((el = t.closest('[data-vic]'))) {
+      const act = el.dataset.vic, W = S.world; A.play('click');
+      if (act === 'close') UI.victoryClose();
+      else if (act === 'travel') { UI.victoryClose(); UI.travel(); }
+      else G.leave(act === 'go' ? +el.dataset.to : W.area, W.tier, true);      // on to the next level, or this one again
+      return;
+    }
     if ((el = t.closest('[data-go]'))) return go(+el.dataset.go, +el.dataset.gotier);
     if ((el = t.closest('[data-again]'))) { G.startExpedition(S.world.area, S.world.tier); return UI.closeModal(); }
     if ((el = t.closest('[data-travel]'))) return UI.travel();
@@ -954,7 +988,7 @@ UI.bind = function () {
     else if (k === 'a') toggleAuto();
     else if (k === 'q') drink();
     else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(2); else if (k === '3') setSpeed(4);
-    else if (k === 's') UI.setTab('skills'); else if (k === 'f') UI.setTab('craft'); else if (k === 'o') UI.setTab('commission');
+    else if (k === 's') UI.setTab('skills'); else if (k === 'f') UI.setTab('craft'); else if (k === 'o') UI.setTab('commission'); else if (k === 'c') UI.setTab('stats');
     else if (k === 't') UI.travel();
   });
   window.addEventListener('resize', () => SW.fx.resize());

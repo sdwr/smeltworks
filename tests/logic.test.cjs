@@ -158,10 +158,10 @@ test('Ember dust is the one crafting material: what drops it, what it buys, and 
   // one purse: masterworking and all four cube recipes cost dust and nothing else
   const S = G.S, it = I.roll(30, { rar: 2, slot: 'helm' }); S.bag[0] = it;
   for (const up of [0, 7, 8, 15, 16, 24, 25]) { it.up = up; assert.equal(Object.keys(I.upgradeCost(it)).join(), 'dust', 'masterwork at rank ' + up); } it.up = 0;
-  assert.equal(Object.keys(I.offerCost(it)).join(), 'dust'); assert.equal(I.offerCost(it).dust, D.CUBE_COST);
+  assert.equal(Object.keys(I.offerCost(it)).join(), 'dust'); assert.equal(I.offerCost(it).dust, D.CUBE_COST.first);
   assert.equal(S.orbs, undefined); assert.equal(S.mats.scrap, undefined); assert.equal(Object.keys(G.fresh().mats).join(), 'dust', 'ember dust is the only material');
   S.gold = 0; S.mats = { dust: 0 }; assert.equal(G.buyTransmute(it.id), null, 'no dust, no transmute'); assert.equal(it.offer, undefined); assert.equal(G.upgrade(it.id), null, 'and no masterwork');
-  S.mats.dust = D.CUBE_COST + I.upgradeCost(it).dust; assert.ok(G.buyTransmute(it.id)); assert.ok(G.upgrade(it.id), 'with no gold at all'); assert.equal(S.mats.dust, 0, 'both came out of the same purse'); assert.ok(G.pickTransmute(it.id, 0), 'and picking an offer costs nothing more');
+  S.mats.dust = D.CUBE_COST.first + I.upgradeCost(it).dust; assert.ok(G.buyTransmute(it.id)); assert.ok(G.upgrade(it.id), 'with no gold at all'); assert.equal(S.mats.dust, 0, 'both came out of the same purse'); assert.ok(G.pickTransmute(it.id, 0), 'and picking an offer costs nothing more');
   // an old save: orbs become what their recipe costs, three scrap make one dust
   const old = G.fresh(); delete old.curv; old.mats = { scrap: 31, dust: 5, soul: 2 }; old.orbs = { add: 4, remove: 1, chaos: 2, divine: 3 }; G.init(old);
   assert.equal(old.mats.dust, 5 + 10 + 4 * 3 + 3 + 2 * 8 + 3 * 6); assert.equal(old.mats.soul, undefined, 'soulsteel is gone'); assert.equal(old.orbs, undefined); assert.equal(old.mats.scrap, undefined);
@@ -598,7 +598,7 @@ test('The cube: Quench removes one affix and keeps the bookkeeping straight', (S
   const res = cube(SW, it.id, 'remove');
   assert.ok(res.removed.length > 3); assert.equal(it.affixes.length, 3); assert.equal(it.affixes[0].k, keys[1]);
   assert.equal(it.ench, 2); assert.equal(it.mw.join(), '2'); assert.equal(it.rar, 2, 'rarity stays');
-  { const d = S.mats.dust; S.mats.dust = D.CUBE_COST - 1; assert.equal(G.buyTransmute(it.id), null, 'not enough dust, no transmute'); assert.equal(it.offer, undefined); S.mats.dust = d; }
+  { const d = S.mats.dust; S.mats.dust = I.offerCost(it).dust - 1; assert.equal(G.buyTransmute(it.id), null, 'not enough dust, no transmute'); assert.equal(it.offer, undefined); S.mats.dust = d; }
   // the affix rerolled at the forge is never the one taken, aimed or not
   const enchKey = it.affixes[2].k; assert.equal(I.removable(it).join(), '0,1');
   cube(SW, it.id, 'remove'); cube(SW, it.id, 'remove'); assert.equal(it.affixes.length, 1); assert.equal(it.affixes[0].k, enchKey); assert.equal(it.ench, 0);
@@ -1035,12 +1035,12 @@ test('The cube: a transmute is bought, offers three options for that piece, and 
   const S = G.S; S.gold = 1e9; S.mats = { dust: 100 };
   const it = I.roll(44, { rar: 2, slot: 'gloves' }); it.affixes = it.affixes.slice(0, 3); S.bag[0] = it;
   assert.equal(I.offerCheck(it), null); const offer = G.buyTransmute(it.id);
-  assert.equal(S.mats.dust, 100 - D.CUBE_COST); assert.equal(offer.length, 3); assert.equal(it.offer, offer);
+  assert.equal(S.mats.dust, 100 - D.CUBE_COST.first); assert.equal(offer.length, 3); assert.equal(it.offer, offer);
   assert.equal(new Set(offer.map(I.cubeKey)).size, 3, 'three different options'); assert.ok(new Set(offer.map(o => o.op)).size >= 2 && offer.filter(o => o.op !== 'add').length === new Set(offer.filter(o => o.op !== 'add').map(o => o.op)).size, 'of different kinds, adding apart'); assert.ok(offer.every(o => I.cubeValid(it, o)), 'each of which would do something');
   for (const o of offer) { const L = I.cubeLabel(o); assert.ok(L.title && L.desc && I.CUBE_COLOR[L.fam]); }
   // no second transmute for this piece until one is taken; another piece is its own matter
-  assert.equal(G.buyTransmute(it.id), null); assert.equal(S.mats.dust, 100 - D.CUBE_COST, 'and nothing is charged for trying'); assert.ok(/Pick one/.test(I.offerCheck(it)));
-  const other = I.roll(44, { rar: 2, slot: 'helm' }); S.bag[1] = other; assert.ok(G.buyTransmute(other.id)); assert.equal(S.mats.dust, 100 - 2 * D.CUBE_COST);
+  assert.equal(G.buyTransmute(it.id), null); assert.equal(S.mats.dust, 100 - D.CUBE_COST.first, 'and nothing is charged for trying'); assert.ok(/Pick one/.test(I.offerCheck(it)));
+  const other = I.roll(44, { rar: 2, slot: 'helm' }); S.bag[1] = other; assert.ok(G.buyTransmute(other.id)); assert.equal(S.mats.dust, 100 - 2 * D.CUBE_COST.first, 'the price climbs for each piece on its own');
   // while the offer waits the piece can still be masterworked, worn and saved (the forge reroll and transfiguring have a check of their own below)
   assert.ok(G.upgrade(it.id)); assert.ok(G.equip(it.id)); const copy = JSON.parse(JSON.stringify(S)); assert.equal(JSON.stringify(copy.gear.gloves.offer), JSON.stringify(offer), 'the offer is saved with the piece');
   // taking one applies it, costs nothing more, and frees the piece for the next
@@ -1125,7 +1125,7 @@ test('The cube: every option does what it says, and never touches the affix rero
   u.affixes.forEach(a => { a.g = 1; }); assert.ok(/nothing left/.test(I.offerCheck(u))); assert.equal(G.buyTransmute(u.id), null);
 });
 test('The transmute bar: kills fill it, and a full bar gives one worn piece a free transmute', (SW, G, D, I, H) => {
-  const S = G.S; assert.equal(D.CUBE_COST, 15, 'a bought transmute costs 15 ember dust'); S.mats.dust = 0;
+  const S = G.S; S.mats.dust = 0;
   for (const s of D.SLOTS) S.gear[s] = null; S.gear.weapon = I.roll(5, { rar: 1, slot: 'weapon' }); S.gear.chest = I.roll(5, { rar: 1, slot: 'chest' }); G.recompute();
   const def = Object.values(D.MOB).find(m => !m.flee), kill = (o) => G.onKill(Object.assign({ def, id: def.id, lvl: 5 }, o));
   S.xp = 0; kill(); assert.equal(S.xp, D.XP_KILL); kill({ elite: ['fast'] }); assert.equal(S.xp, D.XP_KILL + D.XP_ELITE); kill({ minion: 1 }); assert.equal(S.xp, D.XP_KILL + D.XP_ELITE, 'summoned minions do not count');
@@ -1279,6 +1279,44 @@ test('Play data: nothing leaves without the hosted address and a yes; then runs,
     // a long time offline: the oldest lines are dropped first
     T.setEnabled(true); for (let i = 0; i < 900; i++) T.push('run_end', { n: i, pad: 'x'.repeat(200) }); const q = lines(); assert.ok((store['smeltworks.tq'] || '').length <= 150000); assert.equal(q[q.length - 1].data.n, 899); assert.ok(q[0].data.n > 0 || q[0].type === 'session_start');
   });
+});
+test('Transmutes cost more each time on the same piece, up to a cap, and free ones neither cost nor count', (SW, G, D, I) => {
+  const S = G.S; S.mats.dust = 1e6; const it = I.roll(44, { rar: 2, slot: 'ring' }); it.affixes = it.affixes.slice(0, 2); S.bag[0] = it;
+  assert.equal(JSON.stringify(D.CUBE_COST), '{"first":2,"step":3,"cap":25}');
+  const paid = []; for (let i = 0; i < 12; i++) { const c = I.offerCost(it).dust, d = S.mats.dust; assert.ok(G.buyTransmute(it.id)); paid.push(d - S.mats.dust); assert.equal(d - S.mats.dust, c); it.offer = [{ op: 'pass' }]; assert.ok(G.pickTransmute(it.id, 0)); }
+  assert.equal(paid.join(), '2,5,8,11,14,17,20,23,25,25,25,25', 'really cheap at first, then 3 more each time, and never above 25'); assert.equal(it.cubeN, 12);
+  // a buy that fails does not raise the price
+  const fresh = I.roll(44, { rar: 2, slot: 'ring' }); S.bag[1] = fresh; S.mats.dust = 1; assert.equal(G.buyTransmute(fresh.id), null); assert.equal(fresh.cubeN, undefined); assert.equal(I.offerCost(fresh).dust, 2);
+  S.mats.dust = 100; assert.ok(G.buyTransmute(fresh.id)); assert.equal(G.buyTransmute(fresh.id), null, 'one at a time'); assert.equal(fresh.cubeN, 1); assert.equal(S.mats.dust, 98);
+  // a free transmute costs nothing, and the next bought one costs what it would have
+  for (const s of D.SLOTS) S.gear[s] = null; const w = I.roll(44, { rar: 2, slot: 'weapon' }); S.gear.weapon = w; G.recompute(); S.mats.dust = 50;
+  assert.ok(G.buyTransmute(w.id)); w.offer = [{ op: 'pass' }]; G.pickTransmute(w.id, 0); assert.equal(I.offerCost(w).dust, 5);
+  S.xp = D.XP_NEED; G.freeTransmute(); assert.ok(w.offer && w.offerFree, 'the free one landed on the only worn piece'); assert.equal(S.mats.dust, 48); assert.equal(w.cubeN, 1);
+  G.pickTransmute(w.id, 0); assert.equal(I.offerCost(w).dust, 5, 'still 5 for the second bought one'); assert.equal(S.mats.dust, 48);
+  // the count is saved with the piece
+  const copy = JSON.parse(JSON.stringify(S)); G.init(copy); assert.equal(I.offerCost(G.S.bag[0]).dust, 25); assert.equal(I.offerCost(G.S.gear.weapon).dust, 5);
+});
+test('After the boss the smith walks to the next level: a few real seconds, then the new map', (SW, G, D, I) => {
+  const S = G.S, W = S.world; S.held = 0; S.opts.auto = true; S.opts.full = false; S.opts.speed = 1; W.falls = { key: '0:0', n: 4, early: 0, boss: 2 };
+  const ev = []; G.on((t, d) => { if (['areaClear', 'leaving', 'stay', 'expedition'].includes(t)) ev.push([t, d]); });
+  G.completeCell(W.map.cells.find(c => G.canEnter(c))); G.completeCell(W.map.cells.find(c => c.type === 'boss'));
+  assert.equal(ev[0][0], 'areaClear'); assert.equal(ev[0][1].first, true); assert.equal(ev[0][1].falls, 4, 'what the level cost is told before the count is cleared'); assert.equal(ev[0][1].rooms, 2); assert.equal(W.falls, null);
+  G.phase = 'idle'; G.phaseT = 0; G.update(0.05);
+  assert.ok(G.leaving, 'Auto sets off'); assert.equal(G.leaving.from, 0); assert.equal(G.leaving.to, 1); assert.equal(ev[1][0], 'leaving'); assert.equal(W.area, 0, 'but is not there yet');
+  let t = 0; while (G.leaving && t < 20) { G.update(0.05); t += 0.05; } assert.ok(Math.abs(t - D.LEAVE_TIME) < 0.15, 'the walk takes ' + D.LEAVE_TIME + ' seconds: ' + t.toFixed(2)); assert.equal(W.area, 1); assert.equal(ev[ev.length - 1][0], 'expedition'); assert.ok(!W.cool, 'and no wait after a win');
+  // at 4x it is still the same few real seconds, so four times the game time
+  S.opts.speed = 4; G.completeCell(W.map.cells.find(c => c.type === 'boss')); G.phase = 'idle'; G.phaseT = 0; G.update(0.05); assert.ok(G.leaving); assert.equal(G.leaving.to, 2);
+  t = 0; while (G.leaving && t < 60) { G.update(0.05); t += 0.05; } assert.ok(Math.abs(t - D.LEAVE_TIME * 4) < 0.3, t.toFixed(2)); assert.equal(W.area, 2);
+  // switching Auto off on the way calls it off
+  S.opts.speed = 1; G.completeCell(W.map.cells.find(c => c.type === 'boss')); G.phase = 'idle'; G.phaseT = 0; G.update(0.05); assert.ok(G.leaving); S.opts.auto = false; G.update(0.05);
+  assert.equal(G.leaving, null); assert.equal(ev[ev.length - 1][0], 'stay'); for (let i = 0; i < 200; i++) G.update(0.05); assert.equal(W.area, 2, 'stayed');
+  // chosen by hand it goes ahead with Auto off, back up a level as well as down; a locked level cannot be walked to
+  assert.equal(G.leave(4, 0, true), false, 'the last level is not open yet'); assert.equal(G.leaving, null);
+  assert.equal(G.leave(1, 0, true), true); assert.ok(G.leaving.manual); for (let i = 0; i < 100 && G.leaving; i++) G.update(0.05); assert.equal(W.area, 1);
+  // travelling by the map in the meantime wins
+  G.leave(2, 0, true); G.startExpedition(0, 0, true); assert.equal(G.leaving, null); for (let i = 0; i < 200; i++) G.update(0.05); assert.equal(W.area, 0);
+  // with rooms left and Clear everything on, Auto finishes the map first
+  S.opts.auto = true; S.opts.full = true; G.completeCell(W.map.cells.find(c => c.type === 'boss')); G.phase = 'idle'; G.phaseT = 0; G.update(0.05); assert.equal(G.leaving, null, 'not yet: there are rooms left');
 });
 test('Depth: how far this run has got, how far the last one got, and the deepest ever on the level', (SW, G, D, I) => {
   const S = G.S, W = S.world, clear = x => { const c = W.map.cells.find(k => k.x === x && k.type !== 'wall'); G.completeCell(c); return c; };

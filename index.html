@@ -25,11 +25,13 @@
         <button data-tab="skills">Skills<i id="pts-badge"></i></button>
         <button data-tab="craft" class="on">Crafting</button>
         <button data-tab="commission">Commission</button>
+        <button data-tab="stats">Stats</button>
       </nav>
       <div id="panel">
         <div id="tab-skills" class="tab hidden"></div>
         <div id="tab-craft" class="tab"></div>
         <div id="tab-commission" class="tab hidden"></div>
+        <div id="tab-stats" class="tab hidden"><h4 class="sect">Your smith</h4><div id="gear-stats"></div></div>
       </div>
     </aside>
 
@@ -52,14 +54,14 @@
         <div id="stashhead"></div>
         <div id="stash"></div>
       </div>
-      <div id="gear-stats"></div>
     </section>
 
     <section id="combat">
-      <div id="cooldown"></div>
       <div id="arena">
+        <div id="cooldown"></div>
         <canvas id="cv"></canvas>
         <div id="banner"></div>
+        <div id="victory" class="hidden"></div>
         <div id="feed"></div>
         <div id="bossbar" class="hidden"><div class="bb-name"></div><div class="bb-bar"><i></i><em></em></div><div class="bb-tags"></div></div>
         <div id="hud">

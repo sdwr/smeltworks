@@ -417,8 +417,13 @@ D.BAR_SIZE = 5;
 D.PASSIVE_SLOTS = 3;
 D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ult: 'Ultimate', passive: 'Passive' };
 
-/* The cube: a transmute costs this much ember dust and offers this many options (see I.cubeOffer in items.js) */
-D.CUBE_COST = 15; D.CUBE_OFFER = 3;
+/* The cube. A bought transmute costs ember dust, and more for each one already bought for that piece: the first is
+   nearly free, and the price stops climbing at the cap. Free transmutes cost nothing and do not raise it. Each
+   transmute offers CUBE_OFFER options (see I.cubeOffer in items.js). */
+D.CUBE_COST = { first: 2, step: 3, cap: 25 };      // 2, 5, 8, 11, 14, 17, 20, 23, then 25 from the ninth on
+D.CUBE_OFFER = 3;
+/* After a level's boss falls, the walk to the next level takes this many real seconds: time to see where you are going. */
+D.LEAVE_TIME = 4;
 /* Free transmutes. Kills fill a bar; when it is full, one worn piece that has no offer waiting gets a transmute for
    nothing. Monsters far below your gear level are worth less, and nothing at 13 levels below, so the first level
    cannot be farmed for them. */

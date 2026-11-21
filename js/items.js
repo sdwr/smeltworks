@@ -391,7 +391,8 @@ I.offerCheck = function (it) {
   if (it.offer) return I.OFFER_FIRST;
   return I.cubeOptions(it).some(o => o.op !== 'pass') ? null : it.uniq ? 'Every affix on this Unique is Greater or locked. There is nothing left for the cube to renumber.' : 'There is nothing the cube can do with this piece.';
 };
-I.offerCost = () => ({ dust: D.CUBE_COST });
+/* the price of the next bought transmute for this piece (it.cubeN counts the ones bought so far) */
+I.offerCost = it => ({ dust: Math.min(D.CUBE_COST.cap, D.CUBE_COST.first + D.CUBE_COST.step * ((it && it.cubeN) || 0)) });
 /* what an option says on its card */
 I.cubeLabel = function (o) {
   const T = c => (c ? D.AFFIX_CAT[c].name + ' ' : ''), which = (o.pos ? 'the ' + o.pos + ' ' : o.cat ? 'a ' : 'an ') + T(o.cat) + 'affix';

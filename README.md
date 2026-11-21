@@ -37,7 +37,7 @@ text, load one back in, or wipe it.
 | A | Toggle Auto (explore and fight without waiting for you) |
 | 1 2 3 | Speed 1×, 2×, 4× |
 | Q | Drink the flask |
-| S F O | Skills, Crafting, Commission |
+| S F O C | Skills, Crafting, Commission, Stats |
 | T | Travel |
 
 The screen is three panes. Left: Skills, Crafting and Commission. Middle: your character, bag and
@@ -96,7 +96,8 @@ the skill bar to drink it.
 - **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the level of the first room of where you are.
 - **The flask.** Restores 35% of your Life and refills over 22 seconds. Drink it with Q. By default it also drinks
   itself below 35% Life, so Auto can run unattended; Settings turns that off.
-- **The cube.** You do not choose what the cube does. You buy a transmute for a piece (15 ember dust) and the cube
+- **The cube.** You do not choose what the cube does. You buy a transmute for a piece (2 ember dust for its first, 3 more for each one after, up to 25; free transmutes cost
+  nothing and do not raise the price) and the cube
   offers three things it could do to that piece; you must take one before you can buy another for it. The offer
   stays with the piece until you do, and while it waits the forge will not reroll or transfigure that piece.
   Hovering an offer lights up the affixes it could touch. What can be offered:
@@ -130,7 +131,7 @@ the skill bar to drink it.
   nothing: it gets a pulsing gold border and sparkles until you take one of its three offers, and a count beside the
   bar says how many are waiting (click it to bring the next one to the bench). If every worn piece is busy the bar waits, full.
   Monsters well below your gear level fill it more slowly, and those 13 levels below not at all.
-- **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 15; a
+- **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 2 to 25, climbing with each one bought for the same piece; a
   masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix; rerolling an affix
   and transfiguring take dust beside their gold (transfiguring 40). Salvage pays 1 for a Common, 2 for a Magic, 4
   for a Rare (plus 3 for each Greater affix and 5 if Ancestral) and 12 for a Unique. Elites and bosses always carry
@@ -169,6 +170,11 @@ the skill bar to drink it.
   the fight and the map go grey under a count, and the bench stays open. The count is in real seconds whatever the
   game speed. Auto remembers a boss that beat it and clears the map before trying again; after three runs in a row
   that end in the first two columns it steps back a level.
+- **A boss falls.** A card over the fight names the boss and the level, with a burst of confetti, what the level
+  cost you (rooms this run, falls on the way) and the five levels as a track. With Auto on the smith then sets off:
+  a marker walks along the track to the next level for four real seconds (pausing holds it; switching Auto off
+  calls it off) and the new map is drawn. With Auto off the card offers the choice: on to the next level, run this
+  one again, or stay and finish the map.
 - **Depth.** Beside the damage meter: how far this run has got, how far the last one got, and your best ever on
   this level, counted in rooms cleared (fights, chests and shrines alike).
 - **Rarity comes in gradually.** The first rooms drop Common and Magic gear and nothing else. Rares begin at level 5

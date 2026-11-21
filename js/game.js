@@ -29,7 +29,7 @@ G.fresh = function () {
   return S;
 };
 G.init = function (saved) {
-  G.S = saved || G.fresh();
+  G.S = saved || G.fresh(); G.leaving = null;
   const S = G.S;
   S.bag = S.bag.filter(Boolean); while (S.bag.length < D.BAG_SIZE) S.bag.push(null);   // fixed slots, so items can be arranged
   if (!S.curv) {
@@ -167,7 +167,7 @@ G.findPath = function (to, from) {
   return path;
 };
 G.startExpedition = function (area, tier, quiet) {
-  const W = G.S.world;
+  const W = G.S.world; G.leaving = null;
   // a fall, or walking away from a run in progress, costs a wait before the next run can begin
   const cut = W.map && W.map.cells ? (W.map.fell ? 'fell' : !W.map.bossDone && G.runBegun(W.map) ? 'left' : null) : null;
   if (cut) G.emit('runOver', { why: cut, area: W.map.area, tier: W.map.tier, rooms: G.depthRec(W.map.area, W.map.tier).now });      // a run cut short: fell, or left
@@ -461,14 +461,27 @@ G.autoPick = function () {
 };
 G.finishArea = function () {
   const S = G.S, W = S.world, map = W.map;
-  if (!S.opts.auto) return;
+  if (!S.opts.auto || G.leaving) return;
   let area = W.area;
   if (S.opts.onClear === 'advance') area = Math.min(W.cleared[W.tier], D.AREAS.length - 1);
-  G.startExpedition(area, W.tier);
+  G.leave(area, W.tier);
+};
+/* Set off for a level. The walk there takes D.LEAVE_TIME real seconds, shown as the smith moving along the levels;
+   then the new map is drawn. `manual` says the player chose it, so it goes ahead with Auto off. */
+G.leave = function (area, tier, manual) {
+  if (!G.isUnlocked(area, tier)) return false;
+  G.leaving = { from: G.S.world.area, to: area, tier, t: D.LEAVE_TIME, manual: !!manual };
+  G.emit('leaving', G.leaving);
+  return true;
 };
 G.update = function (dt) {
   const S = G.S, W = S.world, map = W.map;
   S.stats.time += dt;
+  if (G.leaving) {                                          // on the way to another level: counted in real seconds, like the wait after a fall
+    const L = G.leaving;
+    if (!L.manual && !S.opts.auto) { G.leaving = null; G.emit('stay'); }      // Auto was switched off on the way: stay after all
+    else { L.t -= dt / Math.max(1, S.opts.speed || 1); if (L.t <= 0) { G.leaving = null; G.startExpedition(L.to, L.tier); return; } if (G.phase === 'idle') return; }
+  }
   if (G.phase === 'idle' && W.cool > 0) {                  // the wait after a fall: counted in real seconds, whatever the game speed
     W.cool = Math.max(0, W.cool - dt / Math.max(1, S.opts.speed || 1));
     if (W.cool > 0) return; G.emit('coolEnd');
@@ -555,12 +568,12 @@ G.completeCell = function (c) {
   G.reveal(map, c);
   if (c.type === 'boss') {
     map.bossDone = true; S.stats.clears++;
-    const first = W.cleared[W.tier] === W.area;
+    const first = W.cleared[W.tier] === W.area, falls = W.falls && W.falls.key === W.tier + ':' + W.area ? W.falls.n : 0;      // the falls this level cost, before the count is cleared
     if (first) {
       W.cleared[W.tier] = W.area + 1; W.falls = null;
       if (W.area === D.AREAS.length - 1 && W.tier < D.TIERS.length - 1 && W.cleared[W.tier + 1] == null) { W.cleared[W.tier + 1] = 0; G.emit('tierUnlock', { tier: W.tier + 1 }); }
     }
-    G.emit('areaClear', { first, area: W.area, tier: W.tier });
+    G.emit('areaClear', { first, area: W.area, tier: W.tier, falls, rooms: G.depthRec(W.area, W.tier).now });
   }
   if (!map.allDone && map.cells.every(x => x.type === 'wall' || x.state === 'done')) {
     map.allDone = true;
@@ -715,7 +728,7 @@ G.commission = function (slot) {
 G.buyTransmute = function (id) {
   const f = G.findItem(id);
   if (!f || I.offerCheck(f.it) || !G.pay(I.offerCost(f.it))) return null;
-  f.it.offer = I.cubeOffer(f.it);
+  f.it.offer = I.cubeOffer(f.it); f.it.cubeN = (f.it.cubeN || 0) + 1;      // the next one for this piece costs more
   G.emit('offer', { it: f.it }); G.save();
   return f.it.offer;
 };
