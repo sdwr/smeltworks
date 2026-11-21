@@ -465,7 +465,10 @@ function renderCraft() {
   }
   // ---- the cube
   const why = !f ? 'Bring a piece of gear to the bench first.' : f.it.sealed ? I.SEALED : I.cubeCheck(f.it, orb, cat) || (G.canPay(I.cubeCost(orb)) ? null : `${O.name} costs ${O.cost} ember dust and you have ${U.fmt(S.mats.dust || 0)}. Salvage gear for more; elites and bosses always carry some.`);
-  h += `<h4 class="sect">The cube</h4><div class="cube"><div class="cube-box"><div class="cslot">${f ? itemCell(f.it, 'big') : '<span>Gear</span>'}</div><b>+</b><div class="cslot" style="--c:${O.color}" data-tip="${O.name}: ${O.desc}"><img src="${SP.url('orb', O.pal, 4)}" alt=""><em class="${G.canPay(I.cubeCost(orb)) ? '' : 'short'}"><i class="ci dust"></i>${O.cost}</em></div><b>→</b><button class="big" data-act="transmute" ${why ? 'disabled' : ''}>Transmute</button></div>`;
+  // the four recipes first, then the box: Transmute with its price, what to aim at, and what it would do
+  h += '<h4 class="sect">The cube</h4>';
+  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc} Costs ${D.ORBS[k].cost} ember dust."><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].short}</b><span>${D.ORBS[k].name}</span><i class="${G.canPay(I.cubeCost(k)) ? '' : 'short'}"><u class="ci dust"></u>${D.ORBS[k].cost}</i></button>`).join('') + '</div>';
+  h += `<div class="cube"><div class="cube-box"><button class="big" data-act="transmute" ${why ? 'disabled' : ''} data-tip="${O.name}: ${O.desc}">Transmute <span class="cost ${G.canPay(I.cubeCost(orb)) ? '' : 'short'}"><i class="ci dust"></i>${O.cost}</span></button></div>`;
   if (aims) {
     // tooltips: Kindle lists what could roll on this slot, Quench lists what is on the piece and could go
     const aimTip = c => {
@@ -502,7 +505,6 @@ function renderCraft() {
     if (opts.length) list = `<ul class="cube-list ${orb}">${opts.map(o => `<li>${o}</li>`).join('')}</ul>`;
   }
   h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p>${list}</div>`;
-  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc} Costs ${D.ORBS[k].cost} ember dust."><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].short}</b><span>${D.ORBS[k].name}</span><i class="${G.canPay(I.cubeCost(k)) ? '' : 'short'}"><u class="ci dust"></u>${D.ORBS[k].cost}</i></button>`).join('') + '</div>';
   // ---- the forge
   h += '<h4 class="sect">The forge</h4>';
   if (!f) h += '<p class="note">Masterworking, transfiguring and salvage appear here once a piece is on the bench.</p>';
