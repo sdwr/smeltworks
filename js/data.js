@@ -408,16 +408,15 @@ D.BAR_SIZE = 5;
 D.PASSIVE_SLOTS = 3;
 D.TYPE_NAME = { basic: 'Basic', core: 'Core', def: 'Defensive', buff: 'Buff', ult: 'Ultimate', passive: 'Passive' };
 
-/* The cube's four recipes. Each changes a piece's affixes at random and costs ember dust, the one crafting
-   material: the cube and masterworking both spend it, and nothing else does the work of either. (They were four
-   kinds of orb once, which is why the code still calls them that.) */
-D.ORBS = {
-  add:    { name: 'Kindle', pal: 'orb_add',    color: '#ffb347', cost: 3, short: 'Add an affix', desc: 'Adds one random affix of the type you choose. A Common piece becomes Magic, and a third affix makes it Rare. Four affixes at most. Never Greater.' },
-  remove: { name: 'Quench', pal: 'orb_remove', color: '#7fd4ff', cost: 3, short: 'Remove an affix', desc: 'Removes one random affix of the type you choose: the ones it could take are marked on the piece. It never takes the affix you rerolled at the forge.' },
-  chaos:  { name: 'Recast', pal: 'orb_chaos',  color: '#c98bff', cost: 8, short: 'Reroll all affixes', desc: 'Melts every affix and rolls the same number of new ones, except the affix you rerolled at the forge, which stays. None of the new ones come out Greater.' },
-  divine: { name: 'Temper', pal: 'orb_divine', color: '#ffe9a8', cost: 6, short: 'Reroll the numbers', desc: 'Rerolls the numbers on the ordinary affixes. The affixes themselves stay. It leaves Greater affixes alone, and the one affix you rerolled at the forge. It never makes a Greater affix.' },
-};
-D.ORB_IDS = Object.keys(D.ORBS);
+/* The cube: a transmute costs this much ember dust and offers this many options (see I.cubeOffer in items.js) */
+D.CUBE_COST = 15; D.CUBE_OFFER = 3;
+/* Free transmutes. Kills fill a bar; when it is full, one worn piece that has no offer waiting gets a transmute for
+   nothing. Monsters far below your gear level are worth less, and nothing at 13 levels below, so the first level
+   cannot be farmed for them. */
+D.XP_NEED = 30; D.XP_KILL = 1; D.XP_ELITE = 4; D.XP_BOSS = 12;
+D.xpShare = (mobLvl, gearLvl) => Math.max(0, Math.min(1, 1 - (gearLvl - mobLvl - 3) / 10));
+/* seconds before a new run can begin after a fall, or after walking away from a run in progress */
+D.RUN_COOLDOWN = 10;
 /* Ember dust from kills: an ordinary monster sometimes carries a pinch, anything bigger always does. Salvage is the
    other source (see I.salvageYield). */
 D.DUST = { chance: 0.05, kill: 2, elite: 4, flee: 8, champ: 10, boss: 25, bossTorment: 5, chest: [2, 4], clear: 6 };

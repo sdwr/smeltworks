@@ -198,11 +198,9 @@ I.salvageYield = function (it) {
   const up = it.up || 0;
   if (it.rar === 0) return { dust: 1 };
   if (it.rar === 1) return { dust: 2 };
-  if (it.uniq) return { dust: 8, soul: 3 };
-  /* soulsteel comes out of the exceptional: one for each Greater affix, one more for an Ancestral piece */
-  const g = I.greaterCount(it), y = { dust: 4 + Math.floor(up / 6) + 2 * g }, soul = g + (it.anc ? 1 : 0);
-  if (soul) y.soul = soul;
-  return y;
+  if (it.uniq) return { dust: 12 };
+  /* the exceptional pays more: three for each Greater affix, five more for an Ancestral piece */
+  return { dust: 4 + Math.floor(up / 6) + 3 * I.greaterCount(it) + (it.anc ? 5 : 0) };
 };
 I.goldScale = D.goldScale;
 /* One strike of masterworking. Below rank 25 the price follows the rank you are at; at 25 it is the price of
@@ -211,7 +209,6 @@ I.upgradeCost = function (it) {
   const n = it.up || 0;
   return { dust: n >= D.MW_MAX ? 12 : n < 8 ? 2 : n < 16 ? 4 : 6 };       // ember dust and nothing else, like the cube
 };
-I.cubeCost = orb => ({ dust: D.ORBS[orb].cost });
 /* null when a strike would do something, otherwise the reason it would not */
 I.upgradeCheck = function (it) {
   if (it.sealed) return I.SEALED;
@@ -236,7 +233,7 @@ I.enchantCost = it => { const n = Math.min(10, it.enchN || 0); return { gold: Ma
    numbers and the forge can enchant one affix. */
 I.fixed = it => !!it.uniq;
 /* any piece with affixes, Uniques included: one affix of your choosing, and then only that one */
-I.canEnchant = (it, idx) => !it.sealed && it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);
+I.canEnchant = (it, idx) => !it.sealed && !it.offer && it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);      // not while the cube's offer is waiting to be answered
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
   const na = rollAffix(I.poolKey(it), have, tier || 0, null, true, it.ilvl);      // plain: crafting never makes a Greater affix, so rerolling a Greater one gives it up
@@ -252,8 +249,9 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
 I.SEALED = 'It has been transfigured and is sealed: nothing more can be done to it.';
 /* any piece can be transfigured; Uniques and Ancestral gear roll on their own rows of the table */
 I.tfKind = it => (it.uniq ? (it.anc ? 'ancUniq' : 'uniq') : it.anc ? 'ancGear' : 'gear');
-I.transfigCost = it => ({ gold: Math.round(500 * I.goldScale(it.ilvl)), dust: 15, soul: 8 });
-I.transfigCheck = it => (it.sealed ? I.SEALED : null);
+I.transfigCost = it => ({ gold: Math.round(500 * I.goldScale(it.ilvl)), dust: 40 });      // gold and ember dust: nothing that only bosses drop
+I.OFFER_FIRST = 'The cube has made its offer for this piece. Pick one of the three first.';
+I.transfigCheck = it => (it.sealed ? I.SEALED : it.offer ? I.OFFER_FIRST : null);
 /* Roll the table once. Returns { kind, v?, idx?, was?, open } and changes the piece. */
 I.transfigure = function (it) {
   const odds = D.TRANSFIG[I.tfKind(it)];
@@ -278,52 +276,154 @@ I.transfigure = function (it) {
 /* the affixes Temper will touch: not the Greater ones (already at their maximum), and not the one affix
    rerolled at the forge, whose number you chose to keep working on there */
 I.temperable = it => it.affixes.map((a, i) => i).filter(i => !it.affixes[i].g && i !== it.ench);
-/* the affixes Quench could take (of one type, or any), and those Recast melts: never the one affix
-   rerolled at the forge, which only the forge touches from then on */
+/* ------------------------------------------------------------------ the cube
+   You do not tell the cube what to do. You buy a transmute for a piece and it offers three things it could do to
+   that piece; one of them has to be taken before another transmute can be bought for it. The offer is drawn from
+   everything below that would do something to the piece as it stands.
+
+   An option is { op, cat, pos, to }:
+     add        add an affix (of type cat, or any)
+     remove     remove one affix: a random one (of type cat, or any), or the first / last of them (pos)
+     reroll     replace one affix with a new random one, chosen the same ways
+     convert    remove a random cat affix and add a random `to` affix
+     recast     replace every affix
+     values     reroll the numbers inside each affix's tier (all of them, or only type cat)
+     polish     reroll the numbers, and keep each old one if it was better
+     perfect    one random affix gets the best number of its tier
+     tiers      two random affixes rise a tier or two, one falls a tier or two
+     raise      the lowest-tier affix rises one tier
+     sacrifice  remove one random affix; every other affix rises one tier
+     shuffle    change the order of the affixes (which decides what "first" and "last" mean)
+     pass       nothing happens
+   The one affix rerolled at the forge is locked: nothing here removes it, replaces it, renumbers it or moves its
+   tier. Greater affixes keep their number and their tier, though they can still be removed or replaced. */
 I.removable = (it, cat) => it.affixes.map((a, i) => i).filter(i => i !== it.ench && (!cat || I.inCat(it.affixes[i].k, cat)));
-I.cubeCheck = function (it, orb, cat) {
-  if (it.sealed) return I.SEALED;
-  const n = it.affixes.length, C = cat && (orb === 'add' || orb === 'remove') ? D.AFFIX_CAT[cat] : null;
-  if (orb === 'divine') return !n ? 'It has no affixes to reroll.' : I.temperable(it).length ? null : 'Nothing here for it to reroll: Greater affixes and the affix you rerolled at the forge are left alone.';
-  if (I.fixed(it)) return 'A Unique is fixed. Only Temper works on it.';
-  if (C && I.affixPool(I.poolKey(it), [], cat).length < 2) return `A ${D.BASES[it.base].name.toLowerCase()} cannot be aimed at ${C.name}.`;
-  if (orb === 'add') {
-    if (n >= D.MAX_AFFIXES) return 'It already has ' + D.MAX_AFFIXES + ' affixes.';
-    if (C && !I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat).length) return `No ${C.name} affix is left that fits a ${D.BASES[it.base].name.toLowerCase()}.`;
-    return null;
+/* affixes whose tier the cube may move: not the locked one, not Greater (always the best tier), not skill ranks */
+I.tiered = it => it.affixes.map((a, i) => i).filter(i => i !== it.ench && !it.affixes[i].g && !D.AFFIX[it.affixes[i].k].int);
+I.cubeKey = o => [o.op, o.cat || '', o.pos || '', o.to || ''].join(':');
+const maxTier = it => D.tierOf(it.ilvl);
+/* the affixes an option could touch, for showing on the piece. `one` says a single one of them is picked at random. */
+I.cubeTargets = function (it, o) {
+  const pick = l => (o.pos === 'first' ? l.slice(0, 1) : o.pos === 'last' ? l.slice(-1) : l);
+  switch (o.op) {
+    case 'remove': case 'reroll': case 'convert': case 'sacrifice': return pick(I.removable(it, o.cat));
+    case 'recast': return I.removable(it);
+    case 'values': case 'polish': case 'perfect': return I.temperable(it).filter(i => !o.cat || I.inCat(it.affixes[i].k, o.cat));
+    case 'tiers': return I.tiered(it);
+    case 'raise': { const t = I.tiered(it).filter(i => I.affixTier(it, it.affixes[i]) < maxTier(it)); if (!t.length) return []; const lo = Math.min(...t.map(i => I.affixTier(it, it.affixes[i]))); return [t.find(i => I.affixTier(it, it.affixes[i]) === lo)]; }
+    case 'shuffle': return it.affixes.map((a, i) => i);
+    default: return [];
   }
-  if (!n) return 'It has no affixes.';
-  if (orb === 'remove' && !I.removable(it, cat).length) return it.affixes.some(a => !C || I.inCat(a.k, cat)) ? `The only ${C ? C.name + ' ' : ''}affix on it is the one you rerolled at the forge, and that one is left alone.` : `It has no ${C.name} affix to remove.`;
-  if (orb === 'chaos' && !I.removable(it).length) return 'Its only affix is the one you rerolled at the forge, and that one is left alone.';
-  return null;
 };
-/* cat aims Kindle (what to add) and Quench (what to remove) at one affix type; the roll inside it is still random */
-I.cube = function (it, orb, tier, cat) {
-  const res = { orb };
-  if (orb === 'add') {
-    const a = rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, cat, true, it.ilvl);
-    it.affixes.push(a); res.idx = it.affixes.length - 1;
-    const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
-    if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
-  } else if (orb === 'remove') {
-    const idxs = I.removable(it, cat);
-    const i = idxs[Math.floor(U.rng() * idxs.length)];
-    res.removed = I.affixText(it, it.affixes[i], i);
-    it.affixes.splice(i, 1);
-    if (it.ench === i) it.ench = -1; else if (it.ench > i) it.ench--;
-    it.mw = (it.mw || []).filter(x => x !== i).map(x => (x > i ? x - 1 : x));
-  } else if (orb === 'chaos') {
-    // every affix but the one rerolled at the forge, which stays where it is
-    const kept = it.ench >= 0 ? it.affixes[it.ench] : null, out = [];
-    res.idxs = I.removable(it);
-    for (let i = 0; i < it.affixes.length; i++) out.push(i === it.ench ? kept : rollAffix(I.poolKey(it), out.map(x => x.k).concat(kept ? [kept.k] : []), tier || 0, null, true, it.ilvl));
-    it.affixes = out;
-  } else if (orb === 'divine') {
-    res.idxs = I.temperable(it);                           // new numbers only, and only on ordinary affixes that were not rerolled at the forge
-    for (const i of res.idxs) it.affixes[i].r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng();
+const pool = (it, cat) => I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat);
+/* would this option do anything to the piece as it stands? */
+I.cubeValid = function (it, o) {
+  if (it.sealed) return false;
+  const n = it.affixes.length, t = I.cubeTargets(it, o), cats = I.slotCats(it);
+  if (it.uniq) return ['values', 'polish', 'perfect'].includes(o.op) && t.length > 0 && (!o.cat || t.length < I.temperable(it).length);      // a Unique's affixes are fixed: only their numbers move
+  if (o.cat && !cats.includes(o.cat)) return false; if (o.to && !cats.includes(o.to)) return false;
+  switch (o.op) {
+    case 'add': return n < D.MAX_AFFIXES && pool(it, o.cat).length > 0;
+    case 'remove': return t.length > 0 && (!o.pos || I.removable(it, o.cat).length > 1);          // "first" and "last" only mean something with two or more to choose from
+    case 'reroll': return t.length > 0 && (!o.pos || I.removable(it, o.cat).length > 1) && pool(it).length > 0;
+    case 'convert': return o.cat !== o.to && t.length > 0 && pool(it, o.to).length > 0;
+    case 'recast': return t.length > 0;
+    case 'values': return t.length > 0 && (!o.cat || t.length < I.temperable(it).length);       // a type that covers everything is just "all values"
+    case 'polish': return t.length > 0;
+    case 'perfect': return t.some(i => it.affixes[i].r < 0.95);
+    case 'tiers': return n >= 3 && t.length >= 3;
+    case 'raise': return t.length > 0;
+    case 'sacrifice': return t.length > 0 && n >= 2 && I.tiered(it).filter(i => I.affixTier(it, it.affixes[i]) < maxTier(it)).length >= 2;
+    case 'shuffle': return n >= 2;
+    case 'pass': return true;
+  }
+  return false;
+};
+/* how often each kind of option turns up, shared among its valid variants */
+I.CUBE_W = { add: 30, remove: 20, reroll: 20, convert: 8, recast: 7, values: 12, polish: 5, perfect: 4, tiers: 10, raise: 5, sacrifice: 4, shuffle: 3, pass: 3 };
+I.cubeOptions = function (it) {
+  const cats = I.slotCats(it), out = [], C = [null].concat(cats);
+  for (const cat of C) { out.push({ op: 'add', cat }); out.push({ op: 'remove', cat }); out.push({ op: 'reroll', cat }); out.push({ op: 'values', cat });
+    for (const pos of ['first', 'last']) { out.push({ op: 'remove', cat, pos }); out.push({ op: 'reroll', cat, pos }); }
+    if (cat) for (const to of cats) out.push({ op: 'convert', cat, to }); }
+  for (const op of ['recast', 'polish', 'perfect', 'tiers', 'raise', 'sacrifice', 'shuffle', 'pass']) out.push({ op });
+  return out.map(o => { for (const k in o) if (o[k] == null) delete o[k]; return o; }).filter(o => I.cubeValid(it, o));
+};
+/* three of them: different kinds where the piece allows it, each kind as likely as its weight says */
+I.cubeOffer = function (it, n) {
+  const all = I.cubeOptions(it), offer = []; n = n || D.CUBE_OFFER;
+  while (offer.length < n && all.length) {
+    const fresh = all.filter(o => !offer.some(x => x.op === o.op)), from = fresh.length ? fresh : all, count = {};
+    for (const o of from) count[o.op] = (count[o.op] || 0) + 1;
+    const o = U.wpick(from, x => I.CUBE_W[x.op] / count[x.op]);
+    offer.push(o); all.splice(all.indexOf(o), 1);
+  }
+  return offer;
+};
+/* null when a transmute can be bought for this piece, or why not */
+I.offerCheck = function (it) {
+  if (it.sealed) return I.SEALED;
+  if (it.offer) return I.OFFER_FIRST;
+  return I.cubeOptions(it).some(o => o.op !== 'pass') ? null : it.uniq ? 'Every affix on this Unique is Greater or locked. There is nothing left for the cube to renumber.' : 'There is nothing the cube can do with this piece.';
+};
+I.offerCost = () => ({ dust: D.CUBE_COST });
+/* what an option says on its card */
+I.cubeLabel = function (o) {
+  const T = c => (c ? D.AFFIX_CAT[c].name + ' ' : ''), which = (o.pos ? 'the ' + o.pos + ' ' : o.cat ? 'a ' : 'an ') + T(o.cat) + 'affix';
+  switch (o.op) {
+    case 'add': return { title: `Add ${which}`, desc: 'A random one this slot can roll, at a random tier.', fam: 'add' };
+    case 'remove': return { title: `Remove ${which}`, desc: o.pos ? 'Exactly that one.' : 'One of them, at random.', fam: 'remove' };
+    case 'reroll': return { title: `Reroll ${which}`, desc: (o.pos ? 'Exactly that one is' : 'One of them, at random, is') + ' replaced by a new random affix of any type.', fam: 'reroll' };
+    case 'convert': return { title: `Turn ${T(o.cat)}into ${D.AFFIX_CAT[o.to].name}`, desc: `Removes a random ${T(o.cat)}affix and adds a random ${D.AFFIX_CAT[o.to].name} one.`, fam: 'reroll' };
+    case 'recast': return { title: 'Reroll all affixes', desc: 'Every affix is replaced by a new random one.', fam: 'recast' };
+    case 'values': return { title: o.cat ? `Reroll ${T(o.cat)}values` : 'Reroll all values', desc: 'New numbers, each inside its own tier. Greater affixes keep theirs.', fam: 'values' };
+    case 'polish': return { title: 'Polish the values', desc: 'Every number is rolled again, and only kept if it is better.', fam: 'values' };
+    case 'perfect': return { title: 'Perfect one value', desc: 'One random affix gets the best number of its tier.', fam: 'values' };
+    case 'tiers': return { title: 'Two up, one down', desc: 'Two random affixes rise a tier or two, as far as this piece allows. One falls a tier or two.', fam: 'tiers' };
+    case 'raise': return { title: 'Raise the lowest tier', desc: 'The lowest-tier affix rises one tier.', fam: 'tiers' };
+    case 'sacrifice': return { title: 'Sacrifice an affix', desc: 'One random affix is removed. Every other affix rises one tier.', fam: 'tiers' };
+    case 'shuffle': return { title: 'Shuffle the order', desc: 'The affixes change places, which changes what "first" and "last" will hit.', fam: 'misc' };
+    default: return { title: 'Leave it be', desc: 'Nothing happens.', fam: 'misc' };
+  }
+};
+I.CUBE_COLOR = { add: '#ffb347', remove: '#7fd4ff', reroll: '#c98bff', recast: '#c98bff', values: '#ffe9a8', tiers: '#9be36a', misc: '#b9b2a6' };
+I.CUBE_PAL = { add: 'orb_add', remove: 'orb_remove', reroll: 'orb_chaos', recast: 'orb_chaos', values: 'orb_divine', tiers: 'orb_divine', misc: 'orb_remove' };
+/* carry out an option. Returns what happened: idxs (affixes changed), idx (one added), removed (text of one taken),
+   from (the rarity it had, if that rose), up / down (tier moves). */
+I.cubeApply = function (it, o, tier) {
+  const res = { op: o.op, o, idxs: [] }, A = it.affixes, max = maxTier(it);
+  const one = l => l[Math.floor(U.rng() * l.length)], tgt = I.cubeTargets(it, o);
+  const rarity = () => { const rar = Math.max(it.rar, A.length >= 3 ? 2 : A.length ? 1 : 0); if (rar !== it.rar) { res.from = it.rar; it.rar = rar; } };
+  const add = cat => { A.push(rollAffix(I.poolKey(it), A.map(x => x.k), tier || 0, cat, true, it.ilvl)); res.idx = A.length - 1; rarity(); };
+  const removeAt = i => { res.removed = I.affixText(it, A[i], i); A.splice(i, 1); if (it.ench === i) it.ench = -1; else if (it.ench > i) it.ench--; it.mw = (it.mw || []).filter(x => x !== i).map(x => (x > i ? x - 1 : x)); };
+  const replaceAt = i => { res.was = I.affixText(it, A[i], i); A[i] = rollAffix(I.poolKey(it), A.map(x => x.k), tier || 0, null, true, it.ilvl); res.idxs.push(i); };
+  const move = (i, d) => { const a = A[i], t0 = I.affixTier(it, a); a.ti = U.clamp(t0 + d, 1, max); return a.ti - t0; };
+  const step = () => (U.chance(0.3) ? 2 : 1);
+  switch (o.op) {
+    case 'add': add(o.cat); break;
+    case 'remove': removeAt(one(tgt)); break;
+    case 'reroll': replaceAt(one(tgt)); break;
+    case 'convert': removeAt(one(tgt)); add(o.to); break;
+    case 'recast': {      // every affix but the locked one, which stays where it is
+      const kept = it.ench >= 0 ? A[it.ench] : null, out = []; res.idxs = tgt.slice();
+      for (let i = 0; i < A.length; i++) out.push(i === it.ench ? kept : rollAffix(I.poolKey(it), out.map(x => x.k).concat(kept ? [kept.k] : []), tier || 0, null, true, it.ilvl));
+      it.affixes = out; break; }
+    case 'values': for (const i of tgt) { A[i].r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng(); res.idxs.push(i); } break;
+    case 'polish': for (const i of tgt) { const r = it.uniq ? 0.35 + U.rng() * 0.65 : U.rng(); if (r > A[i].r) { A[i].r = r; res.idxs.push(i); } } break;
+    case 'perfect': { const i = one(tgt.filter(k => A[k].r < 0.95)); A[i].r = I.MAX_ROLL; res.idxs.push(i); break; }
+    case 'tiers': {
+      const l = tgt.slice(); res.up = []; res.down = [];
+      for (let k = 0; k < 3; k++) { const i = l.splice(Math.floor(U.rng() * l.length), 1)[0], d = move(i, k < 2 ? step() : -step()); res.idxs.push(i); (k < 2 ? res.up : res.down).push([i, d]); }
+      break; }
+    case 'raise': move(tgt[0], 1); res.idxs.push(tgt[0]); res.up = [[tgt[0], 1]]; break;
+    case 'sacrifice': { removeAt(one(tgt)); res.up = []; for (const i of I.tiered(it)) { const d = move(i, 1); if (d) { res.idxs.push(i); res.up.push([i, d]); } } break; }
+    case 'shuffle': {
+      const order = A.map((a, i) => i); let tries = 0;
+      do { for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(U.rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } } while (order.every((v, i) => v === i) && ++tries < 20);
+      it.affixes = order.map(i => A[i]); if (it.ench >= 0) it.ench = order.indexOf(it.ench); it.mw = (it.mw || []).map(x => order.indexOf(x)); res.idxs = order.map((v, i) => i).filter(i => order[i] !== i); break; }
   }
   if (!it.uniq && (res.from != null || it.rar < 2)) it.name = I.makeName(it);      // a Rare keeps its name
   return res;
 };
-I.costText = c => Object.keys(c).map(k => U.fmt(c[k]) + ' ' + ({ gold: 'gold', dust: 'ember dust', soul: 'soulsteel' })[k]).join(', ');
+I.costText = c => Object.keys(c).map(k => U.fmt(c[k]) + ' ' + ({ gold: 'gold', dust: 'ember dust' })[k]).join(', ');
 })();

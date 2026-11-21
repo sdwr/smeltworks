@@ -15,7 +15,7 @@ G.fresh = function () {
     // a new smith starts as a complete hammer build: all five hammer skills, the three hammer passives, and the
     // first (left-hand) technique chosen for every skill in the game
     hero: { bar: ['strike', 'sunder', 'quake', 'ironskin', 'meteor'], passives: ['heavy', 'tempered', 'crush'], tech: Object.fromEntries(Object.keys(D.TECH).map(k => [k, D.TECH[k][0].id])) },
-    gear: {}, bag: [], stash: [], gold: 0, mats: { dust: 0, soul: 0 },
+    gear: {}, bag: [], stash: [], gold: 0, mats: { dust: 0 },
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
     opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6, autoFlask: true },
     stats: { kills: 0, deaths: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
@@ -36,7 +36,7 @@ G.init = function (saved) {
     // saves from before ember dust was the one crafting material: orbs are worth what their recipe now costs, and
     // three scrap make one dust
     const o = S.orbs || {}; let d = Math.floor((S.mats.scrap || 0) / 3);
-    for (const k of D.ORB_IDS) d += (o[k] || 0) * D.ORBS[k].cost;
+    const worth = { add: 3, remove: 3, chaos: 8, divine: 6 }; for (const k in worth) d += (o[k] || 0) * worth[k];
     S.mats.dust = (S.mats.dust || 0) + d; delete S.mats.scrap; delete S.orbs;
     S.curv = 1;
   }
@@ -77,6 +77,7 @@ G.init = function (saved) {
   I.setUid(mx + 1);
   G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = { hp: S.hp == null ? 1 : U.clamp(S.hp, 0.01, 1) }; G.deathStreak = 0; G.meter = [];      // Life left is saved, so reloading the page is not a heal
   G.recompute();
+  delete S.mats.soul;                                       // soulsteel is gone: nothing spent it once transfiguring stopped asking for it
   if (!S.lvlv) {
     // saves from when a difficulty had fifteen areas: three of them make one of today's five levels
     const W = S.world;
@@ -167,6 +168,10 @@ G.findPath = function (to, from) {
 };
 G.startExpedition = function (area, tier, quiet) {
   const W = G.S.world;
+  // a fall, or walking away from a run in progress, costs a wait before the next run can begin
+  const cut = W.map && W.map.cells ? (W.map.fell ? 'fell' : !W.map.bossDone && G.runBegun(W.map) ? 'left' : null) : null;
+  G.endRun();                                               // note how deep the run that is ending got
+  W.cool = cut ? D.RUN_COOLDOWN : 0; W.coolWhy = cut;
   W.area = area; W.tier = tier;
   W.map = G.genMap(area, tier);
   W.pos = { x: 0, y: 2 }; W.shrine = null; W.shrineN = 0;
@@ -175,6 +180,17 @@ G.startExpedition = function (area, tier, quiet) {
   G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.route = [];
   if (!quiet) G.emit('expedition');
   G.emit('map');
+};
+/* How deep a run got: the furthest column in which a room was cleared (the boss is in the last, D.MAP_W - 1). Kept for
+   each level: the run in progress, the last one finished, and the deepest ever. */
+G.depthRec = function (area, tier) { const W = G.S.world, k = tier + ':' + area; W.depth = W.depth || {}; return W.depth[k] || (W.depth[k] = { now: 0, last: null, best: 0 }); };
+/* a run has begun once any room beyond the camp has been cleared */
+G.runBegun = map => map.cells.filter(c => c.state === 'done').length > 1;
+G.endRun = function () {
+  const W = G.S.world; if (!W.map || !W.map.cells) return;
+  const r = G.depthRec(W.map.area, W.map.tier);
+  if (W.map.fell || G.runBegun(W.map)) { r.last = r.now; r.best = Math.max(r.best, r.now); }      // a map left untouched is not a run
+  r.now = 0;
 };
 G.isUnlocked = (area, tier) => G.S.world.cleared[tier] != null && area <= G.S.world.cleared[tier] && area < D.AREAS.length;
 
@@ -304,7 +320,7 @@ G.dropsFor = function (m) {
       S.stats.bosses[key] = 1; out.first = true;
       out.items.push(I.roll(m.lvl + 1, { rar: 2, tier, anc: G.ancestral(), greater: tier > 0 || m.lvl >= 20 ? 1 : 0 }));      // a first kill pays a Rare; from the third level on it has a Greater affix
     } else S.stats.bosses[key]++;
-    out.mats = { soul: 1 + tier, dust: D.DUST.boss + (tier > 0 ? D.DUST.bossTorment : 0) };
+    out.mats = { dust: D.DUST.boss + (tier > 0 ? D.DUST.bossTorment : 0) };
   } else if (m.champ) out.mats = { dust: D.DUST.champ };
   else if (m.def.flee) out.mats = { dust: D.DUST.flee };
   else if (m.elite) out.mats = { dust: D.DUST.elite };
@@ -317,7 +333,21 @@ G.onKill = function (m) {
   S.gold += d.gold;
   if (d.mats) G.gainMats(d.mats);
   d.fate = d.items.map(it => G.addItem(it));
+  if (!m.minion) G.addXp((m.boss ? D.XP_BOSS : m.elite ? D.XP_ELITE : D.XP_KILL) * D.xpShare(m.lvl, Hr.gearLevel(S.gear)));
   return d;
+};
+/* The transmute bar. When it fills, a random worn piece with no offer waiting is given one for nothing; if every
+   worn piece is busy (or sealed, or beyond the cube), the bar stays full until one is free. */
+G.addXp = function (n) { const S = G.S; S.xp = Math.min(D.XP_NEED * 2, (S.xp || 0) + n); G.freeTransmute(); };
+G.freeTransmute = function () {
+  const S = G.S; let given = null;
+  while ((S.xp || 0) >= D.XP_NEED) {
+    const open = D.SLOTS.map(s => S.gear[s]).filter(it => it && !I.offerCheck(it));
+    if (!open.length) break;
+    const it = U.pick(open); it.offer = I.cubeOffer(it); it.offerFree = 1; S.xp -= D.XP_NEED; given = it;
+    G.emit('freeTransmute', { it });
+  }
+  return given;
 };
 G.openChest = function (c) {
   const S = G.S, st = G.C.st, items = [];
@@ -383,7 +413,7 @@ G.tokenPos = function () {
   return to ? { x: p.x + (to.x - p.x) * f, y: p.y + (to.y - p.y) * f } : { x: p.x, y: p.y };
 };
 G.enterCell = function (c) {
-  if (G.phase !== 'idle' || !G.canEnter(c)) return false;
+  if (G.phase !== 'idle' || G.S.world.cool > 0 || !G.canEnter(c)) return false;
   const path = G.findPath(c);
   if (!path) return false;
   G.path = path; G.target = c; G.phase = 'travel'; G.phaseT = 0;
@@ -414,6 +444,10 @@ G.finishArea = function () {
 G.update = function (dt) {
   const S = G.S, W = S.world, map = W.map;
   S.stats.time += dt;
+  if (G.phase === 'idle' && W.cool > 0) {                  // the wait after a fall: counted in real seconds, whatever the game speed
+    W.cool = Math.max(0, W.cool - dt / Math.max(1, S.opts.speed || 1));
+    if (W.cool > 0) return; G.emit('coolEnd');
+  }
   if (G.phase === 'idle') {
     if (G.phaseT > 0) { G.phaseT -= dt; return; }
     // the player's route comes first, whether Auto is on or off; Auto only chooses when the route is empty
@@ -464,7 +498,7 @@ G.update = function (dt) {
       let to = W.area;
       if (S.opts.auto && W.falls.early >= 3 && W.area > 0) { to = W.area - 1; W.falls = null; G.emit('fallback', { to: D.AREAS[to].name }); }
       G.deathStreak = 0;
-      G.startExpedition(to, W.tier, true); G.emit('rerun', { area: to, depth: t ? t.x : 0, falls: W.falls ? W.falls.n : 0 });
+      W.map.fell = 1; G.startExpedition(to, W.tier, true); G.emit('rerun', { area: to, depth: t ? t.x : 0, falls: W.falls ? W.falls.n : 0 });
       G.save();
     }
     return;
@@ -487,6 +521,7 @@ G.arrive = function (c) {
 G.completeCell = function (c) {
   const S = G.S, W = S.world, map = W.map;
   c.state = 'done'; W.pos = { x: c.x, y: c.y };
+  { const r = G.depthRec(W.area, W.tier); if (c.x > r.now) { r.now = c.x; r.best = Math.max(r.best, r.now); } }
   if (G.route.includes(c)) { G.route = G.route.filter(x => x !== c); G.emit('route'); }
   G.reveal(map, c);
   if (c.type === 'boss') {
@@ -643,13 +678,22 @@ G.commission = function (slot) {
   return it;
 };
 
-/* The cube: one item, one recipe paid for in ember dust, a random result. */
-G.cube = function (id, orb, cat) {
-  const S = G.S, f = G.findItem(id);
-  if (!D.AFFIX_CAT[cat]) cat = null;
-  if (!f || !D.ORBS[orb] || I.cubeCheck(f.it, orb, cat) || !G.pay(I.cubeCost(orb))) return null;
-  const res = I.cube(f.it, orb, S.world.tier, cat);
-  G.recompute(); G.refreshUpgrades(); G.emit('cube', { it: f.it, res }); G.save();
+/* The cube. Buying a transmute for a piece draws three options for it, and they stay with the piece (through saves,
+   bags and stashes) until one is picked: no second transmute for that piece before then. */
+G.buyTransmute = function (id) {
+  const f = G.findItem(id);
+  if (!f || I.offerCheck(f.it) || !G.pay(I.offerCost(f.it))) return null;
+  f.it.offer = I.cubeOffer(f.it);
+  G.emit('offer', { it: f.it }); G.save();
+  return f.it.offer;
+};
+G.pickTransmute = function (id, n) {
+  const S = G.S, f = G.findItem(id), o = f && f.it.offer && f.it.offer[n];
+  if (!o) return null;
+  const it = f.it, res = I.cubeValid(it, o) ? I.cubeApply(it, o, S.world.tier) : { op: 'pass', o, idxs: [] };      // an option that can no longer do anything costs its pick and nothing else
+  delete it.offer; delete it.offerFree; it.isNew = 0;
+  G.recompute(); G.refreshUpgrades(); G.freeTransmute();      // a full bar may have been waiting for a piece to come free
+  G.emit('cube', { it, res }); G.save();
   return res;
 };
 

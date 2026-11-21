@@ -58,8 +58,8 @@ the skill bar to drink it.
 - **Greater affixes.** When a piece drops or is commissioned, each affix has a small chance to crit and come out
   Greater: the maximum roll for that affix, and then half again on top, marked with a gold star. A Greater affix
   never rolls low, and its value sits above the range shown beside it. The chance rises in Torment. Greater affixes are found,
-  never crafted: the forge's reroll and every cube recipe roll ordinary affixes. Temper leaves a Greater
-  affix Greater, but rerolling one at the forge or melting it with Recast gives it up.
+  never crafted: the forge's reroll and everything the cube offers roll ordinary affixes. Rerolling values leaves a Greater
+  affix as it is, but rerolling one at the forge, or losing it to a cube offer that replaces affixes, gives it up.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
 - **The forge.** Masterwork, enchant (the Reroll button beside an affix), transfigure and salvage. Rerolling costs a
   little more each time on the same piece and levels off at five times the first price.
@@ -71,26 +71,43 @@ the skill bar to drink it.
   transfigure, the change rises in green or sinks in red beside each number.
 - **Weapon Damage.** An Offence affix that only weapons roll: +6 to 12% to the weapon's own damage at any item
   level. Every skill is a percentage of weapon damage, so it multiplies everything else, as Strength does.
-- **The cube shows its aim on the piece.** With Quench chosen, the affixes it could take are marked on the
-  piece with their odds ("1 in 3"). With Kindle, the piece gains an empty line for the affix to come, and the
-  cube lists what it could be.
-- **Soulsteel.** From bosses, and from salvaging the exceptional: 3 for a Unique, 1 for each Greater affix on a
-  piece, 1 more if it is Ancestral. A boss's first kill pays a Rare with a guaranteed Greater affix.
+- **First kills.** A boss's first kill pays a Rare, with a guaranteed Greater affix from the third level on.
 - **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the level of the first room of where you are.
 - **The flask.** Restores 35% of your Life and refills over 22 seconds. Drink it with Q. By default it also drinks
   itself below 35% Life, so Auto can run unattended; Settings turns that off.
-- **The cube.** Put in a piece of gear, pick a recipe, press Transmute, take what you get. Kindle adds a random
-  affix (up to four, lifting Common to Magic to Rare on the way), Quench removes one at random, Recast rerolls
-  them all, Temper rerolls the numbers (but not on Greater affixes). The affix you rerolled at the forge is left
-  alone by all of them: Quench never takes it and Recast does not melt it. Kindle and Quench can be aimed at an
-  affix type (see "Cube types" below); the affix within the type is still random. Uniques cannot be cubed, except
-  that Temper rerolls their numbers; the forge can still enchant one affix on them.
-- **Ember dust.** The one crafting material. Masterworking and all four cube recipes are paid in it and in nothing
-  else: Kindle 3, Quench 3, Temper 6, Recast 8; a masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or
-  move the masterworked affix. Salvage pays 1 for a Common, 2 for a Magic, 4 for a Rare (more with ranks and
-  Greater affixes) and 8 for a Unique. Elites and bosses always carry some, ordinary monsters a pinch 5%
-  of the time, and chests and full clears add a little. Rerolling an affix and transfiguring take dust as well,
-  beside their gold. There are no orbs and no scrap; an old save has them turned into dust.
+- **The cube.** You do not choose what the cube does. You buy a transmute for a piece (15 ember dust) and the cube
+  offers three things it could do to that piece; you must take one before you can buy another for it. The offer
+  stays with the piece until you do, and while it waits the forge will not reroll or transfigure that piece.
+  Hovering an offer lights up the affixes it could touch. What can be offered:
+
+  | Offer | What it does |
+  | --- | --- |
+  | Add an affix | A random one, of any type or of one type (Offence, Defence, Utility, Skills) |
+  | Remove an affix | A random one, of any type or one type, or exactly the first or the last of them |
+  | Reroll an affix | The same choices; the affix is replaced by a new random one |
+  | Turn one type into another | Removes a random affix of one type, adds a random one of another |
+  | Reroll all affixes | Every affix replaced |
+  | Reroll values | New numbers inside each affix's tier, for all affixes or one type |
+  | Polish the values | Every number rolled again, kept only if better |
+  | Perfect one value | One random affix gets the best number of its tier |
+  | Two up, one down | Two random affixes rise a tier or two (never past what the piece can roll), one falls a tier or two. Needs three affixes |
+  | Raise the lowest tier | The lowest-tier affix rises one tier |
+  | Sacrifice an affix | One random affix is removed; every other rises one tier |
+  | Shuffle the order | Changes which affix is first and last |
+  | Leave it be | Nothing happens |
+
+  Adding is the commonest offer for a piece with room; the three are of different kinds whenever the piece allows.
+  The affix you rerolled at the forge is locked (and marked so): no offer removes it, replaces it, renumbers it or
+  moves its tier. Greater affixes keep their number and tier. A Unique is only ever offered ways to renumber it.
+- **Free transmutes.** Kills fill a bar at the head of the character pane (1 for a monster, 4 for an elite, 12 for a
+  boss, 30 to fill). When it is full, one piece you are wearing that has no offer waiting gets a transmute for
+  nothing: it sparkles until you take one of its three offers. If every worn piece is busy the bar waits, full.
+  Monsters well below your gear level fill it more slowly, and those 13 levels below not at all.
+- **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 15; a
+  masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix; rerolling an affix
+  and transfiguring take dust beside their gold (transfiguring 40). Salvage pays 1 for a Common, 2 for a Magic, 4
+  for a Rare (plus 3 for each Greater affix and 5 if Ancestral) and 12 for a Unique. Elites and bosses always carry
+  some, ordinary monsters a pinch 5% of the time, and chests and full clears add a little.
 - **Affix tiers.** Every affix comes in seven tiers, each a band of values that starts where the one below ends, and
   each affix on a piece shows its tier (T1 to T7) beside it. A piece can roll tiers up to the one its item level
   has reached: T1 from level 1, T2 from 10, T3 from 20, T4 from 30, T5 from 40, T6 from 50 (Torment) and T7 at 55
@@ -107,8 +124,8 @@ the skill bar to drink it.
 
   Flat amounts (Life, Armor, Thorns, Life on Hit, Life per Second) grow from tier to tier as the monsters do,
   a little more than doubling each time. Percentages and the rest climb in seven even steps. Skill ranks have no
-  tiers. Temper rerolls a number inside its tier; rerolling an affix at the forge, Kindle and Recast roll a new
-  tier. A Greater affix is always the top of the piece's best tier, times 1.5, and a Unique's affixes are always
+  tiers. Rerolling values keeps each number inside its tier; rerolling an affix at the forge, and any cube offer that
+  adds or replaces an affix, rolls a new tier. Three cube offers move tiers directly (see the cube). A Greater affix is always the top of the piece's best tier, times 1.5, and a Unique's affixes are always
   the best tier.
 - **Crafting effects.** Every craft throws sparks from where you clicked in the colour of what you did, flashes
   the piece, and slides changed affixes in. Masterworking strikes the bench and fills the rank bar from where it
@@ -121,9 +138,12 @@ the skill bar to drink it.
   levels 50 and up, climbing more gently because gear has stopped growing.
 - **A fall ends the run.** You are expected to fall. The smith wakes at the door of a fresh map of the same level,
   at full Life, with everything found so far: wear the best of it, masterwork it, and the next run gets a room or
-  two deeper. The starting hammer and apron cannot finish the first level. Auto remembers a boss that beat it and
-  clears the map before trying again; after three runs in a row that end in the first two columns it steps back a
-  level.
+  two deeper. A new run cannot begin for ten seconds after a fall, or after walking away from a run in progress:
+  the fight and the map go grey under a count, and the bench stays open. The count is in real seconds whatever the
+  game speed. Auto remembers a boss that beat it and clears the map before trying again; after three runs in a row
+  that end in the first two columns it steps back a level.
+- **Depth.** Beside the damage meter: how deep this run has got, how deep the last one got, and your deepest ever
+  on this level, counted in columns (the boss is in the last).
 - **Rarity comes in gradually.** The first rooms drop Common and Magic gear and nothing else. Rares begin at level 5
   (about 3% by the end of the first level, 12% in the second, a quarter in the third, nearly half in the fifth);
   every boss pays one. No affix is Greater before level 20, then 1%, 2% and 3% of them through the last three
@@ -166,7 +186,7 @@ the skill bar to drink it.
 - **Damage meter.** The arena shows measured DPS for the current fight, the average over the last ten, and which
   skills, burns, bleeds and procs did the damage. Bars are coloured by damage type (steel for Physical, orange for
   Fire, blue for Lightning); hover one for the type, or the split when a skill deals two.
-- **The purse.** Gold, ember dust and soulsteel sit at the head of the character pane. Salvaging pops a large green
+- **The purse.** Gold and ember dust sit at the head of the character pane. Salvaging pops a large green
   +amount in the middle of the pane, and anything you pay for at the forge or the cube pops a red −amount there.
 - **Clicks are never eaten by a redraw.** A panel's markup is replaced only when it has changed, and nothing is
   redrawn under a button while it is held down, so a click on Transmute or Masterwork counts the first time even in
@@ -217,7 +237,7 @@ and the cube marks boosted affixes (×1.5) in its list of what it could add.
 
 ### Cube types
 
-Kindle and Quench can be aimed at one of four types, after Diablo 4's tuning prisms. They are the four
+The cube's offers to add, remove, reroll or renumber are often for one of four types, after Diablo 4's tuning prisms. They are the four
 families above, except that four affixes sit in two types:
 
 | Affix | Types |
@@ -230,9 +250,9 @@ families above, except that four affixes sit in two types:
 So Utility is Cooldown, Heat, Movement speed, Thorns, Life per second and Barrier, and Skills is the three
 disciplines plus Strength.
 
-Two rules shape the types. No type on any slot holds only affixes a build wants, so aiming narrows a roll without
+Two rules shape the types. No type on any slot holds only affixes a build wants, so a typed offer narrows a roll without
 making it safe. And the overlap is where the skill is: an unwanted Life per second on a chest shares Defence with
-the life and armor you mean to keep, but in Utility it may stand alone, so Quench aimed at Utility takes
+the life and armor you mean to keep, but in Utility it may stand alone, so an offer to remove a Utility affix takes
 it cleanly. A piece only offers a type its slot has at least two affixes for.
 
 ## Code

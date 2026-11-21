@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SW = globalThis.SW, D = SW.data, U = SW.util, I = SW.items, Hr = SW.hero, G = SW.game, SP = SW.sprites, A = SW.audio;
-const UI = SW.ui = { tab: 'skills', dirty: {}, forgeId: null, cubeOrb: 'add', cubeCat: null, cubeLast: null, dragId: null, lastGold: -1 };
+const UI = SW.ui = { tab: 'skills', dirty: {}, forgeId: null, cubeLast: null, dragId: null, lastGold: -1 };
 const $ = id => document.getElementById(id);
 /* colour for a monster level against your gear level. In Torment gear is capped while monsters keep rising,
    so the comparison says nothing there and the level is left uncoloured. */
@@ -33,11 +33,13 @@ function pulse(cls, color, ms) {
   t.classList.remove(cls); void t.offsetWidth; t.classList.add(cls); clearTimeout(pulse[cls]); pulse[cls] = setTimeout(() => t.classList.remove(cls), ms || 750);
 }
 const JUICE = {
+  offer() { sparks(['#ffb347', '#ffe9a8'], 10, 60); pulse('j-offer', '#ffb347', 700); },
   cube(d) {
-    const O = D.ORBS[d.res.orb], bad = d.res.orb === 'remove';
-    sparks(O.color, d.res.orb === 'chaos' ? 30 : 18, d.res.orb === 'chaos' ? 120 : 85); ring(O.color); pulse('j-cube', O.color);
+    const col = I.CUBE_COLOR[I.cubeLabel(d.res.o).fam], big = ['recast', 'tiers', 'sacrifice'].includes(d.res.op), bad = !!d.res.removed;
+    if (d.res.op === 'pass') { sparks('#8a8478', 6, 40); return; }
+    sparks(col, big ? 30 : 18, big ? 120 : 85); ring(col); pulse('j-cube', col);
     if (d.res.from != null) { const at = centerOf('.an-item .it'); sparks([RC(d.it.rar), '#fff'], 26, 110, at); ring(RC(d.it.rar), at, true); pulse('j-up', RC(d.it.rar), 900); }
-    if (bad) pulse('j-rm', O.color);
+    if (bad) pulse('j-rm', col);
   },
   upgrade(d) {
     const tip = (() => { const b = document.querySelector('.mw-bar'); if (!b) return null; const r = b.getBoundingClientRect(); return [r.left + r.width * Math.min(1, (d.it.up || 0) / D.MW_MAX), r.top + r.height / 2]; })();
@@ -59,14 +61,14 @@ function tierTag(it, a) {
   const t = I.affixTier(it, a), max = D.tierOf(it.ilvl), d = Math.max(0, max - t);
   return `<b class="tier-tag d${Math.min(3, d)}" data-tip="Tier ${t} of ${D.TIER_MAX}. ${d === 0 ? `The best a level ${it.ilvl} piece can roll.` : `A level ${it.ilvl} piece can roll up to tier ${max}.`} Each tier is a higher band of values than the last; the range shown is this tier's.${max < D.TIER_MAX ? ` Tier ${max + 1} starts at item level ${D.TIER_LVL[max]}.` : ''}">T${t}</b>`;
 }
-const MAT_NAME = { gold: 'gold', dust: 'ember dust', soul: 'soulsteel' };
+const MAT_NAME = { gold: 'gold', dust: 'ember dust' };
 
 /* ------------------------------------------------------------- pieces */
 function itemCell(it, extra, idx, box) {
   const bag = idx == null ? '' : ` data-${box || 'bag'}="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.anc ? 'anc' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.offer ? (it.offerFree ? 'offer-free' : 'offer-wait') : ''} ${it.anc ? 'anc' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
     (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl${it.up >= D.MW_MAX ? ' max' : ''}">${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
@@ -247,8 +249,15 @@ UI.frame = function () {
     el.classList.toggle('dim', dim);
   });
   if (UI.lastGold !== S.gold) { if (UI.lastGold >= 0 && S.gold > UI.lastGold) { const e = $('cur-gold').parentElement; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); } UI.lastGold = S.gold; $('cur-gold').textContent = U.fmt(S.gold); mark('forge'); }
-  for (const k of ['dust', 'soul']) { const e = $('cur-' + k), v = U.fmt(S.mats[k] || 0); if (e.textContent !== v) e.textContent = v; }
+  for (const k of ['dust']) { const e = $('cur-' + k), v = U.fmt(S.mats[k] || 0); if (e.textContent !== v) e.textContent = v; }
   if (performance.now() - meterT > 250) { meterT = performance.now(); renderMeter(); }
+  // the transmute bar, and the wait before a new run
+  { const need = D.XP_NEED, xp = Math.min(need, S.xp || 0), full = xp >= need, e = $('xpbar');
+    e.firstElementChild.style.width = xp / need * 100 + '%'; e.classList.toggle('full', full);
+    const t = full ? 'Free transmute ready: no worn piece is free to take it' : `Next free transmute  ${Math.floor(xp)} / ${need}`; if (e.lastElementChild.textContent !== t) e.lastElementChild.textContent = t;
+    const W = S.world, cool = W.cool > 0 && G.phase === 'idle', c = $('combat'); c.classList.toggle('cooling', cool);
+    if (cool) { const t2 = `<b>${W.coolWhy === 'left' ? 'Run abandoned' : 'You fell'}</b><i>${Math.ceil(W.cool)}</i><span>A new run can begin when the count is done. Use the wait: wear what dropped, masterwork it, take your transmutes.</span>`; if (UI.coolHtml !== t2) { UI.coolHtml = t2; $('cooldown').innerHTML = t2; } }
+  }
   // boss bar
   const bb = $('bossbar'), boss = B ? B.mobs.find(m => !m.dead && (m.boss || m.champ)) : null;
   bb.classList.toggle('hidden', !boss);
@@ -274,7 +283,7 @@ UI.frame = function () {
 /* A large line under the purse, in the middle of the character pane: green and rising for what a salvage gave, red
    and sinking for what a craft cost, each amount with its material's icon. Quick repeats of the same kind add up in
    the line that is still showing; anything else replaces it. */
-const POP_ORDER = ['gold', 'dust', 'soul'];
+const POP_ORDER = ['gold', 'dust'];
 function pursePop(vals, sign) {
   const host = $('purse-pops'); if (!host) return; const now = performance.now();
   let p = UI.pop;
@@ -307,6 +316,10 @@ function renderMeter() {
     h += `<div class="m-row" data-tip="<b>${esc(name)}</b>: ${types}. ${kind}${Math.round(by[k] / dmg * 100)}% of your damage over ${fights.length === 1 ? 'this fight' : 'these ' + fights.length + ' fights'}."><i style="width:${by[k] / top * 100}%;background:${METER_EL[main] || '#8a8478'}"></i><span><u style="background:${METER_EL[main] || '#8a8478'}"></u>${name}</span><b>${Math.round(by[k] / dmg * 100)}%</b></div>`;
   }
   if (UI.meterHtml !== h) { UI.meterHtml = h; $('meter').innerHTML = h; }
+  // how deep this run is, how deep the last one got, and the deepest ever on this level
+  const W = G.S.world, r = G.depthRec(W.area, W.tier), end = D.MAP_W - 1, show = v => (v == null ? '–' : v >= end ? 'Boss' : v + ' / ' + end);
+  const dh = `<div><span>This run</span><b>${show(r.now)}</b></div><div><span>Last run</span><b>${show(r.last)}</b></div><div><span>Deepest</span><b class="${r.best >= end ? 'won' : ''}">${show(r.best)}</b></div>`;
+  if (UI.depthHtml !== dh) { UI.depthHtml = dh; $('depth').innerHTML = dh; }
 }
 
 /* ----------------------------------------------------------------- map */
@@ -480,79 +493,53 @@ function worthChanged(it) {
 function renderCraft() {
   const S = G.S, f = UI.forgeId ? G.findItem(UI.forgeId) : null;
   if (!f) { UI.forgeId = null; UI.cubeLast = null; }
-  if (f && UI.cubeCat && !I.slotCats(f.it).includes(UI.cubeCat)) UI.cubeCat = null;      // this piece's slot does not offer the type that was aimed at
-  const orb = UI.cubeOrb, O = D.ORBS[orb], aims = orb === 'add' || orb === 'remove', cat = aims ? UI.cubeCat : null;
-  const able = !!f && aims && !I.cubeCheck(f.it, orb, cat);      // the recipe could do something to this piece (whether or not you can pay for it)
   let h = '';
-  if (!f) h += '<div class="anvil empty"><b>The bench is empty</b><p>Click any piece of gear, worn or in your bag or stash, to bring it here. Then use the cube to add and remove affixes, or the forge to masterwork it, reroll an affix and, last of all, transfigure it.</p></div>';
+  if (!f) h += '<div class="anvil empty"><b>The bench is empty</b><p>Click any piece of gear, worn or in your bag or stash, to bring it here. Then buy transmutes at the cube to change its affixes, or the forge to masterwork it, reroll an affix and, last of all, transfigure it.</p></div>';
   else {
-    const it = f.it, last = UI.cubeLast || {}, ec = I.enchantCost(it);
+    const it = f.it, last = UI.cubeLast && UI.cubeLast.itemId === it.id ? UI.cubeLast : {}, ec = I.enchantCost(it);
     h += `<div class="anvil"><div class="an-item">${itemCell(it, 'big')}<div><b style="color:${RC(it.rar)}">${esc(it.name)}</b><span>${I.typeLine(it)} · ${I.itemPower(it)} Item Power · ${f.where === 'gear' ? 'worn' : f.where === 'stash' ? 'in stash' : 'in bag'}</span></div>` +
       `<div class="an-btns">${f.where === 'gear' ? '' : '<button class="small" data-act="equip-one">Equip</button>'}<button class="small" data-act="bench-clear" data-tip="Take this piece off the bench. It stays ${f.where === 'gear' ? 'equipped' : f.where === 'stash' ? 'in your stash' : 'in your bag'}.">Clear</button></div></div>`;
     h += worthHtml(it);
     const imp = I.implicit(it);
     h += `<div class="main-stat">${imp.dmg ? `<b>${U.fmt(imp.dmg)}</b> damage per hit, ${imp.aps.toFixed(2)} attacks per second` : imp.armor ? `<b>${U.fmt(imp.armor)}</b> armor` : imp.life ? `<b>${U.fmt(imp.life)}</b> life` : `<b>+${imp.dmgPct}%</b> damage`}</div>`;
-    // what the cube is aimed at shows on the piece itself: the affixes Quench could take are marked with
-    // their odds, and Kindle adds an empty line for the affix it would bring
-    const risk = able && orb === 'remove' ? I.removable(it, cat) : [];
-    const safe = (orb === 'remove' || orb === 'chaos') && !it.sealed && !it.uniq ? it.ench : -1;      // the forge-rerolled affix, which those two recipes leave alone
+    // each row carries its index, so hovering one of the cube's offers can light up the affixes it could touch
+    const moved = {}; for (const m of (last.up || []).concat(last.down || [])) moved[m[0]] = m[1];
     h += '<ul class="aff-list">';
     it.affixes.forEach((a, i) => {
-      const atRisk = risk.includes(i);
-      const fresh = last.idx === i || (last.orb === 'chaos' && (last.idxs || []).includes(i)) || (last.orb === 'divine' && (last.idxs || []).includes(i)) || (UI.tfLast && UI.tfLast.id === it.id && UI.tfLast.res.idx === i), ok = I.canEnchant(it, i);
-      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''} ${atRisk ? 'aim-rm' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${tierTag(it, a)}${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
-        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (safe === i ? `<em class="sft" data-tip="You rerolled this affix at the forge. Quench and Recast leave it alone, as Temper does: only the forge changes it now.">kept</em>` : '') + (atRisk ? `<em class="rmt" data-tip="${risk.length === 1 ? 'Quench as it is aimed would remove this affix: it is the only one that matches.' : `Quench as it is aimed removes one of the ${risk.length} marked affixes at random.`}">✕ ${risk.length === 1 ? 'removed' : '1 in ' + risk.length}</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
+      const fresh = last.idx === i || (last.idxs || []).includes(i) || (UI.tfLast && UI.tfLast.id === it.id && UI.tfLast.res.idx === i), ok = I.canEnchant(it, i);
+      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}" data-ai="${i}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${tierTag(it, a)}${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
+        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : moved[i] != null ? `<em class="${moved[i] < 0 ? 'dnt' : ''}">${moved[i] > 0 ? '▲ ' + moved[i] + (moved[i] > 1 ? ' tiers' : ' tier') : moved[i] < 0 ? '▼ ' + -moved[i] + (moved[i] < -1 ? ' tiers' : ' tier') : 'already at the top'}</em>` : (last.idxs || []).includes(i) ? `<em>${last.op === 'shuffle' ? 'moved' : last.op === 'reroll' || last.op === 'recast' ? 'new' : 'rerolled'}</em>` : '') + (it.ench === i && !it.sealed && !it.uniq ? `<em class="sft" data-tip="You rerolled this affix at the forge, so it is locked: nothing the cube does will remove it, replace it, renumber it or change its tier. Only the forge changes it now.">locked</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
-    if (able && orb === 'add') { const C = cat ? D.AFFIX_CAT[cat] : null, n = I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), cat).length;
-      h += `<li class="aim-add" style="--c:${C ? C.color : '#e9dfcd'}"><span><u></u>+ ${C ? C.name + ' affix' : 'An affix of any type'}</span><em>${n === 1 ? 'the one listed below' : 'one of the ' + n + ' listed below'}</em></li>`; }
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
     h += '</ul>';
     if (it.uniq) h += `<div class="an-asp">✦ ${I.powerText(it)}</div>`;
     h += `<div class="an-foot"><span>${it.affixes.length} of ${D.MAX_AFFIXES} affixes</span>${it.sealed ? '<span>✧ Sealed</span>' : it.affixes.length ? `<span>Reroll costs ${costHtml(ec)}</span>` : ''}</div></div>`;
   }
-  // ---- the cube
-  const why = !f ? 'Bring a piece of gear to the bench first.' : f.it.sealed ? I.SEALED : I.cubeCheck(f.it, orb, cat) || (G.canPay(I.cubeCost(orb)) ? null : `${O.name} costs ${O.cost} ember dust and you have ${U.fmt(S.mats.dust || 0)}. Salvage gear for more; elites and bosses always carry some.`);
-  // the four recipes first, then the box: Transmute with its price, what to aim at, and what it would do
-  h += '<h4 class="sect">The cube</h4>';
-  h += '<div class="orbs">' + D.ORB_IDS.map(k => `<button class="orb-btn ${k === orb ? 'on' : ''}" data-orb="${k}" style="--c:${D.ORBS[k].color}" data-tip="${D.ORBS[k].desc} Costs ${D.ORBS[k].cost} ember dust."><img src="${SP.url('orb', D.ORBS[k].pal, 3)}" alt=""><b>${D.ORBS[k].short}</b><span>${D.ORBS[k].name}</span><i class="${G.canPay(I.cubeCost(k)) ? '' : 'short'}"><u class="ci dust"></u>${D.ORBS[k].cost}</i></button>`).join('') + '</div>';
-  h += `<div class="cube"><div class="cube-box"><button class="big" data-act="transmute" ${why ? 'disabled' : ''} data-tip="${O.name}: ${O.desc}">Transmute <span class="cost ${G.canPay(I.cubeCost(orb)) ? '' : 'short'}"><i class="ci dust"></i>${O.cost}</span></button></div>`;
-  if (aims) {
-    // tooltips: Kindle lists what could roll on this slot, Quench lists what is on the piece and could go
-    const aimTip = c => {
-      if (orb === 'remove') {
-        if (!f) return c ? 'Removes one random ' + D.AFFIX_CAT[c].name + ' affix.' : 'Removes one random affix of any type.';
-        const on = I.removable(f.it, c).map(i => I.affixText(f.it, f.it.affixes[i], i));
-        const what = c ? D.AFFIX_CAT[c].name + ' affix' : 'affix';
-        const list = on.map(t => '<br>• ' + t).join('');
-        return !on.length ? `This piece has no ${what}${c ? '' : 'es'} to remove.` : on.length === 1 ? `The only ${what} on this piece, so it is the one removed:${list}` : `One of these ${on.length} ${what}es is removed at random:${list}`;
-      }
-      const keys = (c ? D.AFFIX_CAT[c].keys : Object.keys(D.AFFIX)).filter(k => !f || (D.AFFIX[k].slots.includes(I.poolKey(f.it)) && !f.it.affixes.some(a => a.k === k)));
-      return (f ? `Can roll on this ${D.BASES[f.it.base].name.toLowerCase()}: ` : 'Can roll: ') + (keys.map(affName).join(', ') || 'nothing');
-    };
-    const offered = f ? I.slotCats(f.it) : Object.keys(D.AFFIX_CAT);
-    const btn = c => {
-      const no = c && f && I.cubeCheck(f.it, orb, c) && !I.cubeCheck(f.it, orb, null);
-      return `<button class="small ${c === cat || (!c && !cat) ? 'on' : ''}" data-aim="${c || ''}" ${no ? 'disabled' : ''} style="--c:${c ? D.AFFIX_CAT[c].color : '#e9dfcd'}" data-tip="${esc((c ? `<b style="color:${D.AFFIX_CAT[c].color}">${D.AFFIX_CAT[c].name}.</b> ${D.AFFIX_CAT[c].desc}<br>` : '') + aimTip(c))}">${c ? D.AFFIX_CAT[c].name : 'Any type'}</button>`;
-    };
-    h += '<div class="aim"><span class="lbl">Aim at</span>' + [null].concat(offered).map(btn).join('') + '</div>';
+  // ---- the cube: buy a transmute, get three offers for this piece, take one
+  h += '<h4 class="sect">The cube</h4><div class="cube">';
+  if (!f) h += `<div class="cube-box"><button class="big" disabled>Buy a transmute ${costHtml(I.offerCost())}</button></div><p class="cube-say no">Bring a piece of gear to the bench first.</p>`;
+  else if (f.it.offer) {
+    const it = f.it, names = l => l.map(i => affName(it.affixes[i].k)), short = (l, n) => (l.length > n ? l.slice(0, n).join(', ') + ' and ' + (l.length - n) + ' more' : l.join(', '));
+    h += `<p class="cube-say">${it.offerFree ? '<b class="free">✦ A free transmute.</b> ' : ''}The cube offers three things it could do. Take one: hover a card to see what it could touch.</p><div class="offer">`;
+    it.offer.forEach((o, n) => {
+      const L = I.cubeLabel(o), tg = I.cubeValid(it, o) ? I.cubeTargets(it, o) : [], col = I.CUBE_COLOR[L.fam];
+      let on = '';
+      if (o.op === 'add' || o.op === 'convert') { const pool = I.affixPool(I.poolKey(it), it.affixes.map(a => a.k), o.op === 'add' ? o.cat : o.to).map(a => affName(a.id)); on = (o.op === 'convert' && tg.length ? (tg.length === 1 ? 'Takes ' : 'Takes one of: ') + short(names(tg), 3) + '. ' : '') + (pool.length === 1 ? 'Adds ' : `Adds one of ${pool.length}: `) + short(pool, 5); }
+      else if (o.op === 'raise' && tg.length) { const a = it.affixes[tg[0]], t = I.affixTier(it, a); on = `${affName(a.k)}: T${t} to T${t + 1}`; }
+      else if (o.op === 'recast') on = `Replaces ${tg.length} affix${tg.length === 1 ? '' : 'es'}`;
+      else if (o.op === 'shuffle' || o.op === 'pass') on = '';
+      else if (tg.length) on = (o.op === 'tiers' ? 'Three of: ' : ['values', 'polish'].includes(o.op) ? 'On: ' : tg.length === 1 ? 'Hits ' : `One of ${tg.length}: `) + short(names(tg), 4);
+      h += `<button class="offer-card f-${L.fam}" data-pick="${n}" data-tg="${tg.join()}" style="--c:${col};animation-delay:${n * 70}ms"><img src="${SP.url('orb', I.CUBE_PAL[L.fam], 3)}" alt=""><b>${L.title}</b><span>${L.desc}</span>${on ? `<small>${on}</small>` : ''}</button>`;
+    });
+    h += '</div>';
+  } else {
+    const why = I.offerCheck(f.it) || (G.canPay(I.offerCost(f.it)) ? null : `A transmute costs ${D.CUBE_COST} ember dust and you have ${U.fmt(S.mats.dust || 0)}. Salvage gear for more; elites and bosses always carry some.`);
+    h += `<div class="cube-box"><button class="big" data-act="buy-transmute" ${why ? 'disabled' : ''} data-tip="The cube draws three things it could do to this piece: add, remove or reroll an affix (sometimes of one type, sometimes the first or last), renumber it, move its tiers, and a few rarer ones. You then have to take one of the three before you can buy another transmute for this piece.">Buy a transmute <span class="cost ${G.canPay(I.offerCost(f.it)) ? '' : 'short'}"><i class="ci dust"></i>${D.CUBE_COST}</span></button></div>`;
+    const last = UI.cubeLast && UI.cubeLast.itemId === f.it.id && UI.cubeLast.o ? UI.cubeLast : null;      // (a forge reroll also sets cubeLast, without an option)
+    h += `<p class="cube-say ${why ? 'no' : ''}">${why || (last ? `<b style="color:${I.CUBE_COLOR[I.cubeLabel(last.o).fam]}">${I.cubeLabel(last.o).title}.</b> ${last.removed ? 'Lost ' + last.removed + '. ' : ''}${last.was ? 'Gave up ' + last.was + '. ' : ''}${last.op === 'pass' ? 'Nothing changed. ' : ''}Buy another to see three new offers.` : 'You do not choose what the cube does: it offers three things, and you take one. The affix you rerolled at the forge is never touched.')}</p>`;
   }
-  let say = why || O.desc, list = '';
-  if (aims) {
-    // spell out what the recipe could do to this piece: the affixes it might add, or the ones it might take
-    const kind = cat ? D.AFFIX_CAT[cat].name + ' affix' : 'affix', dot = k => `<u style="background:${D.AFFIX_CAT[D.AFFIX[k].cat].color}"></u>`;
-    let opts = [], nRm = 0;
-    if (able && orb === 'add') opts = I.affixPool(I.poolKey(f.it), f.it.affixes.map(a => a.k), cat).map(a => dot(a.id) + affName(a.id) + (I.slotMult(f.it, a.id) !== 1 ? ` <em data-tip="Worth ${I.slotMult(f.it, a.id)} times as much on a ${D.BASES[f.it.base].name.toLowerCase()} as on most slots.">×${I.slotMult(f.it, a.id)}</em>` : ''));
-    if (able && orb === 'remove') nRm = I.removable(f.it, cat).length;
-    if (!why || able) {
-      const n = opts.length, of = n > 1 ? ` One of these ${n}:` : '';
-      say = orb === 'add' ? (n === 1 ? `Adds the one ${kind} this piece can still take:` : `Adds one random ${kind}${cat ? '' : ' of any type'}.${of}`)
-        : (nRm === 1 ? `Removes the only ${kind} on it, marked ✕ above.` : `Removes one random ${kind}${cat ? '' : ' of any type'}: one of the ${nRm} marked ✕ above.`);
-      if (why) say = why + ' ' + say;
-    }
-    if (opts.length) list = `<ul class="cube-list ${orb}">${opts.map(o => `<li>${o}</li>`).join('')}</ul>`;
-  }
-  h += `<p class="cube-say ${why ? 'no' : ''}">${say}</p>${list}</div>`;
+  h += '</div>';
   // ---- the forge
   h += '<h4 class="sect">The forge</h4>';
   if (!f) h += '<p class="note">Masterworking, transfiguring and salvage appear here once a piece is on the bench.</p>';
@@ -736,7 +723,7 @@ UI.onGame = function (type, d) {
     case 'travel': mark('map'); break;
     case 'route': mark('map'); break;
     case 'battleEnd': if (!d.win) SW.fx.clear(); mark('bag', 'map', 'top', 'skills', 'forge', 'gear'); break;
-    case 'death': UI.banner('You fell', 'The run is over. You keep everything you found, and a new map waits.', 'dead', 2400); mark('map'); break;
+    case 'death': UI.banner('You fell', `The run is over. You keep everything you found. A new map opens in ${D.RUN_COOLDOWN} seconds.`, 'dead', 2400); mark('map'); break;
     case 'areaClear':
       A.play('clear'); UI.banner(D.ACTS[D.AREAS[d.area].act].name + ' cleared', d.first ? 'The way on is open' : '', 'clear', 2400);
       if (d.first && d.area === D.AREAS.length - 1 && d.tier === 0) setTimeout(() => UI.victory(), 1600);
@@ -755,14 +742,18 @@ UI.onGame = function (type, d) {
     case 'spend': purseSpend(d.cost); mark('top'); break;
     case 'salvageAll': A.play('salvage'); purseGain(d.y); JUICE.salvage({ n: 9 }); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
     case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. New drops are being salvaged until you make room.', 'bad'); } break;
-    case 'cube': A.play(d.res.orb === 'remove' ? 'salvage' : 'forge'); UI.cubeLast = d.res; worthChanged(d.it); JUICE.cube(d); mark('cube', 'bag', 'gear', 'forge');
+    case 'offer': A.play('click'); JUICE.offer(); mark('cube', 'bag', 'forge', 'top'); break;
+    case 'freeTransmute': { A.play('shrine', 0.5); UI.feed(`<i class="hot">✦ Free transmute</i> for <b style="color:${RC(d.it.rar)}">${esc(d.it.name)}</b>: click it to see the three offers`, '');
+      const at = centerOf(`.doll .dslot[data-slot="${D.SLOTS.find(sl => S.gear[sl] === d.it)}"]`); if (at) { sparks(['#ffe9a8', '#fff', '#ffb347'], 22, 90, at); ring('#ffe9a8', at); }
+      mark('gear', 'bag', 'forge', 'cube'); break; }
+    case 'coolEnd': A.play('click'); mark('map', 'hint'); break;
+    case 'cube': A.play(d.res.removed ? 'salvage' : 'forge'); UI.cubeLast = Object.assign({ itemId: d.it.id }, d.res); worthChanged(d.it); JUICE.cube(d); mark('cube', 'bag', 'gear', 'forge');
       if (d.res.from != null) UI.toast(`It is now ${D.RARITY[d.it.rar].name}.`, 'good');
-      if (d.res.crit) { A.play('master'); UI.toast(d.res.crit > 1 ? `${d.res.crit} Greater affixes!` : 'It crit: a Greater affix!', 'good'); }
       break;
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind !== 'commission') worthChanged(d.it);
       if (JUICE[d.kind]) JUICE[d.kind](d);
-      if (d.kind === 'enchant') UI.cubeLast = { id: d.it.id, idx: d.it.ench, orb: 'ench' };      // so the new affix is shown as new
+      if (d.kind === 'enchant') UI.cubeLast = { itemId: d.it.id, idx: d.it.ench, op: 'ench' };      // so the new affix is shown as new
       if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');
       if (d.kind === 'transfigure') { UI.tfLast = { id: d.it.id, res: d.res }; A.play(d.res.kind === 'replace' ? 'salvage' : d.res.kind === 'indes' ? 'forge' : 'master'); UI.toast(`Transfigured: ${D.TRANSFIG_NAME[d.res.kind]}${d.res.kind === 'quality' ? ' +' + d.res.v : d.res.kind === 'indes' ? ' (nothing changed)' : ''}${d.res.open ? '. It was not sealed.' : ''}`, d.res.kind === 'replace' ? 'bad' : d.res.kind === 'indes' ? '' : 'good'); }
       if (d.kind === 'upgrade') { UI.mwLast = { id: d.it.id, ranks: d.ranks, t: performance.now() }; if (d.mw >= 0) UI.toast('Masterworked: ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good'); }
@@ -795,6 +786,12 @@ UI.bind = function () {
   document.addEventListener('pointerdown', e => { UI.pressT = e.button === 0 ? performance.now() : 0; UI.px = e.clientX; UI.py = e.clientY; UI.pxT = performance.now(); }, true);
   for (const ev of ['pointerup', 'pointercancel', 'dragstart']) document.addEventListener(ev, release, true);
   window.addEventListener('blur', release);
+  // hovering one of the cube's offers lights up the affixes it could touch, in the offer's colour
+  document.addEventListener('mouseover', e => {
+    const c = e.target.closest ? e.target.closest('.offer-card') : null; if (c === UI.hoverCard && (!c || c.isConnected)) return; UI.hoverCard = c;
+    document.querySelectorAll('.aff-list li.tg').forEach(x => x.classList.remove('tg'));
+    if (c) for (const i of (c.dataset.tg || '').split(',').filter(Boolean)) { const li = document.querySelector(`.aff-list li[data-ai="${i}"]`); if (li) { li.classList.add('tg'); li.style.setProperty('--tc', c.style.getPropertyValue('--c')); } }
+  });
   document.addEventListener('pointerdown', () => A.unlock(), { once: false, passive: true });
   document.addEventListener('mousemove', e => {
     const el = e.target.closest && e.target.closest('[data-item],[data-skill],[data-tile],[data-tip]');
@@ -872,8 +869,7 @@ UI.bind = function () {
       return;
     }
     if ((el = t.closest('[data-tech]'))) { const [sk, id] = el.dataset.tech.split(':'); if (G.setTech(sk, id)) A.play('click'); hideTip(); return; }
-    if ((el = t.closest('[data-aim]'))) { UI.cubeCat = el.dataset.aim || null; mark('cube'); A.play('click'); return; }
-    if ((el = t.closest('[data-orb]'))) { UI.cubeOrb = el.dataset.orb; mark('cube'); A.play('click'); return; }
+    if ((el = t.closest('[data-pick]'))) { if (!G.pickTransmute(UI.forgeId, +el.dataset.pick)) deny('That offer is gone.'); return; }
     if ((el = t.closest('[data-skill][data-tree]'))) {
       const id = el.dataset.skill, was = G.skillOn(id), msg = G.toggleSkill(id);
       if (msg) deny(msg); else A.play(was ? 'click' : 'learn');
@@ -886,7 +882,7 @@ UI.bind = function () {
       else if (act === 'sort') { G.sortBag(); A.play('click'); }
       else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity. Upgrades, locked and Ancestral pieces are kept.'); }
       else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
-      else if (act === 'transmute') { if (!G.cube(UI.forgeId, UI.cubeOrb, UI.cubeCat)) deny('The cube does nothing.'); }
+      else if (act === 'buy-transmute') { if (!G.buyTransmute(UI.forgeId)) deny(I.offerCheck(G.findItem(UI.forgeId).it) || 'Not enough ember dust.'); }
       else if (act === 'equip-one') { if (!G.equip(UI.forgeId)) deny(G.equipWhy(UI.forgeId) || 'That cannot be equipped.'); }
       else if (act === 'bench-clear') { UI.forgeId = null; UI.cubeLast = null; hideTip(); mark('forge', 'bag', 'gear'); A.play('click'); }
       else if (act === 'upgrade') { if (!G.upgrade(UI.forgeId)) deny('You cannot afford that.'); }

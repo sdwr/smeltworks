@@ -43,9 +43,9 @@
     <section id="char">
       <div class="purse" id="purse">
         <div id="purse-pops"></div>
+        <div id="xpbar" data-tip="Kills fill this bar. When it is full, one piece you are wearing that has no offer waiting gets a free transmute: it sparkles, and its three offers are on the bench when you click it. Monsters well below your gear level fill it more slowly, and those 13 levels below not at all."><i></i><span></span></div>
         <span class="cur gold" data-tip="Gold. Dropped by everything. Pays for commissions, rerolling an affix and transfiguring."><i></i><b id="cur-gold">0</b></span>
-        <span class="cur dust" data-tip="Ember dust, the one crafting material. From salvaging any gear (more from better pieces), from elites and bosses, and now and then from ordinary monsters. Masterworking and everything the cube does are paid in it; rerolling an affix and transfiguring take some too."><i></i><b id="cur-dust">0</b></span>
-        <span class="cur soul" data-tip="Soulsteel. From bosses, and from salvaging Uniques, Ancestral gear and anything with a Greater affix. Used for transfiguring."><i></i><b id="cur-soul">0</b></span>
+        <span class="cur dust" data-tip="Ember dust, the one crafting material. From salvaging any gear (more from better pieces), from elites and bosses, and now and then from ordinary monsters. Masterworking and transmutes are paid in it; rerolling an affix and transfiguring take some too."><i></i><b id="cur-dust">0</b></span>
       </div>
       <div id="tab-gear"></div>
       <div id="bagwrap">
@@ -60,6 +60,7 @@
     </section>
 
     <section id="combat">
+      <div id="cooldown"></div>
       <div id="arena">
         <canvas id="cv"></canvas>
         <div id="banner"></div>
@@ -71,6 +72,7 @@
           <div class="orb heat" id="orb-heat" data-tip="Heat. Basic skills build it, Core skills spend it."><i></i><span></span></div>
         </div>
         <div id="buffs"></div>
+        <div id="depth" data-tip="How deep into this level you have got: the furthest column in which you cleared a room. The boss is in the last column. Shown for the run you are on, the last run you finished, and your deepest ever here."></div>
         <div id="meter" data-tip="Measured damage per second while enemies are alive, and where it came from over your last ten fights. Overkill is not counted."></div>
       </div>
       <div id="mapwrap">
