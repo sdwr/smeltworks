@@ -82,9 +82,12 @@ G.init = function (saved) {
     W.area = Math.min(D.AREAS.length - 1, Math.floor(W.area / 3), W.cleared[W.tier] || 0);
     W.map = null; S.lvlv = 1;
   }
-  if (!S.world.map) G.startExpedition(S.world.area, S.world.tier, true);
+  G.path = []; G.target = null; G.route = [];      // never carry tiles over from another map: they would be walked to without being shown
+  if (!S.world.map) { S.world.route = []; G.startExpedition(S.world.area, S.world.tier, true); }
+  for (const xy of S.world.route || []) { const c = G.cell(xy[0], xy[1]); if (G.canRoute(c)) G.route.push(c); }      // the route as it was planned, on this map's own tiles
 };
 G.save = function () {
+  G.S.world.route = G.route.map(c => [c.x, c.y]);      // the planned route is saved as coordinates and put back on load
   if (typeof localStorage === 'undefined') return;
   try { G.S.uid = I.getUid(); G.S.hp = G.persist.hp == null ? 1 : G.persist.hp; localStorage.setItem(SAVE_KEY, JSON.stringify(G.S)); } catch (e) { /* storage full or blocked */ }
 };

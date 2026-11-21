@@ -134,10 +134,10 @@ function tipFor(el, x, y) {
   } else if (el.dataset.tip) showTip(`<div class="tt plain">${el.dataset.tip}</div>`, x, y);
 }
 function tileTip(c) {
-  const names = { fight: 'Monster pack', elite: 'Elite pack', boss: 'Area boss', chest: 'Treasure chest', shrine: 'Shrine', start: 'Camp', wall: 'Impassable rock' };
+  const names = { fight: 'Monster pack', elite: 'Elite pack', boss: 'The boss', chest: 'Treasure chest', shrine: 'Shrine', start: 'Camp', wall: 'Impassable rock' };
   const desc = { fight: 'A fight. Gold and the odd piece of gear.', elite: 'An empowered monster with special powers. Always drops Magic gear or better.',
     boss: G.S.world.map.name ? `${G.S.world.map.name} guards the way on. Beat it to open the next area.` : 'The master of this act. Bring your best gear.',
-    chest: 'Free loot. No fight.', shrine: `A blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
+    chest: 'Free loot. No fight.', shrine: `Restores your Life, and gives a blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
   if (c.type === 'wall') return '<div class="tt plain"><b>Impassable rock</b><br>Solid stone. There is no way through: the smith has to go round.</div>';
   const stop = G.route.indexOf(c);
   const plan = stop >= 0 ? `<br><i class="hot">Stop ${stop + 1} on your route. Click to take it off.</i>` : G.canRoute(c) ? `<br><i>Click to ${G.route.length ? 'add it to your route' : G.phase === 'travel' && G.canEnter(c) ? 'head here instead' : 'go here'}.</i>` : '';
@@ -223,16 +223,18 @@ UI.frame = function () {
   if (UI.buffHtml !== bh) { UI.buffHtml = bh; $('buffs').innerHTML = bh; }
 };
 
-/* A number that rises from a purse counter when something is gained there (salvage) or sinks from it when something
-   is spent (crafting). Quick repeats of the same kind add up in the one that is still showing. */
-function pursePop(k, amt) {
-  if (!amt) return;
-  const host = $('cur-' + k); if (!host) return; const cur = host.parentElement, sign = amt > 0 ? 'up' : 'dn', now = performance.now();
-  let el = cur.querySelector('.pop.' + sign);
-  if (el && now - +el.dataset.t < 500) amt += +el.dataset.v; else { cur.querySelectorAll('.pop').forEach(x => x.remove()); el = document.createElement('em'); el.className = 'pop ' + sign; el.dataset.t = now; cur.appendChild(el); el.addEventListener('animationend', () => el.remove()); }
-  el.dataset.v = amt; el.textContent = (amt > 0 ? '+' : '−') + U.fmt(Math.abs(amt));
+/* A large line under the purse, in the middle of the character pane: green and rising for what a salvage gave, red
+   and sinking for what a craft cost, each amount with its material's icon. Quick repeats of the same kind add up in
+   the line that is still showing; anything else replaces it. */
+const POP_ORDER = ['gold', 'dust', 'soul'];
+function pursePop(vals, sign) {
+  const host = $('purse-pops'); if (!host) return; const now = performance.now();
+  let p = UI.pop;
+  if (p && p.sign === sign && now - p.t < 500 && p.el.isConnected) { for (const k in vals) p.vals[k] = (p.vals[k] || 0) + vals[k]; }
+  else { host.textContent = ''; const el = document.createElement('div'); el.className = 'pop ' + sign; host.appendChild(el); el.addEventListener('animationend', () => el.remove()); p = UI.pop = { el, sign, t: now, vals: Object.assign({}, vals) }; }
+  p.el.innerHTML = POP_ORDER.filter(k => p.vals[k]).map(k => `<span><i class="ci ${k}"></i>${sign === 'up' ? '+' : '−'}${U.fmt(p.vals[k])}</span>`).join('');
 }
-const purseGain = y => { for (const k in y) pursePop(k, y[k]); }, purseSpend = c => { for (const k in c) pursePop(k, -c[k]); };
+const purseGain = y => pursePop(y, 'up'), purseSpend = c => pursePop(c, 'dn');
 /* -------------------------------------------------------- damage meter */
 const SRC_NAME = { burn: 'Burn', bleed: 'Bleed', thorns: 'Thorns', proc: 'Unique powers and procs', punch: 'Punch' };
 let meterT = 0;

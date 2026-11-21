@@ -189,6 +189,20 @@ test('With no route, clicking a room while walking sends the smith there instead
   assert.equal(G.phase, 'battle'); assert.equal(G.target, up); assert.ok(near(pos().x, 0) && near(pos().y, 2 - D.DOOR), 'at the doorway of the new room');
   assert.equal(right.state, 'seen', 'the first room was left alone');
 });
+test('The planned route survives a reload, on the new page\'s own tiles', (SW, G, D, I) => {
+  const S = G.S; S.opts.auto = false; const a = G.cell(1, 2), b = G.cell(2, 2), c = G.cell(3, 2); a.type = b.type = c.type = 'fight'; a.state = 'seen';
+  G.routeToggle(a); G.routeToggle(b); G.routeToggle(c); assert.equal(G.route.length, 3);
+  G.save(); assert.equal(JSON.stringify(S.world.route), '[[1,2],[2,2],[3,2]]');
+  const copy = JSON.parse(JSON.stringify(S)); G.init(copy);      // what a page reload does: the same save, all new objects
+  assert.equal(G.route.length, 3, 'the route is back'); assert.ok(G.route.every(x => copy.world.map.cells.includes(x)), 'made of this map\'s tiles, so the numbers are drawn');
+  assert.equal(G.route.map(x => x.x).join(), '1,2,3'); assert.equal(G.route.indexOf(G.cell(2, 2)), 1);
+  for (let i = 0; i < 400 && G.phase !== 'battle'; i++) G.update(0.05); assert.equal(G.target, G.cell(1, 2), 'and the smith carries on along it');
+  // tiles from another map are never kept: loading a different save drops the route rather than walking it unseen
+  const other = G.fresh(); G.init(other); assert.equal(G.route.length, 0); assert.equal(G.target, null);
+  // a saved stop that is no longer valid (cleared, or walled on a new map) is left out, and so is everything that hung on it
+  const S2 = G.S; const p = G.cell(1, 2), q = G.cell(2, 2); p.type = q.type = 'fight'; p.state = 'seen'; G.routeToggle(p); G.routeToggle(q); G.save();
+  const c2 = JSON.parse(JSON.stringify(S2)); c2.world.map.cells.find(x => x.x === 1 && x.y === 2).type = 'wall'; G.init(c2); assert.equal(G.route.length, 0);
+});
 test('A fall ends the run: a fresh map of the same level, everything kept, and the route cleared', (SW, G, D, I) => {
   const S = G.S; S.opts.auto = false; const a = G.cell(1, 2), b = G.cell(2, 2); a.type = b.type = 'fight'; a.state = 'seen';
   G.routeToggle(a); G.routeToggle(b); assert.equal(G.route.length, 2);

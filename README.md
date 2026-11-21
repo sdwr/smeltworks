@@ -142,8 +142,10 @@ the skill bar to drink it.
 - **Damage meter.** The arena shows measured DPS for the current fight, the average over the last ten, and which
   skills, burns, bleeds and procs did the damage. Bars are coloured by damage type (steel for Physical, orange for
   Fire, blue for Lightning); hover one for the type, or the split when a skill deals two.
-- **The purse.** Gold, ember dust and soulsteel sit at the head of the character pane. Salvaging pops a green
-  +amount at the counter, and anything you pay for at the forge or the cube pops a red −amount.
+- **The purse.** Gold, ember dust and soulsteel sit at the head of the character pane. Salvaging pops a large green
+  +amount in the middle of the pane, and anything you pay for at the forge or the cube pops a red −amount there.
+- **Routes survive a reload.** A planned route is saved with the game, so reloading the page keeps both the numbers
+  on the map and the walking.
 - **Auto.** Explores, fights, starts the next run after a fall, moves on to the next level, and steps back a level if three runs in a row end at the door.
 
 ## Which affixes roll where
