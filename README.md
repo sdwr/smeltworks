@@ -6,7 +6,20 @@ your job is the build: skills, gear, and what you remake at the forge.
 Open `index.html` in a browser: there is nothing to build or install. The game opens on the Crafting tab.
 
 **Hosting.** The repository root is the site, so GitHub Pages can serve it as it is: Settings, Pages, "Deploy from a
-branch", `main`, `/ (root)`. No workflow and no build.
+branch", `main`, `/ (root)`. No workflow and no build. Hosted, it is at https://sdwr.github.io/smeltworks/.
+
+The pause and speed buttons and Auto are on the map's header. A new save starts with Auto on but held: the button
+reads Start, and the smith waits for that one click (or a click on a tile) before setting off.
+
+**Play data.** On the hosted address only, the game asks once whether it may send anonymous notes on how runs go,
+and sends nothing before a yes; Settings has the switch afterwards. Opened from a file, a local server or anywhere
+else, it never asks and never sends. What is sent: a `session_start` when the page loads, a `run_end` whenever a
+run is cleared, left or lost (level, rooms cleared, seconds, kills, gear level, Damage and Toughness, the skill
+bar, what killed you, and counts of what you crafted since the last one), and JavaScript errors (at most five a
+page load, with addresses cut down to file names). Each carries a random id for the browser, one for the page load
+and one for the run; no name, address or typed text. Events wait in local storage and are posted together to the
+collector in [smeltworks-logging](https://github.com/sdwr/smeltworks-logging) (`D.TELEMETRY` in `js/data.js`), and
+`D.VERSION` is the version they report: bump it when balance changes.
 
 ## Play
 
@@ -74,7 +87,9 @@ the skill bar to drink it.
   the masterwork to a different affix. Saves from the old system convert each upgrade to five ranks.
 - **What a piece is worth.** The bench shows what the piece on it adds to your Damage and Toughness: your numbers
   with it worn, against the same slot left empty (a weapon against bare hands that swing as fast). Whenever you add, remove or reroll an affix, masterwork or
-  transfigure, the change rises in green or sinks in red beside each number.
+  transfigure, the change rises in green or sinks in red beside each number. Each affix in the bench's list also
+  says what it alone adds (the piece with it against the piece without it); affixes multiply one another, so those
+  do not quite sum to the total. These estimates are on the bench only, not in tooltips.
 - **Weapon Damage.** An Offence affix that only weapons roll: +6 to 12% to the weapon's own damage at any item
   level. Every skill is a percentage of weapon damage, so it multiplies everything else, as Strength does.
 - **First kills.** A boss's first kill pays a Rare, with a guaranteed Greater affix from the third level on.
@@ -107,8 +122,8 @@ the skill bar to drink it.
   The affix you rerolled at the forge is locked (and marked so): no offer removes it, replaces it, renumbers it or
   moves its tier. Greater affixes keep their number and tier. A Unique is only ever offered ways to renumber it.
   While an offer waits the piece can still be masterworked, rerolled at the forge and transfigured. If the reroll
-  locks an affix that an option was aimed at, or the change leaves an option with nothing to do, the cube swaps
-  that option for a new one. A piece that transfiguring seals loses its offer.
+  locks an affix that an option was aimed at, or the change leaves an option with nothing to do, that option turns
+  into "Leave it be". A piece that transfiguring seals loses its offer.
 - **Free transmutes.** Kills fill a bar at the head of the character pane (1 for a monster, 4 for an elite, 12 for a
   boss, 30 to fill). When it is full, one piece you are wearing that has no offer waiting gets a transmute for
   nothing: it sparkles until you take one of its three offers. If every worn piece is busy the bar waits, full.
@@ -280,13 +295,14 @@ Plain scripts, loaded in order by `index.html`, all hanging off one global `SW`.
 | `js/hero.js` | The stat sheet, level curves, the power rating used for comparisons |
 | `js/combat.js` | The battle engine. No DOM. Emits events for the renderer |
 | `js/game.js` | Save state, map generation, drops, experience, the update loop, player actions |
+| `js/telemetry.js` | Play data: what is noted about a run, the queue, and when it may be sent |
 | `js/sprites.js` | Every sprite, drawn as character grids and painted through palettes |
 | `js/fx.js` | The arena canvas: actors, particles, damage numbers, loot beams |
 | `js/audio.js` | Synthesised sound effects |
 | `js/ui.js` | Everything in the DOM: map, gear, skills, forge, tooltips, dialogs |
 | `js/main.js` | Boot and the frame loop |
 
-The first five files have no DOM in them, so they run under Node for tests.
+The first six files have no DOM in them, so they run under Node for tests.
 
 ## Tests and tuning
 

@@ -21,10 +21,11 @@ function boot() {
   const saved = G.load();
   G.on(UI.onGame);
   G.init(saved);
+  SW.telemetry.init();
   FX.init(document.getElementById('cv'));
   UI.bind();
   UI.fresh();
-  if (!saved) UI.welcome();
+  if (!saved) UI.welcome(); else UI.askPlayData();
   const ico = document.createElement('link'); ico.rel = 'icon'; ico.href = SW.sprites.url('hammer', 'ember', 2); document.head.appendChild(ico);
 
   let last = performance.now(), saveT = 0, hiddenAt = 0;

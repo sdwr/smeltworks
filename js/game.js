@@ -17,9 +17,9 @@ G.fresh = function () {
     hero: { bar: ['strike', 'sunder', 'quake', 'ironskin', 'meteor'], passives: ['heavy', 'tempered', 'crush'], tech: Object.fromEntries(Object.keys(D.TECH).map(k => [k, D.TECH[k][0].id])) },
     gear: {}, bag: [], stash: [], gold: 0, mats: { dust: 0 },
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
-    opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6, autoFlask: true },
+    opts: { speed: 1, auto: true, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6, autoFlask: true },
     stats: { kills: 0, deaths: 0, uniq: 0, time: 0, clears: 0, elites: 0, bosses: {}, best: 0 },
-    seen: {}, uid: 1,
+    seen: {}, uid: 1, held: 1,      // held: Auto is on, but waits for one click before the first run
   };
   for (const s of D.SLOTS) S.gear[s] = null;
   const w = I.roll(1, { slot: 'weapon', base: 'hammer', rar: 0 }); w.name = "Apprentice's Hammer"; w.isNew = 0;
@@ -170,6 +170,7 @@ G.startExpedition = function (area, tier, quiet) {
   const W = G.S.world;
   // a fall, or walking away from a run in progress, costs a wait before the next run can begin
   const cut = W.map && W.map.cells ? (W.map.fell ? 'fell' : !W.map.bossDone && G.runBegun(W.map) ? 'left' : null) : null;
+  if (cut) G.emit('runOver', { why: cut, area: W.map.area, tier: W.map.tier, rooms: G.depthRec(W.map.area, W.map.tier).now });      // a run cut short: fell, or left
   G.endRun();                                               // note how deep the run that is ending got
   W.cool = cut ? D.RUN_COOLDOWN : 0; W.coolWhy = cut;
   W.area = area; W.tier = tier;
@@ -243,6 +244,18 @@ G.itemWorth = function (it) {
   const g0 = Object.assign({}, S.gear), g1 = Object.assign({}, S.gear); g0[slot] = null; g1[slot] = it;
   const a = Hr.compute(S, g0, it.slot === 'weapon' ? I.implicit(it).aps : 0).rating, b = Hr.compute(S, g1).rating;
   return { off: Math.round(b.off - a.off), def: Math.round(b.def - a.def) };
+};
+/* The same for each affix on its own: the piece as it is, against the piece without that one affix. Because the
+   affixes multiply one another these do not sum to the piece's total. */
+G.affixWorth = function (it) {
+  const S = G.S, slot = it.slot === 'ring' ? (S.gear.ring2 === it ? 'ring2' : 'ring1') : it.slot, g = Object.assign({}, S.gear);
+  g[slot] = it; const full = Hr.compute(S, g).rating;
+  return it.affixes.map((a, i) => {
+    g[slot] = Object.assign({}, it, { affixes: it.affixes.filter((x, k) => k !== i), mw: (it.mw || []).filter(k => k !== i).map(k => (k > i ? k - 1 : k)), ench: it.ench === i ? -1 : it.ench > i ? it.ench - 1 : it.ench });
+    const r = Hr.compute(S, g).rating;
+    const near = v => (Math.abs(v) < 10 ? Math.round(v * 10) / 10 : Math.round(v));      // small ones keep a decimal, or an early crit roll would read as nothing
+    return { off: near(full.off - r.off), def: near(full.def - r.def) };
+  });
 };
 /* the slots this piece may go in: its own, minus any that would leave the same Unique worn twice */
 G.equipSlots = function (it, slotHint) {
@@ -380,10 +393,12 @@ G.routeToggle = function (c) {
   }
   if (!G.canRoute(c)) return null;
   const turn = !G.route.length && G.phase === 'travel' && c !== G.target && G.canEnter(c);    // on the move with no route: go there now
-  G.route.push(c);
+  G.route.push(c); G.begin();
   const res = turn && G.redirect(c) ? 'redirected' : 'added';
   G.emit('route'); return res;
 };
+/* a new save waits for one click (Start, Auto, or a tile) before the smith sets off */
+G.begin = function () { if (!G.S.held) return false; G.S.held = 0; G.emit('begin'); return true; };
 G.clearRoute = function () { if (G.route[0] === G.target) G.halt(); G.route = G.phase !== 'idle' && G.phase !== 'travel' && G.route[0] === G.target ? [G.target] : []; G.emit('route'); };
 /* Call the walk off. The smith goes on to the tile ahead if that is a cleared one, and otherwise turns round to the
    tile just left; either way they stop there. */
@@ -425,6 +440,7 @@ G.enterCell = function (c) {
   if (G.phase !== 'idle' || G.S.world.cool > 0 || !G.canEnter(c)) return false;
   const path = G.findPath(c);
   if (!path) return false;
+  G.S.held = 0;
   G.path = path; G.target = c; G.phase = 'travel'; G.phaseT = 0; G.halting = false;
   G.emit('travel', { path });
   return true;
@@ -466,7 +482,7 @@ G.update = function (dt) {
       if (G.route.length !== n) G.emit('route');
       if (G.route.length) { G.enterCell(G.route[0]); return; }
     }
-    if (!S.opts.auto) return;
+    if (!S.opts.auto || S.held) return;                    // a new save has Auto on, and waits for one click before it sets off
     const done = map.bossDone && (map.allDone || !S.opts.full);
     if (done) { G.finishArea(); return; }
     const c = G.autoPick();
@@ -677,7 +693,7 @@ G.enchant = function (id, idx) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
   if (!I.canEnchant(it, idx) || !G.pay(I.enchantCost(it))) return null;
-  const was = it.affixes[idx].g, a = I.enchant(it, idx, G.S.world.tier), swapped = I.offerMend(it);      // an option aimed at the affix now locked is swapped for another
+  const was = it.affixes[idx].g, a = I.enchant(it, idx, G.S.world.tier), swapped = I.offerMend(it);      // an option aimed at the affix now locked becomes "Leave it be"
   G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'enchant', it, a, was, swapped }); G.save();
   return a;
 };

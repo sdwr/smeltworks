@@ -2,7 +2,7 @@
 const vm = require('node:vm'), fs = require('node:fs'), path = require('node:path');
 function load() {
   const ctx = vm.createContext({ console, Math: Object.create(Math), Date, JSON, btoa: s => Buffer.from(s, 'binary').toString('base64'), atob: s => Buffer.from(s, 'base64').toString('binary'), escape, unescape, encodeURIComponent, decodeURIComponent });
-  for (const f of ['data', 'items', 'hero', 'combat', 'game']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), ctx, { filename: f + '.js' });
+  for (const f of ['data', 'items', 'hero', 'combat', 'game', 'telemetry']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), ctx, { filename: f + '.js' });
   ctx.SW.headless = true;
   return ctx.SW;
 }
@@ -43,7 +43,7 @@ function play(SW, o) {
   SW.util.seed(o.seed || 1);
   G.listeners.length = 0; for (const f of o.keep || []) G.listeners.push(f);     // o.keep: listeners a test wants to survive the reset
   G.init(null);
-  const S = G.S; S.opts.auto = true; S.opts.full = o.full !== false; S.opts.onClear = 'advance';
+  const S = G.S; S.opts.auto = true; S.held = 0; S.opts.full = o.full !== false; S.opts.onClear = 'advance';
   const build = o.noTech ? Object.assign({}, BUILDS[o.build || 'hammer'], { tech: {} }) : BUILDS[o.build || 'hammer'], log = [], setTimeout0 = [];      // noTech: play without techniques, to measure what they add
   let fights = 0, wins = 0, fightT = 0, fStart = 0, dz = { fight: [], elite: [], boss: [] }, bossT = 0;
   G.on((type, d) => {

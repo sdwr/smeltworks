@@ -6,9 +6,12 @@ let n = 0;
 function cube(SW, id, op, cat, extra) { const G = SW.game, I = SW.items, f = G.findItem(id), o = Object.assign({ op }, cat ? { cat } : {}, extra || {}); if (!f || f.it.offer || !I.cubeValid(f.it, o)) return null; f.it.offer = [o]; return G.pickTransmute(id, 0); }
 const OLD = { add: 'add', remove: 'remove', chaos: 'recast', divine: 'values' };
 const failed = [];      // ALL=1 runs every check and lists the failures instead of stopping at the first
-function test(name, fn) { const SW = load(); SW.util.seed(1234 + n + failed.length); SW.game.init(null);
-  try { fn(SW, SW.game, SW.data, SW.items, SW.hero); } catch (e) { if (!process.env.ALL) throw e; failed.push(name); console.log('FAIL ' + name + '\n     ' + String(e.message).split('\n')[0].slice(0, 260)); return; }
-  n++; console.log('PASS ' + name); }
+/* checks run one after another; one that returns a promise (the play-data check posts asynchronously) is waited for */
+let chain = Promise.resolve();
+function test(name, fn) {
+  chain = chain.then(() => { const SW = load(); SW.util.seed(1234 + n + failed.length); SW.game.init(null); return fn(SW, SW.game, SW.data, SW.items, SW.hero); })
+    .then(() => { n++; console.log('PASS ' + name); }, e => { if (!process.env.ALL) { console.error(e); process.exit(1); } failed.push(name); console.log('FAIL ' + name + '\n     ' + String(e.message).split('\n')[0].slice(0, 260)); });
+}
 
 test('A fresh save starts with a weapon, a basic skill and a map', (SW, G, D) => {
   const S = G.S;
@@ -1164,15 +1167,17 @@ test('The forge reroll and transfiguring work while the cube\'s offer waits, and
   let it = mk(); it.offer = [{ op: 'add' }, { op: 'pass' }, { op: 'shuffle' }]; assert.ok(I.canEnchant(it, 0)); assert.equal(I.transfigCheck(it), null);
   let ev = null; G.on((t, d) => { if (t === 'forge') ev = d; });
   assert.ok(G.enchant(it.id, 2)); assert.equal(it.ench, 2); assert.equal(ev.swapped, 0); assert.equal(it.offer.map(I.cubeKey).join(), 'add:::,pass:::,shuffle:::');
-  // one aimed at the affix that is now locked is swapped for something that does apply; the rest stay where they were
+  // one aimed at the affix that is now locked turns into "Leave it be" where it stands; the rest are untouched
   for (let i = 0; i < 60; i++) {
     it = mk(); it.offer = [{ op: 'remove', cat: 'off' }, { op: 'add' }, { op: 'perfect' }]; it.offerFree = 1;
     assert.ok(G.enchant(it.id, 2)); assert.equal(it.offer.length, 3); assert.equal(it.offerFree, 1);
-    assert.ok(it.offer.every(o => I.cubeValid(it, o)), it.offer.map(I.cubeKey).join()); assert.equal(new Set(it.offer.map(I.cubeKey)).size, 3);
-    assert.equal(it.offer[1].op, 'add'); assert.equal(it.offer[2].op, 'perfect', 'the ones that still apply keep their places');
-    if (!I.inCat(it.affixes[2].k, 'off') || it.ench === 2) assert.ok(ev.swapped >= 1 || I.cubeValid(it, { op: 'remove', cat: 'off' }));
-    const locked = JSON.stringify(it.affixes[2]); for (let n = 0; n < 3 && it.offer; n++) { G.pickTransmute(it.id, 0); if (it.affixes[it.ench]) assert.equal(JSON.stringify(it.affixes[it.ench]), locked, 'the locked affix is never touched'); it.offer = I.cubeOffer(it); }
+    const stillOff = I.cubeValid(it, { op: 'remove', cat: 'off' });      // only if the reroll... never: the one Offence affix is the locked one
+    assert.equal(stillOff, false); assert.equal(ev.swapped, 1);
+    assert.equal(I.cubeKey(it.offer[0]), 'pass:::', 'the blocked option does nothing now'); assert.equal(I.cubeKey(it.offer[1]), 'add:::'); assert.equal(I.cubeKey(it.offer[2]), 'perfect:::');
+    const before = JSON.stringify(it.affixes), r = G.pickTransmute(it.id, 0); assert.equal(r.op, 'pass'); assert.equal(JSON.stringify(it.affixes), before, 'and taking it changes nothing'); assert.equal(it.offer, undefined);
   }
+  // every option blocked: three ways to do nothing, and the offer is still there to be answered
+  it = mk(); it.affixes = [{ k: 'crit', r: 0.5, g: 0, ti: 2 }]; it.offer = [{ op: 'remove' }, { op: 'reroll' }, { op: 'perfect' }]; assert.ok(G.enchant(it.id, 0)); assert.equal(it.offer.map(I.cubeKey).join(), 'pass:::,pass:::,pass:::'); assert.equal(ev.swapped, 3);
   // transfiguring: a piece that is sealed loses its offer, one that stays open keeps an offer that still applies
   let lost = 0, kept = 0;
   for (let i = 0; i < 300; i++) {
@@ -1189,6 +1194,88 @@ test('The forge reroll and transfiguring work while the cube\'s offer waits, and
     assert.equal(a.offer, undefined); assert.ok(b.offer, 'the other piece keeps its own'); return;
   }
   assert.fail('never sealed');
+});
+test('Each affix shows what it alone adds to Damage and Toughness', (SW, G, D, I) => {
+  const S = G.S; const it = I.roll(30, { rar: 2, slot: 'gloves' }); it.affixes = [{ k: 'crit', r: 0.5, g: 0, ti: 3 }, { k: 'life', r: 0.5, g: 0, ti: 3 }, { k: 'heat', r: 0.5, g: 0, ti: 3 }, { k: 'skEmber', r: 0.5, g: 0 }];
+  S.gear.gloves = it; S.gear.weapon = I.roll(30, { rar: 2, slot: 'weapon' }); G.recompute();
+  const w = G.affixWorth(it), tot = G.itemWorth(it); assert.equal(w.length, 4);
+  assert.ok(w[0].off > 0 && w[0].def === 0, 'crit is damage: ' + JSON.stringify(w[0])); assert.ok(w[1].def > 0 && w[1].off === 0, 'life is toughness: ' + JSON.stringify(w[1]));
+  assert.equal(w[3].off, 0, 'ranks for skills that are not on the bar add nothing'); assert.equal(w[3].def, 0);
+  assert.ok(w[0].off <= tot.off && w[1].def <= tot.def, 'no one affix is worth more than the piece');
+  // it is the piece with the affix against the piece without it
+  const less = Object.assign({}, it, { affixes: it.affixes.slice(1) }), g = Object.assign({}, S.gear, { gloves: less });
+  { const d = SW.hero.compute(S, S.gear).rating.off - SW.hero.compute(S, g).rating.off; assert.ok(Math.abs(w[0].off - d) <= 0.5, w[0].off + ' against ' + d); }
+  // a masterworked affix counts for more, and the bookkeeping survives taking an earlier affix away
+  it.up = D.MW_MAX; it.mw = [1]; G.recompute(); const w2 = G.affixWorth(it); assert.ok(w2[1].def > w[1].def * 1.2, 'masterworked life: ' + w2[1].def + ' against ' + w[1].def);
+  assert.ok(w2[0].off >= w[0].off); assert.equal(JSON.stringify(it.mw), '[1]', 'the piece itself is not touched'); assert.equal(it.affixes.length, 4);
+  // a piece in the bag is judged as if worn
+  const ring = I.roll(30, { rar: 2, slot: 'ring' }); ring.affixes = [{ k: 'dmgPct', r: 0.5, g: 0, ti: 3 }]; S.bag[0] = ring; assert.ok(G.affixWorth(ring)[0].off > 0); assert.equal(G.affixWorth(I.roll(30, { rar: 0, slot: 'ring' })).length, 0);
+});
+test('A new save has Auto on, and waits for one click before the smith sets off', (SW, G, D, I) => {
+  const S = G.S; assert.equal(S.opts.auto, true); assert.equal(S.held, 1);
+  for (let i = 0; i < 400; i++) G.update(0.05); assert.equal(G.phase, 'idle', 'nothing moves'); assert.equal(G.target, null); assert.equal(S.stats.kills, 0);
+  let began = 0; G.on(t => { if (t === 'begin') began++; });
+  assert.equal(G.begin(), true); assert.equal(S.held, 0); assert.equal(began, 1); assert.equal(G.begin(), false, 'only the once');
+  for (let i = 0; i < 400 && G.phase === 'idle'; i++) G.update(0.05); assert.equal(G.phase, 'travel', 'and Auto takes it from there');
+  // clicking a tile starts it too
+  G.init(null); const S2 = G.S; assert.equal(S2.held, 1); const c = S2.world.map.cells.find(x => G.canEnter(x)); assert.equal(G.routeToggle(c), 'added'); assert.equal(S2.held, 0);
+  for (let i = 0; i < 400 && G.phase === 'idle'; i++) G.update(0.05); assert.equal(G.target, c);
+  // and a save from before has no hold
+  const old = G.fresh(); delete old.held; old.opts.auto = true; G.init(old); for (let i = 0; i < 400 && G.phase === 'idle'; i++) G.update(0.05); assert.equal(G.phase, 'travel');
+  const copy = JSON.parse(JSON.stringify(G.fresh())); G.init(copy); assert.equal(G.S.held, 1, 'the hold is saved, so a reload before the first click still waits');
+});
+test('Play data: nothing leaves without the hosted address and a yes; then runs, crafting and errors are queued and posted', (SW, G, D, I) => {
+  const T = SW.telemetry, S = G.S, store = {}, posts = []; let host = 'localhost', ok = true;
+  T.env = { host: () => host, get: k => (k in store ? store[k] : null), set: (k, v) => { if (v == null) delete store[k]; else store[k] = v; }, post: (url, body) => { posts.push({ url, body }); return ok; }, beacon: (url, body) => { posts.push({ url, body, beacon: 1 }); return true; }, os: () => 'Test' };
+  const lines = () => (store['smeltworks.tq'] || '').split('\n').filter(Boolean).map(l => JSON.parse(l));
+  T.init(); assert.equal(T.hosted(), false); assert.equal(T.enabled(), false); assert.equal(T.push('x', {}), false); assert.equal(lines().length, 0, 'not the hosted game: nothing is even queued');
+  T.setEnabled(true); assert.equal(T.enabled(), false, 'a yes does not matter off the hosted address'); assert.equal(posts.length, 0);
+  host = 'sdwr.github.io'; store['smeltworks.tele'] = JSON.stringify({ id: 'abc', on: false, asked: false });
+  assert.ok(T.hosted()); assert.equal(T.asked(), false); assert.equal(T.enabled(), false); T.runEnd('left', { area: 0, tier: 0, rooms: 2 }); assert.equal(lines().length, 0, 'hosted, but not agreed to');
+  // yes: the session is announced and posted in one go
+  T.setEnabled(true); assert.ok(T.asked() && T.enabled());
+  assert.equal(posts.length, 1); assert.equal(posts[0].url, D.TELEMETRY.url); let ev = JSON.parse(posts[0].body.trim());
+  assert.equal(ev.type, 'session_start'); assert.equal(ev.game, 'SMELTWORKS'); assert.equal(ev.version, D.VERSION); assert.equal(ev.install, 'abc'); assert.ok(ev.session && ev.run && /^\d{4}-\d\d-\d\dT/.test(ev.time)); assert.equal(ev.os, 'Test');
+  assert.equal(ev.data.level, 1); assert.equal(ev.data.bar.join(), 'strike,sunder,quake,ironskin,meteor'); assert.equal(ev.data.fresh, true);
+  return Promise.resolve().then(() => {
+    assert.equal(lines().length, 0, 'a post that worked empties the queue');
+    // a run that is walked away from, with what was crafted on the way
+    S.held = 0; S.opts.auto = false; S.mats.dust = 1000; S.gold = 1e6; const run0 = T.run;
+    const it = I.roll(5, { rar: 2, slot: 'ring' }); S.bag[0] = it; assert.ok(G.buyTransmute(it.id)); assert.ok(G.pickTransmute(it.id, 0)); assert.ok(G.upgrade(it.id)); G.salvage(it.id);
+    G.completeCell(S.world.map.cells.find(c => G.canEnter(c))); G.completeCell(S.world.map.cells.find(c => G.canEnter(c))); S.stats.time += 90; S.stats.kills += 7;
+    ok = false; G.startExpedition(0, 0, true);
+    let q = lines(); assert.equal(q.length, 1); ev = q[0]; assert.equal(ev.type, 'run_end'); assert.equal(ev.run, run0); assert.notEqual(T.run, run0, 'the next run has its own id');
+    assert.equal(ev.data.why, 'left'); assert.equal(ev.data.rooms, 2); assert.equal(ev.data.secs, 90); assert.equal(ev.data.kills, 7); assert.equal(ev.data.area, 0); assert.equal(ev.data.level, 1); assert.equal(ev.data.killer, null);
+    assert.equal(ev.data.craft.bought, 1); assert.equal(ev.data.craft.upgrade, 1); assert.equal(ev.data.craft.salvage, 1); assert.equal(Object.keys(ev.data.craft).filter(k => /^pick_/.test(k)).length, 1);
+    assert.ok(ev.data.gear >= 1 && ev.data.off > 0 && ev.data.def > 0);
+    return Promise.resolve();
+  }).then(() => {
+    assert.equal(lines().length, 1, 'a post that failed leaves the queue for next time');
+    // a fall: the run ends with what did it
+    S.world.cool = 0; const c = S.world.map.cells.find(x => G.canEnter(x)); c.type = 'fight'; G.target = c; G.battle = new SW.Battle(G.C, {}, G.makeSpec(c), {}, false); for (let i = 0; i < 20 && !G.battle.alive().length; i++) G.battle.step(0.05);
+    const name = G.battle.alive()[0].def.name; G.battle.h.hp = 0; G.battle.over = 'lose'; G.phase = 'battle'; G.update(0.05); for (let i = 0; i < 100 && G.phase === 'dead'; i++) G.update(0.05);
+    let q = lines(); assert.equal(q.length, 2); ev = q[1]; assert.equal(ev.data.why, 'fell'); assert.equal(ev.data.killer.name, name); assert.equal(ev.data.killer.boss, false); assert.equal(ev.data.falls, 1); assert.deepEqual(ev.data.craft, {}, 'crafting is counted once');
+    return Promise.resolve();
+  }).then(() => {
+    // the boss: cleared, and marked as the first time
+    let q, ev; ok = true; S.world.cool = 0; G.completeCell(S.world.map.cells.find(x => x.type === 'boss'));
+    q = posts[posts.length - 1].body.trim().split('\n').map(l => JSON.parse(l)); assert.equal(q.length, 3, 'everything waiting goes in one post'); ev = q[2];
+    assert.equal(ev.data.why, 'cleared'); assert.equal(ev.data.first, true); assert.equal(ev.data.boss, true); assert.equal(ev.data.rooms, 1);
+    return Promise.resolve();
+  }).then(() => {
+    assert.equal(lines().length, 0);
+    // errors: trimmed of addresses, and no more than five a session
+    for (let i = 0; i < 9; i++) T.error('boom ' + i, 'at f (https://sdwr.github.io/smeltworks/js/ui.js:10:5)\n at file:///C:/Users/someone/game/js/game.js:3:1');
+    const errs = lines().filter(e => e.type === 'error');
+    assert.equal(new Set(errs.map(e => e.data.message)).size, 5); assert.ok(!/https?:|file:|someone/.test(JSON.stringify(errs)), 'no addresses or folders: ' + errs[0].data.stack); assert.ok(/ui\.js:10:5/.test(errs[0].data.stack));
+    return Promise.resolve();
+  }).then(() => {
+    // leaving the page hands the rest to the browser; saying no stops everything and empties the queue
+    ok = false; T.push('run_end', { why: 'left' }); const n = posts.length; T.farewell(); assert.equal(posts.length, n + 1); assert.ok(posts[n].beacon); assert.equal(lines().length, 0);
+    T.push('run_end', { why: 'left' }); assert.equal(lines().length, 1); T.setEnabled(false); assert.equal(lines().length, 0); assert.equal(T.push('run_end', {}), false); assert.ok(T.asked());
+    // a long time offline: the oldest lines are dropped first
+    T.setEnabled(true); for (let i = 0; i < 900; i++) T.push('run_end', { n: i, pad: 'x'.repeat(200) }); const q = lines(); assert.ok((store['smeltworks.tq'] || '').length <= 150000); assert.equal(q[q.length - 1].data.n, 899); assert.ok(q[0].data.n > 0 || q[0].type === 'session_start');
+  });
 });
 test('Depth: how far this run has got, how far the last one got, and the deepest ever on the level', (SW, G, D, I) => {
   const S = G.S, W = S.world, clear = x => { const c = W.map.cells.find(k => k.x === x && k.type !== 'wall'); G.completeCell(c); return c; };
@@ -1225,5 +1312,7 @@ test('A rushing player who never crafts still beats the first level and reaches 
   assert.ok(W.cleared[0] >= 1, 'the first level not finished in two hours'); assert.ok(r.S.stats.deaths >= 2, 'and not without falling: ' + r.S.stats.deaths);
   assert.ok(W.cleared[0] >= 2 || far >= SW.data.MAP_W - 2, 'and the second level is within reach without the forge: column ' + far + ', ' + JSON.stringify(W.depth));
 });
-if (failed.length) { console.log(failed.length + ' FAILED, ' + n + ' passed.'); process.exit(1); }
-console.log(n + ' checks passed.');
+chain.then(() => {
+  if (failed.length) { console.log(failed.length + ' FAILED, ' + n + ' passed.'); process.exit(1); }
+  console.log(n + ' checks passed.');
+});

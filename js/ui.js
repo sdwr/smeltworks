@@ -207,7 +207,7 @@ function renderTop() {
   $('where-area').textContent = area.name;
   $('where-lvl').textContent = `Lv ${lvl}–${lvl + D.areaSpan(W.tier)}`;
   document.querySelectorAll('#speed button').forEach(b => b.classList.toggle('on', +b.dataset.speed === S.opts.speed));
-  $('btn-auto').classList.toggle('on', !!S.opts.auto);
+  { const b = $('btn-auto'), held = !!(S.held && S.opts.auto); b.classList.toggle('on', !!S.opts.auto && !held); b.classList.toggle('start', held); b.textContent = held ? '▶ Start' : 'Auto'; }
   $('btn-sound').classList.toggle('off', !S.opts.sound);
   $('opt-full').checked = !!S.opts.full; $('opt-advance').checked = S.opts.onClear === 'advance';
   const pts = emptySlots();
@@ -363,7 +363,8 @@ const emptySlots = () => G.S.hero.bar.concat(G.S.hero.passives).filter(x => !x).
 function renderHint() {
   const S = G.S, map = S.world.map;
   let t = '';
-  if (!S.seen.fought) t = 'Click a glowing tile on the map to fight there.';
+  if (S.held && S.opts.auto) t = 'Press Start and the smith explores and fights alone. Or click a glowing tile to pick the first fight yourself.';
+  else if (!S.seen.fought) t = 'Click a glowing tile on the map to fight there.';
   else if (S.world.falls && S.world.falls.n > 0 && S.world.falls.key === S.world.tier + ':' + S.world.area && !map.bossDone && map.cells.filter(c => c.state === 'done').length <= 3)
     t = emptySlots() > 0 ? `You fell, and a new run begins. You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}: open Skills and fill them.`
       : S.bag.some(b => b && b.upg) ? 'You fell, and a new run begins. Something in your bag is better than what you wear: look for the green arrow.'
@@ -483,6 +484,12 @@ function worthHtml(it) {
   return `<div class="an-worth" data-tip="What this piece adds for you: your Damage and Toughness with it worn, against the same slot left empty (for a weapon, bare hands that swing as fast). It depends on the rest of your gear and the skills on your bar, and counts stats only, not a Unique's power.">` +
     box('dmg', 'Damage', w.off, wl ? wl.off : 0) + box('tough', 'Toughness', w.def, wl ? wl.def : 0) + '</div>';
 }
+/* what one affix adds, beside it on the bench: Damage and Toughness, each only when it is not nothing */
+function affWorth(w) {
+  if (!w || (!w.off && !w.def)) return '<i class="aw none" data-tip="This affix changes neither your Damage nor your Toughness rating with the build you have now.">–</i>';
+  const n = (v, cls, label) => (v ? `<b class="${cls}">${v < 0 ? '−' : '+'}${Math.abs(v) < 10 ? Math.abs(v) : U.fmt(Math.abs(v))} ${label}</b>` : '');
+  return `<i class="aw" data-tip="What this affix alone adds for you: your Damage and Toughness with it on the piece, against the piece without it. The affixes multiply each other, so they do not quite add up to the total above.">${n(w.off, 'd', 'dmg')}${n(w.def, 't', 'tough')}</i>`;
+}
 /* called when something has just been done to a piece: compare with what the bench last showed */
 function worthChanged(it) {
   if (!it || it.id !== UI.forgeId || !UI.worth || UI.worth.id !== it.id) return;
@@ -505,10 +512,11 @@ function renderCraft() {
     // each row carries its index, so hovering one of the cube's offers can light up the affixes it could touch
     const moved = {}; for (const m of (last.up || []).concat(last.down || [])) moved[m[0]] = m[1];
     h += '<ul class="aff-list">';
+    const aw = G.affixWorth(it);
     it.affixes.forEach((a, i) => {
       const fresh = last.idx === i || (last.idxs || []).includes(i) || (UI.tfLast && UI.tfLast.id === it.id && UI.tfLast.res.idx === i), ok = I.canEnchant(it, i);
       h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''}" data-ai="${i}"><span><u style="background:${D.AFFIX_CAT[I.catOf(it, a.k)].color}" data-tip="${D.AFFIX_CAT[I.catOf(it, a.k)].name}"></u>${tierTag(it, a)}${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
-        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : moved[i] != null ? `<em class="${moved[i] < 0 ? 'dnt' : ''}">${moved[i] > 0 ? '▲ ' + moved[i] + (moved[i] > 1 ? ' tiers' : ' tier') : moved[i] < 0 ? '▼ ' + -moved[i] + (moved[i] < -1 ? ' tiers' : ' tier') : 'already at the top'}</em>` : (last.idxs || []).includes(i) ? `<em>${last.op === 'shuffle' ? 'moved' : last.op === 'reroll' || last.op === 'recast' ? 'new' : 'rerolled'}</em>` : '') + (it.ench === i && !it.sealed && !it.uniq ? `<em class="sft" data-tip="You rerolled this affix at the forge, so it is locked: nothing the cube does will remove it, replace it, renumber it or change its tier. Only the forge changes it now.">locked</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
+        (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : moved[i] != null ? `<em class="${moved[i] < 0 ? 'dnt' : ''}">${moved[i] > 0 ? '▲ ' + moved[i] + (moved[i] > 1 ? ' tiers' : ' tier') : moved[i] < 0 ? '▼ ' + -moved[i] + (moved[i] < -1 ? ' tiers' : ' tier') : 'already at the top'}</em>` : (last.idxs || []).includes(i) ? `<em>${last.op === 'shuffle' ? 'moved' : last.op === 'reroll' || last.op === 'recast' ? 'new' : 'rerolled'}</em>` : '') + (it.ench === i && !it.sealed && !it.uniq ? `<em class="sft" data-tip="You rerolled this affix at the forge, so it is locked: nothing the cube does will remove it, replace it, renumber it or change its tier. Only the forge changes it now.">locked</em>` : '') + affWorth(aw[i]) + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
     if (!it.affixes.length && !last.removed) h += '<li class="no"><span>No affixes yet.</span></li>';
@@ -657,7 +665,7 @@ const deny = msg => { UI.toast(msg, 'bad'); A.play('deny'); };
 
 /* -------------------------------------------------------------- modals */
 UI.modal = function (html, cls) { $('modal-box').className = cls || ''; $('modal-box').innerHTML = html; $('modal').classList.remove('hidden'); hideTip(); };
-UI.closeModal = function () { $('modal').classList.add('hidden'); };
+UI.closeModal = function () { const was = $('modal-box').className, open = !$('modal').classList.contains('hidden'); $('modal').classList.add('hidden'); if (open && was === 'welcome') UI.askPlayData(); };      // the question about play data follows the welcome
 UI.travel = function (tier) {
   const S = G.S, W = S.world; tier = tier == null ? W.tier : tier;
   let h = '<h2>Travel</h2><p class="sub">Five levels to a difficulty, each ending in a boss. Inside a level the monsters climb a level with every room you go deeper. A new map is drawn each time you arrive.</p><div class="tiers">';
@@ -677,9 +685,19 @@ UI.settings = function () {
     <div class="set"><label>Flask</label><label class="chk"><input type="checkbox" id="set-flask" ${S.opts.autoFlask !== false ? 'checked' : ''}><span>Drink it automatically below 35% Life. You can always drink it yourself with Q.</span></label></div>
     <div class="set"><label>Keys</label><span class="note">Q drinks the flask. Space pauses. A toggles Auto. 1, 2, 3 set the speed. S, F and O open Skills, Crafting and Commission. T travels.</span></div>
     <div class="set"><label>Records</label>${recordsHtml()}</div>
+    ${SW.telemetry.hosted() ? `<div class="set"><label>Play data</label><label class="chk"><input type="checkbox" id="set-tele" ${SW.telemetry.enabled() ? 'checked' : ''}><span>Send anonymous notes on how your runs go (where they end, how long levels take, what you craft, and errors) to help balance the game. No name, no address, nothing typed.</span></label></div>` : ''}
     <div class="set"><label>Save</label><div><button class="small" id="set-export">Copy save to clipboard</button> <button class="small" id="set-import">Load a save from text</button><textarea id="set-text" class="hidden" placeholder="Paste a save here, then press Load again"></textarea></div></div>
     <div class="set"><label>Start over</label><div><button class="small danger" id="set-wipe">Delete this save</button> <span class="note">There is no undo.</span></div></div>
     <div class="mfoot"><span class="note">Smeltworks saves in this browser after every battle.</span><button data-close="1">Close</button></div>`, 'settings');
+};
+/* Asked once, and only on the hosted game: may it send anonymous play data? Nothing is sent before the answer. */
+UI.askPlayData = function () {
+  const T = SW.telemetry;
+  if (!T.hosted() || T.asked() || !$('modal').classList.contains('hidden')) return;
+  UI.modal(`<h2>Help balance the game?</h2>
+    <p>Smeltworks can send anonymous notes on how your runs go: which level, how many rooms, where and to what you fell, how long it took, what you crafted, and any errors. They are used to tune the game.</p>
+    <p class="note">No name, no address and nothing you type is sent, only a random id for this browser. You can change your mind in Settings.</p>
+    <div class="mfoot"><button id="tele-no">No thanks</button><button id="tele-yes" class="big">Share play data</button></div>`, 'ask');
 };
 UI.welcome = function () {
   UI.modal(`<h1>Smeltworks</h1>
@@ -723,6 +741,7 @@ UI.onGame = function (type, d) {
       break;
     case 'travel': mark('map'); break;
     case 'route': mark('map'); break;
+    case 'begin': mark('top', 'hint'); break;
     case 'battleEnd': if (!d.win) SW.fx.clear(); mark('bag', 'map', 'top', 'skills', 'forge', 'gear'); break;
     case 'death': UI.banner('You fell', `The run is over. You keep everything you found. A new map opens in ${D.RUN_COOLDOWN} seconds.`, 'dead', 2400); mark('map'); break;
     case 'areaClear':
@@ -758,7 +777,7 @@ UI.onGame = function (type, d) {
       if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');
       { const n = d.kind === 'enchant' ? d.swapped : d.kind === 'transfigure' ? d.res.offer : 0;      // what became of the cube's waiting offer
         if (n < 0) UI.toast('Sealed: the cube\'s offer for this piece is lost.', 'bad');
-        else if (n > 0) UI.toast(n === 1 ? 'One of the cube\'s options no longer applied. It offers another.' : `${n} of the cube's options no longer applied. It offers others.`); }
+        else if (n > 0) UI.toast(n === 1 ? 'One of the cube\'s options no longer applies. It is now "Leave it be".' : `${n} of the cube's options no longer apply. They are now "Leave it be".`); }
       if (d.kind === 'transfigure') { UI.tfLast = { id: d.it.id, res: d.res }; A.play(d.res.kind === 'replace' ? 'salvage' : d.res.kind === 'indes' ? 'forge' : 'master'); UI.toast(`Transfigured: ${D.TRANSFIG_NAME[d.res.kind]}${d.res.kind === 'quality' ? ' +' + d.res.v : d.res.kind === 'indes' ? ' (nothing changed)' : ''}${d.res.open ? '. It was not sealed.' : ''}`, d.res.kind === 'replace' ? 'bad' : d.res.kind === 'indes' ? '' : 'good'); }
       if (d.kind === 'upgrade') { UI.mwLast = { id: d.it.id, ranks: d.ranks, t: performance.now() }; if (d.mw >= 0) UI.toast('Masterworked: ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good'); }
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
@@ -780,7 +799,8 @@ UI.onBattle = function (ev) {
 /* --------------------------------------------------------------- input */
 function setSpeed(v) { const S = G.S; if (v === 0) { if (S.opts.speed === 0) v = UI.prevSpeed || 1; else UI.prevSpeed = S.opts.speed; } S.opts.speed = v; mark('top'); }
 function drink() { const why = G.drink(); if (why) deny(why); }
-function toggleAuto() { const S = G.S; S.opts.auto = !S.opts.auto; S.seen.auto = 1; mark('top', 'hint'); A.play('click'); if (S.opts.auto && S.opts.speed === 0) setSpeed(1); }
+function toggleAuto() { const S = G.S; if (S.held && S.opts.auto) { G.begin(); mark('top', 'hint'); A.play('click'); if (S.opts.speed === 0) setSpeed(1); return; }      // a new save: the first press starts the run, with Auto left on
+  S.opts.auto = !S.opts.auto; S.held = 0; S.seen.auto = 1; mark('top', 'hint'); A.play('click'); if (S.opts.auto && S.opts.speed === 0) setSpeed(1); }
 function go(area, tier) {
   if (!G.isUnlocked(area, tier)) return;
   G.startExpedition(area, tier); UI.closeModal(); G.save();
@@ -913,6 +933,7 @@ UI.bind = function () {
     if (t.dataset.autosalv != null) { S.opts.salv[+t.dataset.autosalv] = t.checked; G.save(); }
     else if (t.id === 'opt-full') { S.opts.full = t.checked; G.save(); }
     else if (t.id === 'set-flask') { G.setAutoFlask(t.checked); mark('hud'); }
+    else if (t.id === 'set-tele') SW.telemetry.setEnabled(t.checked);
     else if (t.id === 'opt-advance') { S.opts.onClear = t.checked ? 'advance' : 'repeat'; G.save(); }
   });
   document.addEventListener('input', e => { if (e.target.id === 'set-vol') { G.S.opts.vol = e.target.value / 100; A.setVol(G.S.opts.vol); } });
@@ -920,6 +941,7 @@ UI.bind = function () {
     const id = e.target.id;
     if (id === 'set-export') { const s = G.exportSave(); (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => UI.toast('Save copied.'), () => { const ta = $('set-text'); ta.classList.remove('hidden'); ta.value = s; ta.select(); }); }
     else if (id === 'set-import') { const ta = $('set-text'); if (ta.classList.contains('hidden') || !ta.value.trim()) { ta.classList.remove('hidden'); ta.value = ''; ta.focus(); } else if (G.importSave(ta.value)) { UI.closeModal(); UI.fresh(); UI.toast('Save loaded.'); } else deny('That does not look like a Smeltworks save.'); }
+    else if (id === 'tele-yes' || id === 'tele-no') { SW.telemetry.setEnabled(id === 'tele-yes'); UI.closeModal(); if (id === 'tele-yes') UI.toast('Thank you. You can turn this off in Settings.'); }
     else if (id === 'set-wipe') { if (e.target.dataset.sure) { G.wipe(); G.init(null); UI.closeModal(); UI.fresh(); UI.welcome(); } else { e.target.dataset.sure = 1; e.target.textContent = 'Click again to delete everything'; } }
   });
   document.addEventListener('keydown', e => {

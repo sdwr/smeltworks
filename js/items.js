@@ -362,8 +362,8 @@ I.cubeOptions = function (it) {
   return out.map(o => { for (const k in o) if (o[k] == null) delete o[k]; return o; }).filter(o => I.cubeValid(it, o));
 };
 /* three of them: different kinds where the piece allows it, each kind as likely as its weight says */
-I.cubeOffer = function (it, n, keep) {
-  const offer = (keep || []).slice(), all = I.cubeOptions(it).filter(o => !offer.some(x => I.cubeKey(x) === I.cubeKey(o))); n = n || D.CUBE_OFFER;
+I.cubeOffer = function (it, n) {
+  const all = I.cubeOptions(it), offer = []; n = n || D.CUBE_OFFER;
   while (offer.length < n && all.length) {
     const fresh = all.filter(o => !offer.some(x => x.op === o.op)), from = fresh.length ? fresh : all, count = {};
     for (const o of from) count[o.op] = (count[o.op] || 0) + 1;
@@ -372,14 +372,14 @@ I.cubeOffer = function (it, n, keep) {
   }
   return offer;
 };
-/* The forge and the transfiguring table may change a piece while the cube's offer for it waits. Afterwards the offer
-   is put right: options that would no longer do anything are swapped for new ones, and a piece that has been sealed
-   loses its offer. Returns how many were swapped, or -1 when the offer is gone. */
+/* The forge and the transfiguring table may change a piece while the cube's offer for it waits. An option that
+   would no longer do anything (the forge has locked the affix it was aimed at, say) turns into "Leave it be" where
+   it stands; a piece that has been sealed loses its offer. Returns how many were turned, or -1 when the offer is gone. */
 I.offerMend = function (it) {
   if (!it.offer) return 0;
   if (it.sealed) { delete it.offer; delete it.offerFree; return -1; }
-  const good = it.offer.filter(o => I.cubeValid(it, o)), n = it.offer.length - good.length;
-  if (n) { const fresh = I.cubeOffer(it, it.offer.length, good).slice(good.length); it.offer = it.offer.map(o => (good.includes(o) ? o : fresh.shift())).filter(Boolean); }      // each new one takes the place of the one it replaces
+  let n = 0;
+  it.offer = it.offer.map(o => (I.cubeValid(it, o) ? o : (n++, { op: 'pass' })));
   return n;
 };
 /* null when a transmute can be bought for this piece, or why not */

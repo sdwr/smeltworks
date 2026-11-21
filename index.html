@@ -14,13 +14,6 @@
       <span id="where-act"></span><b id="where-area"></b><span id="where-lvl"></span>
     </button>
     <div class="ctl">
-      <div class="seg" id="speed">
-        <button data-speed="0" title="Pause (Space)">❚❚</button>
-        <button data-speed="1">1×</button>
-        <button data-speed="2">2×</button>
-        <button data-speed="4">4×</button>
-      </div>
-      <button id="btn-auto" class="toggle" title="Explore and fight without waiting for you (A)">Auto</button>
       <button id="btn-sound" class="icon" title="Sound">♪</button>
       <button id="btn-menu" class="icon" title="Settings">⚙</button>
     </div>
@@ -78,6 +71,15 @@
       <div id="mapwrap">
         <div id="mapbar">
           <div class="map-title"><b id="map-name"></b><span id="map-sub"></span></div>
+          <div class="map-ctl">
+            <div class="seg" id="speed">
+              <button data-speed="0" title="Pause (Space)">❚❚</button>
+              <button data-speed="1">1×</button>
+              <button data-speed="2">2×</button>
+              <button data-speed="4">4×</button>
+            </div>
+            <button id="btn-auto" class="toggle" title="Explore and fight without waiting for you (A)">Auto</button>
+          </div>
           <div class="map-opts">
             <label class="chk" data-tip="Clear every room before the boss. More loot and dust; turn it off to head straight for the boss."><input type="checkbox" id="opt-full"><span>Clear everything</span></label>
             <label class="chk" data-tip="When Auto beats a level's boss: push on to the furthest level you have unlocked, or run this one again."><input type="checkbox" id="opt-advance"><span>Push forward</span></label>
@@ -102,6 +104,7 @@
 <script src="js/hero.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/game.js"></script>
+<script src="js/telemetry.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/fx.js"></script>

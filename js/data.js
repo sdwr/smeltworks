@@ -125,6 +125,11 @@ D.tierBand = function (def, t) {
   return [a + step * (t - 1), a + step * t];
 };
 
+/* The version the game reports with its play data: the date of the last change that matters to balance. */
+D.VERSION = '2026.11.21';
+/* Play data (see js/telemetry.js). Sent only from the hosted game, and only once the player has said yes. */
+D.TELEMETRY = { url: 'https://smeltworks-logging.sdwr.workers.dev/ingest', hosts: ['sdwr.github.io'] };
+
 /* ------------------------------------------------------------- affixes
    sc: how the tiers are spaced (see D.tierBand): 'flat' grows like the monsters, 'pct' and 'none' in even steps.
    dp: decimals shown. w: roll weight.
