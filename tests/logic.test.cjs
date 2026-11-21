@@ -2,7 +2,10 @@
 const assert = require('node:assert/strict');
 const { load, play } = require('./harness.cjs');
 let n = 0;
-function test(name, fn) { const SW = load(); SW.util.seed(1234 + n); SW.game.init(null); fn(SW, SW.game, SW.data, SW.items, SW.hero); n++; console.log('PASS ' + name); }
+const failed = [];      // ALL=1 runs every check and lists the failures instead of stopping at the first
+function test(name, fn) { const SW = load(); SW.util.seed(1234 + n + failed.length); SW.game.init(null);
+  try { fn(SW, SW.game, SW.data, SW.items, SW.hero); } catch (e) { if (!process.env.ALL) throw e; failed.push(name); console.log('FAIL ' + name + '\n     ' + String(e.message).split('\n')[0].slice(0, 260)); return; }
+  n++; console.log('PASS ' + name); }
 
 test('A fresh save starts with a weapon, a basic skill and a map', (SW, G, D) => {
   const S = G.S;
@@ -46,7 +49,7 @@ test('Every affix value sits inside the range shown for it', (SW, G, D, I) => {
     it.affixes.forEach((a, k) => {
       if (a.g) { const g = I.affixRange(it, a, k).match(/^\[(.+)–(.+)\]$/); assert.ok(g && I.affixValue(it, a, k) > I.affixValue(it, { k: a.k, r: 0.9999, g: 0 }, k), `a Greater ${a.k} shows the ordinary range and sits above it`); return; }
       const m = I.affixRange(it, a, k).match(/^\[(.+)–(.+)\]$/); assert.ok(m, I.affixRange(it, a, k));
-      const v = I.affixValue(it, a, k), lo = I.affixValue(it, { k: a.k, r: 0, g: a.g }, k), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g }, k);
+      const v = I.affixValue(it, a, k), lo = I.affixValue(it, { k: a.k, r: 0, g: a.g, ti: a.ti }, k), hi = I.affixValue(it, { k: a.k, r: 0.9999, g: a.g, ti: a.ti }, k);
       assert.ok(lo <= v && v <= hi, `${a.k}: ${lo} <= ${v} <= ${hi}`);
     });
   }
@@ -527,7 +530,7 @@ test('Stat caps hold', (SW, G, D, I) => {
 test('There are no levels: life and power come from what is worn', (SW, G, D, I, H) => {
   const S = G.S;
   assert.equal(S.hero.level, undefined); assert.equal(G.addXp, undefined);
-  for (const s of D.SLOTS) S.gear[s] = null; G.recompute();
+  for (const s of D.SLOTS) S.gear[s] = null; S.hero.passives = [null, null, null]; G.recompute();
   assert.equal(G.C.st.maxLife, H.BASE_LIFE); const naked = G.C.rating.power;
   S.gear.ring1 = I.roll(30, { rar: 0, slot: 'ring' }); S.gear.helm = I.roll(10, { rar: 0, slot: 'helm' }); G.recompute();
   assert.ok(G.C.st.maxLife > H.BASE_LIFE + 100, 'rings carry life'); assert.ok(G.C.st.armor > 0, 'armour carries armor'); assert.ok(G.C.rating.power > naked);
@@ -602,7 +605,7 @@ test('Affix pools: slot-limited like Diablo, and every slot can be aimed at two 
 });
 test('Movement Speed on boots shortens the walk between tiles', (SW, G, D, I) => {
   const S = G.S, base = G.stepTime(); assert.equal(base, D.TRAVEL_STEP);
-  const boots = I.roll(10, { rar: 2, slot: 'boots' }); boots.affixes = [{ k: 'move', r: 0.99, g: 0 }]; S.gear.boots = boots; G.recompute();
+  const boots = I.roll(50, { rar: 2, slot: 'boots', anc: true }); boots.affixes = [{ k: 'move', r: 0.99, g: 0, ti: 7 }]; S.gear.boots = boots; G.recompute();
   assert.ok(G.C.st.move >= 29); assert.ok(G.stepTime() < base * 0.8, 'at least a fifth faster');
   // walking three tiles really does take less game time
   const walk = () => { G.startExpedition(0, 0); const m = S.world.map; for (const c of m.cells) if (c.y === 2 && c.x <= 3) { c.type = c.x ? 'fight' : 'start'; c.state = c.x < 3 ? 'done' : 'seen'; }
@@ -799,6 +802,7 @@ test('The stash keeps gear safe: salvage, sort and the full-bag rule never touch
   const worn = S.gear.boots; assert.ok(G.equip(keep.id)); assert.equal(S.gear.boots, keep); assert.equal(S.stash[9], worn, 'the swapped-out piece takes its place in the stash');
 });
 test('The damage meter adds up to the damage dealt and ignores overkill', (SW, G, D) => {
+  G.S.hero.bar = ['strike', 'sunder', null, null, null]; G.recompute();      // without the ultimate, so the fight lasts more than one blow
   const B = new SW.Battle(G.C, {}, { waves: [[{ id: 'rat', lvl: 1 }, { id: 'wolf', lvl: 1 }, { id: 'bandit', lvl: 1 }]], lvl: 1 }, {}, false);
   const hp = B.spec.waves[0].reduce((t, s) => t + B.mkMob(s).max, 0);
   while (!B.over) B.step(0.05);
@@ -867,7 +871,7 @@ test('Weapon Damage: an Offence affix for weapons that raises the weapon\'s own 
   let seen = 0; for (let i = 0; i < 400; i++) { const it = I.roll(30, { rar: 2 }); if (it.affixes.some(a => a.k === 'wdmg')) { seen++; assert.equal(it.slot, 'weapon'); } } assert.ok(seen > 3, 'it does roll: ' + seen);
   const S = G.S, w = I.roll(30, { rar: 2, slot: 'weapon', base: 'sword' }); w.affixes = [{ k: 'life', r: 0.5, g: 0 }]; S.gear.weapon = w; G.recompute();
   const base = G.C.st.dmg, off = G.C.rating.off; assert.equal(base, I.implicit(w).dmg);
-  w.affixes.push({ k: 'wdmg', r: 0.5, g: 0 }); G.recompute(); const v = I.affixValue(w, w.affixes[1], 1); assert.ok(v >= 8 && v <= 10, '6 to 12 percent at any level, so about 9 at a middling roll: ' + v); assert.equal(I.affixRange(w, w.affixes[1], 1), I.affixRange(Object.assign({}, w, { ilvl: 5 }), w.affixes[1], 1), 'the same range at every item level');
+  w.affixes.push({ k: 'wdmg', r: 0.5, g: 0, ti: 4 }); G.recompute(); const v = I.affixValue(w, w.affixes[1], 1); assert.ok(v >= 6.3 && v <= 7.8, 'tier 4 is 6.3 to 7.8 percent: ' + v); assert.equal(I.affixRange(Object.assign({}, w, { ilvl: 55 }), { k: 'wdmg', r: 0, g: 0, ti: 7 }, 1), '[10.6–12]', 'and 12 at the very top');
   assert.equal(G.C.st.dmg, Math.round(base * (1 + v / 100)), 'the weapon hits that much harder'); assert.ok(Math.abs(G.C.rating.off / off - (1 + v / 100)) < 0.005, 'and so does everything built on it');
   assert.ok(I.affixText(w, w.affixes[1], 1).includes('Weapon Damage')); assert.ok(G.itemWorth(w).off > 0);
   // the cube can aim for it and at it
@@ -921,6 +925,42 @@ test('The first level is a gear check: the starting kit cannot finish it, a smit
     assert.ok(kit >= 0.8, `${build} in Magic gear of the level's last rooms should beat him: won ${Math.round(kit * 100)}%`);
   }
 });
+test('A new game starts as a complete hammer build with the left-hand technique on every skill', (SW, G, D) => {
+  const S = G.fresh(); assert.equal(S.hero.bar.join(), 'strike,sunder,quake,ironskin,meteor'); assert.ok(S.hero.bar.every(id => D.SKILL[id].disc === 'hammer'));
+  assert.equal(S.hero.passives.join(), 'heavy,tempered,crush'); assert.ok(S.hero.passives.every(id => D.SKILL[id].disc === 'hammer' && D.SKILL[id].type === 'passive'));
+  assert.equal(D.SKILLS.filter(s => s.disc === 'hammer' && s.type !== 'passive').length, 5, 'that is every hammer skill there is');
+  for (const k in D.TECH) assert.equal(S.hero.tech[k], D.TECH[k][0].id, k + ' has its first technique'); assert.equal(Object.keys(S.hero.tech).length, Object.keys(D.TECH).length);
+  G.init(S); assert.equal(G.C.bar.filter(Boolean).length, 5); assert.equal(G.C.tech.strike, D.TECH.strike[0].id);
+});
+test('Affix tiers: each a higher band than the last, unlocked by item level, and shown on the piece', (SW, G, D, I) => {
+  assert.equal(D.TIER_MAX, 7); assert.equal([1, 9, 10, 19, 20, 30, 40, 49, 50, 54, 55].map(D.tierOf).join(), '1,1,2,2,3,4,5,5,6,6,7');
+  // bands: contiguous and rising for every affix that has tiers
+  for (const k in D.AFFIX) { const def = D.AFFIX[k]; if (def.int) continue;
+    for (let t = 1; t <= 7; t++) { const b = D.tierBand(def, t); assert.ok(b[1] > b[0], k + ' T' + t); if (t > 1) assert.ok(Math.abs(b[0] - D.tierBand(def, t - 1)[1]) < 1e-9, k + ': tier ' + t + ' starts where tier ' + (t - 1) + ' ends'); }
+    assert.ok(D.tierBand(def, 2)[1] / D.tierBand(def, 1)[1] >= 1.3, k + ': the second tier tops out well above the first'); }
+  assert.equal(D.tierBand(D.AFFIX.crit, 7)[1], D.AFFIX.crit.hi); assert.ok(Math.abs(D.tierBand(D.AFFIX.crit, 1)[0] - D.AFFIX.crit.lo * 0.35) < 1e-9);
+  // what rolls: only tier 1 in the first level; in the second, tier 2 or tier 1; never above the piece's best
+  const seen = lvl => { const c = {}; for (let i = 0; i < 1500; i++) for (const a of I.roll(lvl, { rar: 2 }).affixes) if (!D.AFFIX[a.k].int) c[a.ti] = (c[a.ti] || 0) + 1; return c; };
+  assert.equal(Object.keys(seen(5)).join(), '1'); const z2 = seen(14); assert.equal(Object.keys(z2).join(), '1,2'); assert.ok(z2[2] > z2[1], 'mostly the better tier');
+  const z5 = seen(44), tot = Object.values(z5).reduce((a, b) => a + b, 0); assert.equal(Object.keys(z5).join(), '1,2,3,4,5'); assert.ok(Math.abs(z5[5] / tot - 0.62) < 0.05 && Math.abs(z5[4] / tot - 0.26) < 0.05 && z5[1] / tot < 0.04, 'about 62% the best, 26% one below: ' + JSON.stringify(z5));
+  assert.equal(Math.max(...Object.keys(seen(50)).map(Number)), 6); assert.equal(Math.max(...Object.keys((() => { const c = {}; for (let i = 0; i < 300; i++) for (const a of I.roll(50, { rar: 2, anc: true }).affixes) c[a.ti] = 1; return c; })()).map(Number)), 7, 'tier 7 is Ancestral only');
+  // a level-two piece is a clear step up: the same affix at the same roll
+  const ring = lvl => { const it = I.roll(lvl, { rar: 2, slot: 'ring' }); it.affixes = [{ k: 'physPct', r: 0.5, g: 0, ti: D.tierOf(lvl) }, { k: 'life', r: 0.5, g: 0, ti: D.tierOf(lvl) }, { k: 'crit', r: 0.5, g: 0, ti: D.tierOf(lvl) }]; return it.affixes.map((a, i) => I.affixValue(it, a, i)); };
+  const a1 = ring(7), a2 = ring(12), a5 = ring(44); for (let i = 0; i < 3; i++) { assert.ok(a2[i] >= a1[i] * 1.45, `tier 2 against tier 1: ${a2[i]} vs ${a1[i]}`); assert.ok(a5[i] > a2[i] * 1.9); }
+  assert.equal(ring(1).join(), ring(9).join(), 'inside a tier the item level does not change an affix');
+  // the tier is kept by Temper and by masterworking, a Greater affix is always the best tier, and old gear counts as the best too
+  const S = G.S; S.mats.dust = 1e6; S.gold = 1e9; const it = I.roll(44, { rar: 2, slot: 'ring' }); it.affixes = [{ k: 'crit', r: 0.2, g: 0, ti: 2 }, { k: 'life', r: 0.2, g: 0, ti: 5 }]; S.bag[0] = it;
+  assert.equal(I.affixTier(it, it.affixes[0]), 2); const before = I.affixRange(it, it.affixes[0], 0);
+  for (let i = 0; i < 20; i++) { G.cube(it.id, 'divine'); assert.equal(it.affixes[0].ti, 2); const v = I.affixValue(it, it.affixes[0], 0), b = D.tierBand(D.AFFIX.crit, 2); assert.ok(v >= Math.round(b[0] * 10) / 10 && v <= Math.round(b[1] * 10) / 10 + 0.05, 'Temper rerolls inside the tier: ' + v); }
+  assert.equal(I.affixRange(it, it.affixes[0], 0), before);
+  assert.equal(I.affixTier(it, { k: 'crit', r: 0.1, g: 1, ti: 1 }), 5); assert.equal(I.affixTier(it, { k: 'crit', r: 0.1, g: 0 }), 5);
+  assert.ok(I.affixValue(it, { k: 'crit', r: 0, g: 1, ti: 1 }, null) > D.tierBand(D.AFFIX.crit, 5)[1] * 1.4, 'a Greater affix is the top of the best tier, times 1.5');
+  // rerolling at the forge and Kindle roll a tier the piece allows; skill ranks have none
+  for (let i = 0; i < 40; i++) { const r = G.enchant(it.id, 0) || {}; assert.ok(it.affixes[0].ti >= 1 && it.affixes[0].ti <= 5); it.ench = -1; it.enchN = 0; }
+  const low = I.roll(6, { rar: 0, slot: 'helm' }); S.bag[1] = low; G.cube(low.id, 'add'); assert.equal(low.affixes[0].ti, 1);
+  assert.equal(I.affixValue(low, { k: 'skHammer', r: 0.9, g: 0, ti: 1 }, null), I.affixValue(it, { k: 'skHammer', r: 0.9, g: 0, ti: 5 }, null));
+  for (let i = 0; i < 30; i++) { const u = I.roll(44, { unique: 'coil', rar: 3 }); assert.ok(u.affixes.every(a => a.ti === 5), 'a Unique is all best tier'); }
+});
 test('Saves survive an export and import', (SW, G, D, I) => {
   G.S.gold = 4242; G.S.bag[3] = I.roll(12, { rar: 2 }); G.S.mats.dust = 7;
   const str = G.exportSave(), name = G.S.bag[3].name;
@@ -939,4 +979,5 @@ test('A rushing, forge-less player still gets through the first two levels, by f
   const r = play(SW, { build: 'ember', seed: 9, maxT: 7200, full: false, casual: true, until: g => g.S.world.cleared[0] >= 2 });
   assert.ok(r.S.world.cleared[0] >= 2, 'two levels not finished in two hours'); assert.ok(r.S.stats.deaths >= 2, 'and not without falling: ' + r.S.stats.deaths);
 });
+if (failed.length) { console.log(failed.length + ' FAILED, ' + n + ' passed.'); process.exit(1); }
 console.log(n + ' checks passed.');

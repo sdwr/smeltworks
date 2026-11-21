@@ -11,6 +11,54 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const RC = i => D.RARITY[i].color;
 const mark = (...keys) => { for (const k of keys) UI.dirty[k] = 1; };
 const pct = v => (Math.round(v * 10) / 10) + '%';
+/* ---------------------------------------------------------------- juice
+   Crafting effects. Sparks and rings live in a layer over the page, thrown from wherever the player last pressed;
+   everything else is a short-lived class on the crafting panel (the panel element itself is never rebuilt, only its
+   contents), which the stylesheet turns into flashes, strikes and rows sliding in. */
+const calm = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function juiceLayer() { let l = $('juice'); if (!l) { l = document.createElement('div'); l.id = 'juice'; document.body.appendChild(l); } return l; }
+function origin() { if (UI.px != null && performance.now() - UI.pxT < 1500) return [UI.px, UI.py]; const r = $('tab-craft').getBoundingClientRect(); return [r.left + r.width / 2, r.top + Math.min(r.height, innerHeight) / 3]; }
+function sparks(color, n, power, at, up) {
+  if (calm()) return; const L = juiceLayer(), o = at || origin();
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('i'), a = up ? -Math.PI / 2 + (Math.random() - 0.5) * 2.2 : Math.random() * Math.PI * 2, d = power * (0.3 + Math.random() * 0.7);
+    p.className = 'spark'; p.style.cssText = `left:${o[0]}px;top:${o[1]}px;--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d).toFixed(1)}px;--c:${Array.isArray(color) ? U.pick(color) : color};--s:${(3 + Math.random() * 4).toFixed(1)}px;animation-duration:${Math.round(420 + Math.random() * 480)}ms`;
+    L.appendChild(p); p.addEventListener('animationend', () => p.remove());
+  }
+}
+function ring(color, at, big) { if (calm()) return; const o = at || origin(), r = document.createElement('i'); r.className = 'jring' + (big ? ' big' : ''); r.style.cssText = `left:${o[0]}px;top:${o[1]}px;--c:${color}`; juiceLayer().appendChild(r); r.addEventListener('animationend', () => r.remove()); }
+function centerOf(sel) { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return r.width ? [r.left + r.width / 2, r.top + r.height / 2] : null; }
+function pulse(cls, color, ms) {
+  const t = $('tab-craft'); if (color) t.style.setProperty('--jc', color);
+  t.classList.remove(cls); void t.offsetWidth; t.classList.add(cls); clearTimeout(pulse[cls]); pulse[cls] = setTimeout(() => t.classList.remove(cls), ms || 750);
+}
+const JUICE = {
+  cube(d) {
+    const O = D.ORBS[d.res.orb], bad = d.res.orb === 'remove';
+    sparks(O.color, d.res.orb === 'chaos' ? 30 : 18, d.res.orb === 'chaos' ? 120 : 85); ring(O.color); pulse('j-cube', O.color);
+    if (d.res.from != null) { const at = centerOf('.an-item .it'); sparks([RC(d.it.rar), '#fff'], 26, 110, at); ring(RC(d.it.rar), at, true); pulse('j-up', RC(d.it.rar), 900); }
+    if (bad) pulse('j-rm', O.color);
+  },
+  upgrade(d) {
+    const tip = (() => { const b = document.querySelector('.mw-bar'); if (!b) return null; const r = b.getBoundingClientRect(); return [r.left + r.width * Math.min(1, (d.it.up || 0) / D.MW_MAX), r.top + r.height / 2]; })();
+    sparks(['#ffb347', '#ff7a2a', '#ffe9a8'], 10 + 6 * (d.ranks || 0), 70 + 18 * (d.ranks || 0), tip, true); pulse('j-mw', '#ff9a3c', 600);
+    if (d.mw >= 0) { const at = centerOf('.an-item .it'); sparks(['#ffd27a', '#fff3c4', '#ffb347'], 44, 170, at); ring('#ffd27a', at, true); ring('#fff3c4', at); pulse('j-cap', '#ffd27a', 1300); }
+  },
+  enchant() { sparks(['#9be3ff', '#d6f3ff', '#58b8e8'], 16, 80); ring('#9be3ff'); pulse('j-ench', '#9be3ff'); },
+  transfigure(d) {
+    const k = d.res.kind, col = k === 'replace' ? ['#ff7a6a', '#ffb0a6'] : k === 'indes' ? ['#8a8478', '#b9b2a6'] : ['#b896ff', '#e4d6ff', '#ffd27a'];
+    sparks(col, k === 'indes' ? 10 : 46, k === 'indes' ? 60 : 180); ring(col[0], null, k !== 'indes'); if (k !== 'indes') ring(col[1]);
+    pulse('j-tf', col[0], 1200); if (k === 'greater') { const at = centerOf('.an-item .it'); sparks(['#ffd27a', '#fff3c4'], 30, 140, at); }
+  },
+  commission(d) { sparks([RC(d.it.rar), '#ffd27a'], 20, 100); ring(RC(d.it.rar)); },
+  salvage(d) { sparks(['#ffb347', '#8a8478', '#c9ccd6'], d.n > 1 ? 26 : 12, d.n > 1 ? 110 : 65); },
+};
+/* the tier badge on an affix: bright when it is the best this piece can roll, dimmer the further below */
+function tierTag(it, a) {
+  if (D.AFFIX[a.k].int) return '';
+  const t = I.affixTier(it, a), max = D.tierOf(it.ilvl), d = Math.max(0, max - t);
+  return `<b class="tier-tag d${Math.min(3, d)}" data-tip="Tier ${t} of ${D.TIER_MAX}. ${d === 0 ? `The best a level ${it.ilvl} piece can roll.` : `A level ${it.ilvl} piece can roll up to tier ${max}.`} Each tier is a higher band of values than the last; the range shown is this tier's.${max < D.TIER_MAX ? ` Tier ${max + 1} starts at item level ${D.TIER_LVL[max]}.` : ''}">T${t}</b>`;
+}
 const MAT_NAME = { gold: 'gold', dust: 'ember dust', soul: 'soulsteel' };
 
 /* ------------------------------------------------------------- pieces */
@@ -67,7 +115,7 @@ function itemTooltip(it, o) {
   if (it.affixes.length) {
     h += '<ul class="tt-aff">' + it.affixes.map((a, i) => {
       const mw = I.masterworked(it, i);
-      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked</i>' : ''}${a.t ? ' <i class="tf">transfigured</i>' : ''}${D.AFFIX[a.k].note ? `<small>${D.AFFIX[a.k].note}</small>` : ''}</li>`;
+      return `<li class="${a.g ? 'great' : ''} ${mw ? 'mw' : ''} ${it.ench === i ? 'ench' : ''}">${tierTag(it, a)}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span>${a.g ? ' <i>greater</i>' : ''}${mw ? ' <i>masterworked</i>' : ''}${a.t ? ' <i class="tf">transfigured</i>' : ''}${D.AFFIX[a.k].note ? `<small>${D.AFFIX[a.k].note}</small>` : ''}</li>`;
     }).join('') + '</ul>';
   }
   if (it.uniq) h += `<div class="tt-asp uq">${I.powerText(it)}</div><div class="tt-flavor">${esc(D.UNIQUE[it.uniq].flavor)}</div>`;
@@ -451,8 +499,8 @@ function renderCraft() {
     h += '<ul class="aff-list">';
     it.affixes.forEach((a, i) => {
       const atRisk = risk.includes(i);
-      const fresh = last.idx === i || (last.orb === 'chaos' && (last.idxs || []).includes(i)) || (last.orb === 'divine' && (last.idxs || []).includes(i)), ok = I.canEnchant(it, i);
-      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''} ${atRisk ? 'aim-rm' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
+      const fresh = last.idx === i || (last.orb === 'chaos' && (last.idxs || []).includes(i)) || (last.orb === 'divine' && (last.idxs || []).includes(i)) || (UI.tfLast && UI.tfLast.id === it.id && UI.tfLast.res.idx === i), ok = I.canEnchant(it, i);
+      h += `<li class="${fresh ? 'fresh' : ''} ${it.ench === i ? 'ench' : ''} ${I.masterworked(it, i) ? 'mw' : ''} ${atRisk ? 'aim-rm' : ''}"><span><u style="background:${D.AFFIX_CAT[D.AFFIX[a.k].cat].color}" data-tip="${D.AFFIX_CAT[D.AFFIX[a.k].cat].name}"></u>${tierTag(it, a)}${a.g ? '<b class="gst">★</b>' : ''}${I.affixText(it, a, i)} <span class="rng">${I.affixRange(it, a, i)}</span></span>` +
         (a.t ? '<em class="tft" data-tip="Added by transfiguring. It may be an affix this slot could never roll.">✧ transfigured</em>' : '') + (I.masterworked(it, i) ? '<em class="mwt" data-tip="Masterworked: this affix is 25% stronger (or +1 on a skills affix). Masterwork again at rank 25 to move it to another affix.">◆ masterworked</em>' : '') + (last.idx === i ? '<em>new</em>' : '') + (safe === i ? `<em class="sft" data-tip="You rerolled this affix at the forge. Quench and Recast leave it alone, as Temper does: only the forge changes it now.">kept</em>` : '') + (atRisk ? `<em class="rmt" data-tip="${risk.length === 1 ? 'Quench as it is aimed would remove this affix: it is the only one that matches.' : `Quench as it is aimed removes one of the ${risk.length} marked affixes at random.`}">✕ ${risk.length === 1 ? 'removed' : '1 in ' + risk.length}</em>` : '') + (ok ? `<button class="small" data-act="enchant" data-idx="${i}" ${G.canPay(ec) ? '' : 'disabled'} data-tip="${a.g ? '<b class=&quot;neg&quot;>This affix is Greater, and rerolling it gives that up:</b> the new affix will be an ordinary one. ' : ''}Enchant: reroll this affix into another. Once you pick an affix, it is the only one this piece can have rerolled. Each reroll on a piece costs a little more, up to five times the first price.">Reroll</button>` : '') + '</li>';
     });
     if (last.removed) h += `<li class="gone"><span>${last.removed}</span><em>removed</em></li>`;
@@ -514,7 +562,7 @@ function renderCraft() {
     if (it.sealed) h += '<div class="sealed"><b>✧ Sealed</b> This piece has been transfigured. It can still be worn, stashed and salvaged, but nothing more can be done to it at the forge or in the cube.</div>';
     else {
     h += `<div class="op first"><div class="op-t"><b>Masterwork</b><span>Each strike adds 1 to 3 ranks, and every rank is +1% to everything on the piece. At rank ${max}, strike once more to masterwork one random affix for +25%. Striking again moves it to a different affix.</span></div>`;
-    h += `<div class="mw-bar ${up >= max ? 'full' : ''}"><i style="width:${up / max * 100}%"></i><b>Rank ${up}/${max}</b>${gain ? `<em>+${gain}</em>` : ''}</div>`;
+    h += `<div class="mw-bar ${up >= max ? 'full' : ''}"><i style="width:${up / max * 100}%;--from:${Math.max(0, up - gain) / max * 100}%"></i><b>Rank ${up}/${max}</b>${gain ? `<em>+${gain}</em>` : ''}</div>`;
     if (up >= max) h += `<div class="mw-aff">${has >= 0 && it.affixes[has] ? '◆ Masterworked: ' + I.affixText(it, it.affixes[has], has) : it.affixes.length ? 'No affix is masterworked yet.' : ''}</div>`;
     h += `<div class="op-a">${no ? `<i>${no}</i>` : costHtml(c) + `<button data-act="upgrade" ${G.canPay(c) ? '' : 'disabled'}>${up < max ? 'Masterwork<small>+1 to 3 ranks</small>' : has >= 0 ? 'Masterwork a different affix' : 'Masterwork an affix'}</button>`}</div>`;
     h += '</div>';
@@ -702,17 +750,19 @@ UI.onGame = function (type, d) {
     case 'drink': A.play('potion'); SW.fx.heroGlow('#ff5a5a'); break;
     case 'equip': A.play('equip'); mark('gear', 'bag', 'forge', 'hint'); hideTip(); break;
     case 'bag': mark('bag'); break;
-    case 'salvage': A.play('salvage'); purseGain(d.y); mark('bag', 'forge', 'hint', 'top'); break;
+    case 'salvage': A.play('salvage'); purseGain(d.y); JUICE.salvage({ n: 1 }); mark('bag', 'forge', 'hint', 'top'); break;
     case 'autoSalvage': purseGain(d.y); break;
     case 'spend': purseSpend(d.cost); mark('top'); break;
-    case 'salvageAll': A.play('salvage'); purseGain(d.y); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
+    case 'salvageAll': A.play('salvage'); purseGain(d.y); JUICE.salvage({ n: 9 }); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
     case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. New drops are being salvaged until you make room.', 'bad'); } break;
-    case 'cube': A.play(d.res.orb === 'remove' ? 'salvage' : 'forge'); UI.cubeLast = d.res; worthChanged(d.it); mark('cube', 'bag', 'gear', 'forge');
+    case 'cube': A.play(d.res.orb === 'remove' ? 'salvage' : 'forge'); UI.cubeLast = d.res; worthChanged(d.it); JUICE.cube(d); mark('cube', 'bag', 'gear', 'forge');
       if (d.res.from != null) UI.toast(`It is now ${D.RARITY[d.it.rar].name}.`, 'good');
       if (d.res.crit) { A.play('master'); UI.toast(d.res.crit > 1 ? `${d.res.crit} Greater affixes!` : 'It crit: a Greater affix!', 'good'); }
       break;
     case 'forge': A.play(d.kind === 'upgrade' && d.mw >= 0 ? 'master' : d.kind === 'commission' ? 'drop' + d.it.rar : 'forge'); mark('forge', 'bag', 'gear', 'top');
       if (d.kind !== 'commission') worthChanged(d.it);
+      if (JUICE[d.kind]) JUICE[d.kind](d);
+      if (d.kind === 'enchant') UI.cubeLast = { id: d.it.id, idx: d.it.ench, orb: 'ench' };      // so the new affix is shown as new
       if (d.kind === 'enchant' && d.was) UI.toast('The Greater affix is gone: the new one is ordinary.', 'bad');
       if (d.kind === 'transfigure') { UI.tfLast = { id: d.it.id, res: d.res }; A.play(d.res.kind === 'replace' ? 'salvage' : d.res.kind === 'indes' ? 'forge' : 'master'); UI.toast(`Transfigured: ${D.TRANSFIG_NAME[d.res.kind]}${d.res.kind === 'quality' ? ' +' + d.res.v : d.res.kind === 'indes' ? ' (nothing changed)' : ''}${d.res.open ? '. It was not sealed.' : ''}`, d.res.kind === 'replace' ? 'bad' : d.res.kind === 'indes' ? '' : 'good'); }
       if (d.kind === 'upgrade') { UI.mwLast = { id: d.it.id, ranks: d.ranks, t: performance.now() }; if (d.mw >= 0) UI.toast('Masterworked: ' + I.affixText(d.it, d.it.affixes[d.mw], d.mw), 'good'); }
@@ -742,7 +792,7 @@ function go(area, tier) {
 }
 UI.bind = function () {
   const release = () => { UI.pressT = 0; };
-  document.addEventListener('pointerdown', e => { UI.pressT = e.button === 0 ? performance.now() : 0; }, true);
+  document.addEventListener('pointerdown', e => { UI.pressT = e.button === 0 ? performance.now() : 0; UI.px = e.clientX; UI.py = e.clientY; UI.pxT = performance.now(); }, true);
   for (const ev of ['pointerup', 'pointercancel', 'dragstart']) document.addEventListener(ev, release, true);
   window.addEventListener('blur', release);
   document.addEventListener('pointerdown', () => A.unlock(), { once: false, passive: true });

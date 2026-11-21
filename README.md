@@ -91,6 +91,29 @@ the skill bar to drink it.
   Greater affixes) and 8 for a Unique. Elites and bosses always carry some, ordinary monsters a pinch 5%
   of the time, and chests and full clears add a little. Rerolling an affix and transfiguring take dust as well,
   beside their gold. There are no orbs and no scrap; an old save has them turned into dust.
+- **Affix tiers.** Every affix comes in seven tiers, each a band of values that starts where the one below ends, and
+  each affix on a piece shows its tier (T1 to T7) beside it. A piece can roll tiers up to the one its item level
+  has reached: T1 from level 1, T2 from 10, T3 from 20, T4 from 30, T5 from 40, T6 from 50 (Torment) and T7 at 55
+  (Ancestral). So level one drops only T1, level two drops T1 and T2, and so on: 62% of new affixes are the best
+  tier the piece allows, 26% one lower, 9% two lower. Inside a tier the item level does not matter (it still sets
+  the piece's own damage, armor or life).
+
+  | Affix on a ring | T1 | T2 | T3 | T4 | T5 | T6 | T7 |
+  | --- | --- | --- | --- | --- | --- | --- | --- |
+  | Maximum Life | 22–35 | 35–73 | 73–165 | 165–374 | 374–846 | 846–1,498 | 1,498–2,252 |
+  | Physical Damage % | 3.5–6 | 6–8.5 | 8.5–11 | 11–13.5 | 13.5–16 | 16–18.5 | 18.5–21 |
+  | Critical Strike Chance % | 0.7–1.2 | 1.2–1.8 | 1.8–2.3 | 2.3–2.9 | 2.9–3.4 | 3.4–4 | 4–4.5 |
+  | Strength | 1–1.9 | 1.9–2.7 | 2.8–3.6 | 3.6–4.4 | 4.4–5.3 | 5.3–6.1 | 6.1–7 |
+
+  Flat amounts (Life, Armor, Thorns, Life on Hit, Life per Second) grow from tier to tier as the monsters do,
+  a little more than doubling each time. Percentages and the rest climb in seven even steps. Skill ranks have no
+  tiers. Temper rerolls a number inside its tier; rerolling an affix at the forge, Kindle and Recast roll a new
+  tier. A Greater affix is always the top of the piece's best tier, times 1.5, and a Unique's affixes are always
+  the best tier.
+- **Crafting effects.** Every craft throws sparks from where you clicked in the colour of what you did, flashes
+  the piece, and slides changed affixes in. Masterworking strikes the bench and fills the rank bar from where it
+  was; the rank-25 masterwork, a rarity going up and transfiguring get a bigger burst. All of it is skipped if
+  your system asks for reduced motion.
 - **Five levels to a difficulty.** Ashen Hollow, Cinder Mines, Drowned Crypt, Stormspire and Hellforge, each one
   map ending in its boss. Inside a level the monsters climb one level with every room you go deeper (1 to 7, 10 to
   16, 20 to 26, 30 to 36, 40 to 46), and drops are the level of what dropped them, so the gear gets better as the
@@ -111,7 +134,8 @@ the skill bar to drink it.
   as you walk and can be drunk between fights, and a shrine restores everything. So does a fall, and so does a new
   map. Standing still heals nothing.
 - **Skills.** Three disciplines: Hammer (physical, stuns), Ember (burns), Storm (lightning, crits). Every skill is
-  available from the start: pick five for the bar and three passives. The smith picks the best Core skill for each
+  available from the start: pick five for the bar and three passives. A new game begins as a complete hammer build
+  (all five hammer skills and the three hammer passives), with the left-hand technique chosen for every skill. The smith picks the best Core skill for each
   moment.
 - **Techniques.** Every skill on the bar can take one of two techniques, chosen freely on the Skills page. Each
   bends the skill toward a stat, so the same skill wants different gear: Strike with Tempo gains 1% damage per 1%

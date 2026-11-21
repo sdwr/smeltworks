@@ -76,9 +76,16 @@ I.slotCats = function (it) {
   }
   return out;
 };
+/* the tier a new affix takes on a piece of this item level (see D.TIER_PICK) */
+I.rollTier = function (lvl) {
+  const max = D.tierOf(lvl), opts = []; for (let t = 1; t <= max; t++) opts.push(t);
+  return U.wpick(opts, t => { const d = max - t; return d < 3 ? D.TIER_PICK[d] : D.TIER_PICK[3] / (max - 3); });
+};
+/* the tier an affix is: its own, or the best the piece can have for a Greater affix and for gear from before tiers */
+I.affixTier = (it, a) => { const max = D.tierOf(it.ilvl); return a.g || !a.ti ? max : Math.min(a.ti, D.TIER_MAX); };
 function rollAffix(slot, have, tier, cat, plain, lvl) {
-  const a = U.wpick(I.affixPool(slot, have, cat), x => x.w);
-  return { k: a.id, r: U.rng(), g: !plain && U.chance(I.greaterChance(tier, lvl)) ? 1 : 0 };   // plain: cube rolls never crit
+  const a = U.wpick(I.affixPool(slot, have, cat), x => x.w), g = !plain && U.chance(I.greaterChance(tier, lvl)) ? 1 : 0;   // plain: cube rolls never crit
+  return { k: a.id, r: U.rng(), g, ti: g ? D.tierOf(lvl) : I.rollTier(lvl) };      // a Greater affix is always of the best tier
 }
 /* opts: slot, base, rar, minRar, mf, tier, boost, unique (id), anc, greater (at least one Greater affix) */
 I.roll = function (ilvl, o) {
@@ -95,7 +102,7 @@ I.roll = function (ilvl, o) {
     else {
       const u = U.pick(pool);
       it.uniq = u.id; it.base = u.base; it.slot = D.BASES[u.base].slot;
-      it.affixes = u.affixes.map(k => ({ k, r: 0.35 + U.rng() * 0.65, g: U.chance(I.greaterChance(o.tier, ilvl) * 1.25) ? 1 : 0 }));
+      it.affixes = u.affixes.map(k => ({ k, r: 0.35 + U.rng() * 0.65, g: U.chance(I.greaterChance(o.tier, ilvl) * 1.25) ? 1 : 0, ti: D.tierOf(ilvl) }));      // a Unique's affixes are always of the best tier
       it.ur = U.rng();
       it.name = u.name;
       return it;
@@ -104,7 +111,7 @@ I.roll = function (ilvl, o) {
   const [lo, hi] = D.RARITY[rar].affixes;
   const n = U.irand(lo, hi);
   for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(a => a.k), o.tier || 0, null, false, ilvl));
-  if (o.greater && it.affixes.length && !it.affixes.some(a => a.g)) U.pick(it.affixes).g = 1;
+  if (o.greater && it.affixes.length && !it.affixes.some(a => a.g)) { const a = U.pick(it.affixes); a.g = 1; a.ti = D.tierOf(ilvl); }
   it.name = I.makeName(it);
   return it;
 };
@@ -130,20 +137,20 @@ I.slotMult = function (it, k) {
 I.MAX_ROLL = 0.9999;
 I.affixValue = function (it, a, idx) {
   const def = D.AFFIX[a.k];
-  let v = U.lerp(def.lo, def.hi, a.g ? I.MAX_ROLL : a.r);
-  if (def.int) return Math.floor(v) + (a.g ? 1 : 0) + (idx != null && I.masterworked(it, idx) ? 1 : 0);
-  if (def.sc === 'flat') v *= D.flat(it.ilvl); else if (def.sc === 'pct') v *= D.pct(it.ilvl);
+  if (def.int) return Math.floor(U.lerp(def.lo, def.hi, a.g ? I.MAX_ROLL : a.r)) + (a.g ? 1 : 0) + (idx != null && I.masterworked(it, idx) ? 1 : 0);      // skill ranks have no tiers
+  const band = D.tierBand(def, I.affixTier(it, a));
+  let v = U.lerp(band[0], band[1], a.g ? I.MAX_ROLL : a.r);
   v *= I.slotMult(it, a.k);
   if (a.g) v *= 1.5;
   v *= I.upMult(it);
   if (idx != null && I.masterworked(it, idx)) v *= D.MW_BONUS;
-  if (def.dp) return Math.round(v * 10) / 10;
-  return Math.max(1, Math.round(v));
+  if (def.dp || def.sc !== 'flat' || v < 10) return Math.max(0.1, Math.round(v * 10) / 10);      // percentages and small amounts keep a decimal, so neighbouring tiers never read the same
+  return Math.round(v);
 };
-/* the lowest and highest this affix can roll on this item, as "[lo–hi]". It is the ordinary range even for a Greater
+/* the lowest and highest this affix can roll on this item at its tier, as "[lo–hi]". It is the ordinary range even for a Greater
    affix, so a Greater affix visibly sits above the top of it */
 I.affixRange = function (it, a, idx) {
-  const lo = I.affixValue(it, { k: a.k, r: 0, g: 0 }, idx), hi = I.affixValue(it, { k: a.k, r: I.MAX_ROLL, g: 0 }, idx);
+  const ti = I.affixTier(it, a), lo = I.affixValue(it, { k: a.k, r: 0, g: 0, ti }, idx), hi = I.affixValue(it, { k: a.k, r: I.MAX_ROLL, g: 0, ti }, idx);
   return '[' + U.fmt1(lo) + '–' + U.fmt1(hi) + ']';
 };
 I.affixText = function (it, a, idx) {
@@ -232,7 +239,7 @@ I.fixed = it => !!it.uniq;
 I.canEnchant = (it, idx) => !it.sealed && it.affixes.length > 0 && (it.ench == null || it.ench < 0 || it.ench === idx);
 I.enchant = function (it, idx, tier) {
   const have = it.affixes.map(a => a.k);
-  const na = rollAffix(I.poolKey(it), have, tier || 0, null, true);      // plain: crafting never makes a Greater affix, so rerolling a Greater one gives it up
+  const na = rollAffix(I.poolKey(it), have, tier || 0, null, true, it.ilvl);      // plain: crafting never makes a Greater affix, so rerolling a Greater one gives it up
   it.affixes[idx] = na; it.ench = idx; it.enchN = (it.enchN || 0) + 1;
   if (it.rar === 1) it.name = I.makeName(it);
   return na;
@@ -255,12 +262,12 @@ I.transfigure = function (it) {
   if (kind === 'greater' && !plain.length) kind = 'quality';                 // nothing left to make Greater
   if (kind === 'replace' && !it.affixes.length) kind = 'affix';
   // a transfigured affix can be anything the piece does not already have, whatever its slot normally rolls
-  const fresh = () => { const have = it.affixes.map(a => a.k), pool = Object.values(D.AFFIX).filter(a => !have.includes(a.id)); return { k: U.wpick(pool, a => a.w).id, r: U.rng(), g: 0, t: 1 }; };
+  const fresh = () => { const have = it.affixes.map(a => a.k), pool = Object.values(D.AFFIX).filter(a => !have.includes(a.id)); return { k: U.wpick(pool, a => a.w).id, r: U.rng(), g: 0, t: 1, ti: I.rollTier(it.ilvl) }; };
   const res = { kind };
   if (kind === 'indes') it.indes = 1;                        // a label and nothing more
   else if (kind === 'quality') { res.v = 1 + Math.floor(U.rng() * D.TRANSFIG_QUALITY); it.tq = (it.tq || 0) + res.v; }
   else if (kind === 'affix') { it.affixes.push(fresh()); res.idx = it.affixes.length - 1; }
-  else if (kind === 'greater') { res.idx = U.pick(plain); it.affixes[res.idx].g = 1; }
+  else if (kind === 'greater') { res.idx = U.pick(plain); it.affixes[res.idx].g = 1; it.affixes[res.idx].ti = D.tierOf(it.ilvl); }
   else { res.idx = Math.floor(U.rng() * it.affixes.length); res.was = I.affixText(it, it.affixes[res.idx], res.idx); res.lostGreater = !!it.affixes[res.idx].g; it.affixes[res.idx] = fresh(); }
   if (!it.uniq) { const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : it.affixes.length ? 1 : 0); if (rar !== it.rar) { it.rar = rar; it.name = I.makeName(it); } }
   res.open = U.chance(odds.open / 100);
@@ -294,7 +301,7 @@ I.cubeCheck = function (it, orb, cat) {
 I.cube = function (it, orb, tier, cat) {
   const res = { orb };
   if (orb === 'add') {
-    const a = rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, cat, true);
+    const a = rollAffix(I.poolKey(it), it.affixes.map(x => x.k), tier || 0, cat, true, it.ilvl);
     it.affixes.push(a); res.idx = it.affixes.length - 1;
     const rar = Math.max(it.rar, it.affixes.length >= 3 ? 2 : 1);
     if (rar !== it.rar) { res.from = it.rar; it.rar = rar; }
@@ -309,7 +316,7 @@ I.cube = function (it, orb, tier, cat) {
     // every affix but the one rerolled at the forge, which stays where it is
     const kept = it.ench >= 0 ? it.affixes[it.ench] : null, out = [];
     res.idxs = I.removable(it);
-    for (let i = 0; i < it.affixes.length; i++) out.push(i === it.ench ? kept : rollAffix(I.poolKey(it), out.map(x => x.k).concat(kept ? [kept.k] : []), tier || 0, null, true));
+    for (let i = 0; i < it.affixes.length; i++) out.push(i === it.ench ? kept : rollAffix(I.poolKey(it), out.map(x => x.k).concat(kept ? [kept.k] : []), tier || 0, null, true, it.ilvl));
     it.affixes = out;
   } else if (orb === 'divine') {
     res.idxs = I.temperable(it);                           // new numbers only, and only on ordinary affixes that were not rerolled at the forge

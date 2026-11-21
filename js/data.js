@@ -37,8 +37,8 @@ const D = SW.data = {};
 D.FLAT_G = 1.085;      // growth of flat gear stats per item level
 D.MOB_HP0 = 36; D.MOB_DMG0 = 15;      // a level 1 monster's life and damage, before its own multipliers
 D.MOB_SOFT = [0.8, 0.9];               // the first monsters are softer than the curve: this share of it at level 0, the whole of it by level 12
-D.MOB_HP_G = 1.084;    // monster life per level
-D.MOB_DMG_G = 1.075;   // monster damage per level
+D.MOB_HP_G = 1.08;     // monster life per level
+D.MOB_DMG_G = 1.071;   // monster damage per level
 /* Gear stops at item level 50. Torment monsters keep rising (levels 50 to 89), but only gently, because from there
    the player grows by Ancestral gear (item level 55, Torment only), masterworking, greater affixes and better rolls. */
 D.GEAR_CAP = 50;
@@ -100,8 +100,33 @@ D.MATERIALS = [
 ];
 D.material = l => D.MATERIALS.find(m => l <= m.to);
 
+/* ------------------------------------------------------------- affix tiers
+   Every affix comes in seven tiers, each a band of values that starts where the one below it ends. A piece can roll
+   tiers up to the one its item level has reached: tier 1 from level 1, tier 2 from 10, then 20, 30 and 40 (one
+   for each level of the campaign), tier 6 from 50 (Torment) and tier 7 at 55 (Ancestral). Inside a tier the item
+   level does not matter. So the gear of each new level is a clear step above the last, and so is each roll. */
+D.TIER_LVL = [1, 10, 20, 30, 40, 50, 55];
+D.TIER_MAX = D.TIER_LVL.length;
+D.tierOf = l => { let t = 1; for (let i = 1; i < D.TIER_LVL.length; i++) if (l >= D.TIER_LVL[i]) t = i + 1; return t; };
+/* which tier a new affix rolls, by how far below the piece's best tier: 62% are the best, 26% one lower, 9% two
+   lower, and the last 3% are shared among anything lower still */
+D.TIER_PICK = [62, 26, 9, 3];
+/* the growth of flat amounts (Life, Armor, Thorns...) from tier to tier follows the monsters: what a flat stat is
+   worth at a typical item level of each tier */
+D.TIER_FLAT = [4, 13, 23, 33, 43, 50, 55].map(l => Math.pow(D.FLAT_G, l - 1));
+/* [lo, hi] of an affix at a tier, before slot multipliers, masterwork and the rest.
+   flat: tier 1 is lo-hi at the first tier's worth, and each later tier runs from the top of the last to hi at its own
+   pct (damage percentages): seven equal bands from half of lo to 1.75 times hi
+   none (the rest): seven equal bands from 0.35 of lo to hi */
+D.tierBand = function (def, t) {
+  t = Math.max(1, Math.min(D.TIER_MAX, t));
+  if (def.sc === 'flat') return [t === 1 ? def.lo * D.TIER_FLAT[0] : def.hi * D.TIER_FLAT[t - 2], def.hi * D.TIER_FLAT[t - 1]];
+  const a = def.sc === 'pct' ? def.lo * 0.5 : def.lo * 0.35, b = def.sc === 'pct' ? def.hi * 1.75 : def.hi, step = (b - a) / D.TIER_MAX;
+  return [a + step * (t - 1), a + step * t];
+};
+
 /* ------------------------------------------------------------- affixes
-   sc: 'flat' scales with FLAT_G, 'pct' scales gently with item level, 'none' is fixed.
+   sc: how the tiers are spaced (see D.tierBand): 'flat' grows like the monsters, 'pct' and 'none' in even steps.
    dp: decimals shown. w: roll weight.
 
    Which slot can roll what follows Diablo's logic. Offhands are split by type (shield / lantern).
@@ -496,8 +521,8 @@ D.TIERS = [
   { name: 'Torment IV',  short: 'T4', color: '#c04bff' },
 ];
 /* Torment multiplies monster life and damage on top of their level */
-D.TIER_HP = [1, 1.7, 1.9, 2.1, 2.3];
-D.TIER_DMG = [1, 1.4, 1.5, 1.6, 1.7];
+D.TIER_HP = [1, 2.0, 2.3, 2.5, 2.8];
+D.TIER_DMG = [1, 1.7, 1.8, 1.9, 2.0];
 /* Monster level at the door of a level. Each Torment tier covers about ten monster levels: 50-61, 60-71, ... */
 D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 10 + area * 2;
 /* ...and how many levels higher its last room and its boss are. In the campaign that is one level a room, which is

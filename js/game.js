@@ -12,7 +12,9 @@ G.emit = (type, data) => { for (const fn of G.listeners) fn(type, data || {}); }
 G.fresh = function () {
   const S = {
     v: 2,
-    hero: { bar: ['strike', 'sunder', 'ironskin', null, null], passives: ['heavy', null, null], tech: {} },
+    // a new smith starts as a complete hammer build: all five hammer skills, the three hammer passives, and the
+    // first (left-hand) technique chosen for every skill in the game
+    hero: { bar: ['strike', 'sunder', 'quake', 'ironskin', 'meteor'], passives: ['heavy', 'tempered', 'crush'], tech: Object.fromEntries(Object.keys(D.TECH).map(k => [k, D.TECH[k][0].id])) },
     gear: {}, bag: [], stash: [], gold: 0, mats: { dust: 0, soul: 0 },
     world: { tier: 0, area: 0, cleared: [0], map: null, pos: null, shrine: null, shrineN: 0 },
     opts: { speed: 1, auto: false, full: true, onClear: 'advance', salv: [false, false, false], sound: true, vol: 0.6, autoFlask: true },
