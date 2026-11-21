@@ -14,7 +14,7 @@ class Battle {
     this.autoFlask = this.hooks.autoFlask !== false;      // drink the flask without being asked, below 35% Life
     this.t = 0; this.over = null; this.nextId = 1;
     this.mobs = []; this.wave = -1; this.waveDelay = 0.45; this.pending = [];
-    this.killed = 0; this.dmgDone = 0; this.dmgTaken = 0; this.by = {}; this.ft = 0;
+    this.killed = 0; this.dmgDone = 0; this.dmgTaken = 0; this.by = {}; this.byEl = {}; this.ft = 0;
     const p = persist || {};
     this.minFrac = p.hp == null ? 1 : U.clamp(p.hp, 0, 1);
     this.h = { hp: Math.max(1, Math.round(C.st.maxLife * (p.hp == null ? 1 : U.clamp(p.hp, 0, 1)))), max: C.st.maxLife, barrier: 0, barrierT: 0, heat: p.heat == null ? 30 : p.heat, cds: Object.assign({}, p.cds || {}),
@@ -26,7 +26,7 @@ class Battle {
   emit(o) { if (this.rec) this.ev.push(o); }
   alive() { return this.mobs.filter(m => !m.dead); }
   persist() { return { cds: this.h.cds, heat: this.h.heat, potCd: this.h.potCd, hp: this.over === 'lose' || this.h.hp <= 0 ? 1 : this.h.hp / this.h.max }; }      // a fall sends the smith back whole
-  summary() { return { min: this.minFrac, t: this.t, ft: this.ft, type: this.spec.type, dmg: this.dmgDone, by: this.by, taken: this.dmgTaken, kills: this.killed }; }
+  summary() { return { min: this.minFrac, t: this.t, ft: this.ft, type: this.spec.type, dmg: this.dmgDone, by: this.by, byEl: this.byEl, taken: this.dmgTaken, kills: this.killed }; }
   setHero(C) {
     const r = this.h.hp / this.h.max;
     this.C = C; this.st = C.st; this.mods = C.mods; this.h.max = C.st.maxLife; this.h.hp = Math.min(this.h.max, Math.max(1, r * this.h.max));
@@ -397,6 +397,7 @@ class Battle {
     // the meter counts damage that removed life, not overkill, under whatever dealt it
     const eff = Math.min(dmg, m.hp), src = o && o.thorns ? 'thorns' : o && o.dot ? (el === 'fire' ? 'burn' : 'bleed') : o && o.skill ? o.skill : 'proc';
     this.dmgDone += eff; this.by[src] = (this.by[src] || 0) + eff;
+    const be = this.byEl[src] || (this.byEl[src] = {}); be[el || 'phys'] = (be[el || 'phys'] || 0) + eff;      // ...and of what type, for the meter's colours
     m.hp -= dmg;
     this.emit({ e: 'hit', m: m.uid, amt: dmg, crit, el, dot: o && o.dot ? 1 : 0, proc: o && o.proc ? 1 : 0, big: o && (o.ult || o.core) ? 1 : 0 });
     if (m.hp <= 0) this.kill(m);

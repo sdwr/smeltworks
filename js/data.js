@@ -266,7 +266,7 @@ D.DISC = {
   ember:  { name: 'Ember',  el: 'fire',  color: '#ff8a2a', blurb: 'Fire that lingers. Burns stack up and spread.' },
   storm:  { name: 'Storm',  el: 'light', color: '#7fd4ff', blurb: 'Fast lightning. Chains between enemies and crits often.' },
 };
-D.EL_NAME = { phys: 'Physical', fire: 'Fire', light: 'Lightning' };
+D.EL_NAME = { phys: 'Physical', fire: 'Fire', light: 'Lightning', poison: 'Poison', shadow: 'Shadow' };
 D.EL_COLOR = { phys: '#f1ede4', fire: '#ff9a3c', light: '#8fdcff', poison: '#9be36a', shadow: '#c79bff' };
 D.SKILLS = [
   /* Hammer */

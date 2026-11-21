@@ -156,7 +156,6 @@ function renderTop() {
   $('where-act').textContent = (W.tier ? D.TIERS[W.tier].name + ' · ' : '') + D.ACTS[area.act].name;
   $('where-area').textContent = area.name;
   $('where-lvl').textContent = `Lv ${lvl}–${lvl + D.areaSpan(W.tier)}`;
-  $('hud-level').textContent = Hr.gearLevel(S.gear); $('hud-power').textContent = U.fmt(G.C.rating.power);
   document.querySelectorAll('#speed button').forEach(b => b.classList.toggle('on', +b.dataset.speed === S.opts.speed));
   $('btn-auto').classList.toggle('on', !!S.opts.auto);
   $('btn-sound').classList.toggle('off', !S.opts.sound);
@@ -224,19 +223,39 @@ UI.frame = function () {
   if (UI.buffHtml !== bh) { UI.buffHtml = bh; $('buffs').innerHTML = bh; }
 };
 
+/* A number that rises from a purse counter when something is gained there (salvage) or sinks from it when something
+   is spent (crafting). Quick repeats of the same kind add up in the one that is still showing. */
+function pursePop(k, amt) {
+  if (!amt) return;
+  const host = $('cur-' + k); if (!host) return; const cur = host.parentElement, sign = amt > 0 ? 'up' : 'dn', now = performance.now();
+  let el = cur.querySelector('.pop.' + sign);
+  if (el && now - +el.dataset.t < 500) amt += +el.dataset.v; else { cur.querySelectorAll('.pop').forEach(x => x.remove()); el = document.createElement('em'); el.className = 'pop ' + sign; el.dataset.t = now; cur.appendChild(el); el.addEventListener('animationend', () => el.remove()); }
+  el.dataset.v = amt; el.textContent = (amt > 0 ? '+' : '−') + U.fmt(Math.abs(amt));
+}
+const purseGain = y => { for (const k in y) pursePop(k, y[k]); }, purseSpend = c => { for (const k in c) pursePop(k, -c[k]); };
 /* -------------------------------------------------------- damage meter */
 const SRC_NAME = { burn: 'Burn', bleed: 'Bleed', thorns: 'Thorns', proc: 'Unique powers and procs', punch: 'Punch' };
 let meterT = 0;
+/* bars are coloured by the type of damage, not by the skill's school: a skill that deals two types takes the colour
+   of the larger share, and its tooltip gives the split */
+const METER_EL = { phys: '#b9bfcc', fire: '#ff8a2a', light: '#5fbfff', poison: '#7fc94f', shadow: '#a678e6' };
 function renderMeter() {
   const B = G.battle, live = B && B.ft > 0.3 ? B.dmgDone / B.ft : null;
-  let dmg = 0, ft = 0; const by = {};
-  const fights = live != null ? G.meter.slice(-9).concat([{ dmg: B.dmgDone, ft: B.ft, by: B.by }]) : G.meter;
-  for (const m of fights) { dmg += m.dmg; ft += m.ft; for (const k in m.by) by[k] = (by[k] || 0) + m.by[k]; }
+  let dmg = 0, ft = 0; const by = {}, byEl = {};
+  const fights = live != null ? G.meter.slice(-9).concat([{ dmg: B.dmgDone, ft: B.ft, by: B.by, byEl: B.byEl }]) : G.meter;
+  for (const m of fights) { dmg += m.dmg; ft += m.ft; for (const k in m.by) by[k] = (by[k] || 0) + m.by[k];
+    for (const k in m.byEl || {}) { const t = byEl[k] || (byEl[k] = {}); for (const e in m.byEl[k]) t[e] = (t[e] || 0) + m.byEl[k][e]; } }
   const avg = ft > 0 ? dmg / ft : 0, last = G.meter.length ? G.meter[G.meter.length - 1] : null;
   const rows = Object.keys(by).sort((a, b) => by[b] - by[a]).slice(0, 6), top = rows.length ? by[rows[0]] : 1;
   let h = `<div class="m-top"><span>${live != null ? 'DPS this fight' : 'DPS last fight'}</span><b>${live != null ? U.fmt(live) : last ? U.fmt(last.dmg / last.ft) : '–'}</b></div>`;
   h += `<div class="m-avg"><span>${fights.length ? 'Last ' + fights.length + ' fight' + (fights.length === 1 ? '' : 's') : 'No fights yet'}</span><b>${fights.length ? U.fmt(avg) : ''}</b></div>`;
-  for (const k of rows) { const sk = D.SKILL[k]; h += `<div class="m-row"><i style="width:${by[k] / top * 100}%;background:${sk ? D.DISC[sk.disc].color : k === 'burn' ? '#ff9a3c' : k === 'bleed' ? '#c0303a' : '#8a8478'}"></i><span>${sk ? sk.name : SRC_NAME[k] || k}</span><b>${Math.round(by[k] / dmg * 100)}%</b></div>`; }
+  for (const k of rows) {
+    const sk = D.SKILL[k], name = sk ? sk.name : SRC_NAME[k] || k;
+    const els = Object.keys(byEl[k] || {}).sort((a, b) => byEl[k][b] - byEl[k][a]), main = els[0] || (sk ? sk.el || D.DISC[sk.disc].el : k === 'burn' ? 'fire' : 'phys'), tot = els.reduce((a, e) => a + byEl[k][e], 0) || 1;
+    const types = els.length > 1 ? els.filter(e => byEl[k][e] / tot >= 0.005).map(e => `${D.EL_NAME[e] || e} ${Math.round(byEl[k][e] / tot * 100)}%`).join(', ') : (D.EL_NAME[main] || main) + ' damage';
+    const kind = k === 'burn' ? 'Damage over time from your Fire hits. ' : k === 'bleed' ? 'Damage over time from your Physical hits. ' : k === 'thorns' ? 'Dealt back to monsters that hit you. ' : '';
+    h += `<div class="m-row" data-tip="<b>${esc(name)}</b>: ${types}. ${kind}${Math.round(by[k] / dmg * 100)}% of your damage over ${fights.length === 1 ? 'this fight' : 'these ' + fights.length + ' fights'}."><i style="width:${by[k] / top * 100}%;background:${METER_EL[main] || '#8a8478'}"></i><span><u style="background:${METER_EL[main] || '#8a8478'}"></u>${name}</span><b>${Math.round(by[k] / dmg * 100)}%</b></div>`;
+  }
   if (UI.meterHtml !== h) { UI.meterHtml = h; $('meter').innerHTML = h; }
 }
 
@@ -672,8 +691,10 @@ UI.onGame = function (type, d) {
     case 'drink': A.play('potion'); SW.fx.heroGlow('#ff5a5a'); break;
     case 'equip': A.play('equip'); mark('gear', 'bag', 'forge', 'hint'); hideTip(); break;
     case 'bag': mark('bag'); break;
-    case 'salvage': A.play('salvage'); mark('bag', 'forge', 'hint'); break;
-    case 'salvageAll': A.play('salvage'); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
+    case 'salvage': A.play('salvage'); purseGain(d.y); mark('bag', 'forge', 'hint', 'top'); break;
+    case 'autoSalvage': purseGain(d.y); break;
+    case 'spend': purseSpend(d.cost); mark('top'); break;
+    case 'salvageAll': A.play('salvage'); purseGain(d.y); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
     case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. New drops are being salvaged until you make room.', 'bad'); } break;
     case 'cube': A.play(d.res.orb === 'remove' ? 'salvage' : 'forge'); UI.cubeLast = d.res; worthChanged(d.it); mark('cube', 'bag', 'gear', 'forge');
       if (d.res.from != null) UI.toast(`It is now ${D.RARITY[d.it.rar].name}.`, 'good');

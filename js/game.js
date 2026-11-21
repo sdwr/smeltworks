@@ -259,9 +259,9 @@ G.addItem = function (it) {
   const S = G.S;
   if (it.uniq) S.stats.uniq++;
   it.upg = G.isUpgrade(it) ? 1 : 0;
-  if (!it.uniq && S.opts.salv[it.rar] && !it.upg && !it.anc) { G.salvageItem(it, true); return 'salvaged'; }      // Ancestral gear is never auto-salvaged
+  if (!it.uniq && S.opts.salv[it.rar] && !it.upg && !it.anc) { G.emit('autoSalvage', { y: G.salvageItem(it, true) }); return 'salvaged'; }      // Ancestral gear is never auto-salvaged
   // no room: the new piece is salvaged where it drops. Nothing already in the bag is touched.
-  if (G.bagCount() >= D.BAG_SIZE) { G.salvageItem(it, true); G.emit('bagfull'); return 'salvaged'; }
+  if (G.bagCount() >= D.BAG_SIZE) { G.emit('autoSalvage', { y: G.salvageItem(it, true) }); G.emit('bagfull'); return 'salvaged'; }
   let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length;
   S.bag[i] = it;
   return 'bag';
@@ -504,7 +504,7 @@ G.completeCell = function (c) {
   G.emit('map');
 };
 /* the damage meter averages over the last ten battles */
-G.record = function (bs) { if (bs.ft > 0.2) { G.meter.push({ dmg: bs.dmg, ft: bs.ft, by: bs.by }); if (G.meter.length > 10) G.meter.shift(); } };
+G.record = function (bs) { if (bs.ft > 0.2) { G.meter.push({ dmg: bs.dmg, ft: bs.ft, by: bs.by, byEl: bs.byEl }); if (G.meter.length > 10) G.meter.shift(); } };
 G.winCell = function () {
   const S = G.S, W = S.world, c = G.target;
   const bs = G.battle.summary(); G.record(bs);
@@ -602,7 +602,7 @@ G.sortBag = function () {
   S.bag = items; G.emit('bag');
 };
 G.canPay = c => Object.keys(c).every(k => (k === 'gold' ? G.S.gold : G.S.mats[k] || 0) >= c[k]);
-G.pay = function (c) { if (!G.canPay(c)) return false; for (const k in c) { if (k === 'gold') G.S.gold -= c[k]; else G.S.mats[k] -= c[k]; } return true; };
+G.pay = function (c) { if (!G.canPay(c)) return false; for (const k in c) { if (k === 'gold') G.S.gold -= c[k]; else G.S.mats[k] -= c[k]; } G.emit('spend', { cost: c }); return true; };
 G.upgrade = function (id) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
