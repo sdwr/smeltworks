@@ -7,8 +7,8 @@ const H = SW.hero = {};
 /* monster curves. Levels 1-12 ramp in gently so the opening fights are quick */
 /* past level 50 (Torment) monsters grow faster than gear does, so the endgame keeps getting harder */
 const grow = (g, g2, l) => Math.pow(g, Math.min(l, 50) - 1) * Math.pow(g2, Math.max(0, l - 50));
-D.mobHp = l => 32 * grow(D.MOB_HP_G, D.MOB_HP_G2, l) * (1 + Math.min(l, 50) * 0.055) * Math.min(1, 0.5 + l / 24);
-D.mobDmg = l => 12 * grow(D.MOB_DMG_G, D.MOB_DMG_G2, l) * (1 + Math.min(l, 50) * 0.022) * Math.min(1, 0.62 + l / 32);
+D.mobHp = l => D.MOB_HP0 * grow(D.MOB_HP_G, D.MOB_HP_G2, l) * (1 + Math.min(l, 50) * 0.055) * Math.min(1, D.MOB_SOFT[0] + l / 24);
+D.mobDmg = l => D.MOB_DMG0 * grow(D.MOB_DMG_G, D.MOB_DMG_G2, l) * (1 + Math.min(l, 50) * 0.022) * Math.min(1, D.MOB_SOFT[1] + l / 32);
 D.mobGold = l => 2.2 * D.goldScale(l);
 
 /* There are no character levels: everything the smith is comes from what the smith wears. */

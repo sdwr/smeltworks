@@ -23,7 +23,7 @@ G.fresh = function () {
   const w = I.roll(1, { slot: 'weapon', base: 'hammer', rar: 0 }); w.name = "Apprentice's Hammer"; w.isNew = 0;
   const c = I.roll(1, { slot: 'chest', rar: 0 }); c.name = 'Singed Apron'; c.isNew = 0;
   S.gear.weapon = w; S.gear.chest = c;
-  S.rarv = 1; S.curv = 1;
+  S.rarv = 1; S.curv = 1; S.lvlv = 1;
   return S;
 };
 G.init = function (saved) {
@@ -75,6 +75,13 @@ G.init = function (saved) {
   I.setUid(mx + 1);
   G.battle = null; G.phase = 'idle'; G.phaseT = 0; G.persist = { hp: S.hp == null ? 1 : U.clamp(S.hp, 0.01, 1) }; G.deathStreak = 0; G.meter = [];      // Life left is saved, so reloading the page is not a heal
   G.recompute();
+  if (!S.lvlv) {
+    // saves from when a difficulty had fifteen areas: three of them make one of today's five levels
+    const W = S.world;
+    W.cleared = W.cleared.map(c => (c == null ? c : Math.min(D.AREAS.length, Math.floor(c / 3))));
+    W.area = Math.min(D.AREAS.length - 1, Math.floor(W.area / 3), W.cleared[W.tier] || 0);
+    W.map = null; S.lvlv = 1;
+  }
   if (!S.world.map) G.startExpedition(S.world.area, S.world.tier, true);
 };
 G.save = function () {
@@ -99,12 +106,11 @@ G.recompute = function () {
 };
 
 /* -------------------------------------------------------------------- map */
-const NAMES = ['Gorefang', 'Ashmaw', 'Varo the Cruel', 'Old Cinder', 'Skarn', 'Mother Soot', 'The Quarryman', 'Brakk Ironjaw', 'Sister Pyre', 'Hollow Jack', 'The Tallowman', 'Vex', 'Red Molly', 'Grist', 'The Stoker'];
 G.areaLevel = () => D.areaLevel(G.S.world.area, G.S.world.tier);
 G.genMap = function (area, tier) {
-  const W = D.MAP_W, H = D.MAP_H, base = D.areaLevel(area, tier), first = area === 0 && tier === 0;
+  const W = D.MAP_W, H = D.MAP_H, base = D.areaLevel(area, tier), span = D.areaSpan(tier), first = area === 0 && tier === 0;
   const cells = [];
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) cells.push({ x, y, type: 'fight', state: 'hidden', lvl: base + Math.round(x / (W - 1) * 3), deaths: 0 });
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) cells.push({ x, y, type: 'fight', state: 'hidden', lvl: base + Math.round(x / (W - 1) * span), deaths: 0 });
   const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? null : cells[y * W + x]);
   const start = at(0, 2), boss = at(W - 1, U.irand(0, H - 1));
   start.type = 'start'; boss.type = 'boss';
@@ -124,8 +130,7 @@ G.genMap = function (area, tier) {
   take(first ? 2 : 3 + (tier > 0 ? 1 : 0), 'elite', first ? 3 : 2);
   take(2, 'chest', 1);
   take(2, 'shrine', 1);
-  const map = { w: W, h: H, cells, area, tier, bossDone: false, allDone: false, name: null };
-  if (!D.AREAS[area].final) map.name = U.pick(NAMES);
+  const map = { w: W, h: H, cells, area, tier, bossDone: false, allDone: false, bossFalls: 0 };
   start.state = 'done';
   boss.state = 'seen';
   G.reveal(map, start);
@@ -161,6 +166,7 @@ G.startExpedition = function (area, tier, quiet) {
   W.map = G.genMap(area, tier);
   W.pos = { x: 0, y: 2 }; W.shrine = null; W.shrineN = 0;
   G.persist.hp = 1;                                         // a new map is begun whole
+  W.map.bossFalls = (W.falls && W.falls.key === tier + ':' + area && W.falls.boss) || 0;      // what Auto remembers of this level's boss
   G.battle = null; G.phase = 'idle'; G.phaseT = 0.4; G.path = []; G.target = null; G.route = [];
   if (!quiet) G.emit('expedition');
   G.emit('map');
@@ -184,14 +190,8 @@ G.makeSpec = function (c) {
   };
   const affixes = n => U.shuffle(D.ELITE_IDS.slice()).slice(0, n);
   const spec = { waves: [], lvl, tier, shrine: W.shrineN > 0 ? W.shrine : null, type: c.type };
-  if (c.type === 'boss' && area.final) {
+  if (c.type === 'boss') {
     spec.waves.push([{ id: act.boss, lvl, boss: true }]); spec.boss = act.boss;
-  } else if (c.type === 'boss') {
-    const m = U.pick(pool.filter(m => !m.swarm && !m.heal && !m.summon));
-    spec.waves.push(pack(1.2 + tier * 0.5));
-    const gate = tier === 0 ? D.GATE[W.area] : null;
-    spec.waves.push([Object.assign({ id: m.id, lvl, champ: true, elite: affixes(lvl >= 30 || tier > 0 ? 2 : 1), name: W.map.name }, gate ? { hpMul: gate.hp, dmgMul: gate.dmg } : {}), ...pack(1.1)]);
-    spec.champ = W.map.name;
   } else if (c.type === 'elite') {
     const m = U.pick(pool.filter(m => !m.swarm));
     spec.waves.push([{ id: m.id, lvl, elite: affixes(1 + (lvl >= 24 ? 1 : 0) + (tier >= 2 ? 1 : 0)) }, ...pack(first ? 0.6 : 1.2)]);
@@ -297,7 +297,7 @@ G.dropsFor = function (m) {
     const key = m.id + tier;
     if (!S.stats.bosses[key]) {
       S.stats.bosses[key] = 1; out.first = true;
-      out.items.push(I.roll(m.lvl + 1, { rar: 2, tier, anc: G.ancestral(), greater: 1 }));      // a first kill pays a Rare with a Greater affix
+      out.items.push(I.roll(m.lvl + 1, { rar: 2, tier, anc: G.ancestral(), greater: tier > 0 || m.lvl >= 20 ? 1 : 0 }));      // a first kill pays a Rare; from the third level on it has a Greater affix
     } else S.stats.bosses[key]++;
     out.mats = { soul: 1 + tier, dust: D.DUST.boss + (tier > 0 ? D.DUST.bossTorment : 0) };
   } else if (m.champ) out.mats = { dust: D.DUST.champ };
@@ -394,7 +394,7 @@ G.autoPick = function () {
   const score = c => {
     const d = Math.abs(c.x - pos.x) + Math.abs(c.y - pos.y);
     // heading straight for the boss, unless it has already beaten us: then gather strength from the rest of the map first
-    if (!opts.full && !map.bossDone && !boss.deaths) return (c.type === 'boss' ? -100 : 0) + (Math.abs(c.x - boss.x) + Math.abs(c.y - boss.y)) * 10 + d + c.deaths * 50;
+    if (!opts.full && !map.bossDone && !map.bossFalls) return (c.type === 'boss' ? -100 : 0) + (Math.abs(c.x - boss.x) + Math.abs(c.y - boss.y)) * 10 + d + c.deaths * 50;
     return c.deaths * 200 + rank[c.type] * 30 + c.lvl * 4 + d * 20;     // every room walked costs time, so nearer wins
   };
   return cands.reduce((a, b) => (score(b) < score(a) ? b : a));
@@ -450,15 +450,16 @@ G.update = function (dt) {
     G.phaseT -= dt;
     if (G.phaseT <= 0) {
       const bs = G.battle.summary(); G.record(bs); G.persist = G.battle.persist(); G.battle = null; G.phase = 'idle'; G.phaseT = 0.3; G.emit('battleEnd', { win: false, bs });
-      if (S.opts.auto && G.deathStreak >= 3) {
-        // three falls in a row: stop banging on the same door. If only the boss is too much, run this area again
-        // for its loot; if the ordinary packs are too much, step back an area.
-        G.deathStreak = 0;
-        const bossOnly = G.target && G.target.type === 'boss' && map.cells.filter(c => c.type !== 'wall' && c.state !== 'done').length <= 3;
-        const to = bossOnly || W.area === 0 ? W.area : W.area - 1;
-        G.emit('fallback', { to: D.AREAS[to].name, same: to === W.area });
-        G.startExpedition(to, W.tier);
-      }
+      // A fall ends the run: the smith wakes at the door of a fresh map of the same level, with everything found
+      // so far. Auto remembers a boss that beat it (and clears the map before trying again), and after three runs
+      // in a row that ended in the first rooms it steps back a level to gather strength.
+      const key = W.tier + ':' + W.area, t = G.target, early = t && t.x <= 1;
+      if (!W.falls || W.falls.key !== key) W.falls = { key, n: 0, early: 0, boss: 0 };
+      W.falls.n++; W.falls.early = early ? W.falls.early + 1 : 0; if (t && t.type === 'boss') W.falls.boss++;
+      let to = W.area;
+      if (S.opts.auto && W.falls.early >= 3 && W.area > 0) { to = W.area - 1; W.falls = null; G.emit('fallback', { to: D.AREAS[to].name }); }
+      G.deathStreak = 0;
+      G.startExpedition(to, W.tier, true); G.emit('rerun', { area: to, depth: t ? t.x : 0, falls: W.falls ? W.falls.n : 0 });
       G.save();
     }
     return;
@@ -487,7 +488,7 @@ G.completeCell = function (c) {
     map.bossDone = true; S.stats.clears++;
     const first = W.cleared[W.tier] === W.area;
     if (first) {
-      W.cleared[W.tier] = W.area + 1;
+      W.cleared[W.tier] = W.area + 1; W.falls = null;
       if (W.area === D.AREAS.length - 1 && W.tier < D.TIERS.length - 1 && W.cleared[W.tier + 1] == null) { W.cleared[W.tier + 1] = 0; G.emit('tierUnlock', { tier: W.tier + 1 }); }
     }
     G.emit('areaClear', { first, area: W.area, tier: W.tier });

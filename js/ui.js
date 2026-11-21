@@ -135,7 +135,7 @@ function tipFor(el, x, y) {
 }
 function tileTip(c) {
   const names = { fight: 'Monster pack', elite: 'Elite pack', boss: 'Area boss', chest: 'Treasure chest', shrine: 'Shrine', start: 'Camp', wall: 'Impassable rock' };
-  const desc = { fight: 'A fight. Gold, experience and the odd piece of gear.', elite: 'An empowered monster with special powers. Always drops Magic gear or better.',
+  const desc = { fight: 'A fight. Gold and the odd piece of gear.', elite: 'An empowered monster with special powers. Always drops Magic gear or better.',
     boss: G.S.world.map.name ? `${G.S.world.map.name} guards the way on. Beat it to open the next area.` : 'The master of this act. Bring your best gear.',
     chest: 'Free loot. No fight.', shrine: `A blessing that lasts ${D.SHRINE_FIGHTS} battles.`, start: 'Where you came in.', wall: '' };
   if (c.type === 'wall') return '<div class="tt plain"><b>Impassable rock</b><br>Solid stone. There is no way through: the smith has to go round.</div>';
@@ -155,7 +155,7 @@ function renderTop() {
   const S = G.S, W = S.world, area = D.AREAS[W.area], lvl = D.areaLevel(W.area, W.tier);
   $('where-act').textContent = (W.tier ? D.TIERS[W.tier].name + ' · ' : '') + D.ACTS[area.act].name;
   $('where-area').textContent = area.name;
-  $('where-lvl').textContent = `Lv ${lvl}–${lvl + 3}`;
+  $('where-lvl').textContent = `Lv ${lvl}–${lvl + D.areaSpan(W.tier)}`;
   $('hud-level').textContent = Hr.gearLevel(S.gear); $('hud-power').textContent = U.fmt(G.C.rating.power);
   document.querySelectorAll('#speed button').forEach(b => b.classList.toggle('on', +b.dataset.speed === S.opts.speed));
   $('btn-auto').classList.toggle('on', !!S.opts.auto);
@@ -282,10 +282,10 @@ function renderHint() {
   const S = G.S, map = S.world.map;
   let t = '';
   if (!S.seen.fought) t = 'Click a glowing tile on the map to fight there.';
-  else if (S.world.tier === 0 && D.GATE[S.world.area] && !map.bossDone && (map.cells.find(c => c.type === 'boss') || {}).deaths > 0)
-    t = emptySlots() > 0 ? `This map's guardian is a test of your build: you have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}. Open Skills and fill them.`
-      : S.bag.some(b => b && b.upg) ? "This map's guardian is a test of your gear, and something in your bag is better than what you wear. Look for the green arrow."
-        : "This map's guardian is a test of your gear. Clear more rooms for drops, fill your empty slots, masterwork what you wear, and come back on full Life (a shrine restores it).";
+  else if (S.world.falls && S.world.falls.n > 0 && S.world.falls.key === S.world.tier + ':' + S.world.area && !map.bossDone && map.cells.filter(c => c.state === 'done').length <= 3)
+    t = emptySlots() > 0 ? `You fell, and a new run begins. You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}: open Skills and fill them.`
+      : S.bag.some(b => b && b.upg) ? 'You fell, and a new run begins. Something in your bag is better than what you wear: look for the green arrow.'
+        : 'You fell, and a new run begins. That is how a level goes: each run drops more gear and dust, so wear the best of it, masterwork it, and you will get a room or two deeper.';
   else if (G.route.length > 1) t = 'The smith follows your route in order. Click a numbered tile to take it off.';
   else if (!S.seen.route && S.stats.kills > 6 && emptySlots() === 0) t = 'Click several tiles to plan a route: the smith visits them in the order shown, with Auto on or off.';
   else if (emptySlots() > 0) t = `You have ${emptySlots()} empty skill slot${emptySlots() > 1 ? 's' : ''}. Open Skills and fill them: every skill is free.`;
@@ -594,18 +594,14 @@ UI.modal = function (html, cls) { $('modal-box').className = cls || ''; $('modal
 UI.closeModal = function () { $('modal').classList.add('hidden'); };
 UI.travel = function (tier) {
   const S = G.S, W = S.world; tier = tier == null ? W.tier : tier;
-  let h = '<h2>Travel</h2><p class="sub">Go back to farm, or press on. A new map is drawn each time you arrive.</p><div class="tiers">';
+  let h = '<h2>Travel</h2><p class="sub">Five levels to a difficulty, each ending in a boss. Inside a level the monsters climb a level with every room you go deeper. A new map is drawn each time you arrive.</p><div class="tiers">';
   D.TIERS.forEach((t, i) => { const open = W.cleared[i] != null; h += `<button class="tier ${i === tier ? 'on' : ''}" ${open ? '' : 'disabled'} data-tier="${i}" style="--c:${t.color}">${t.name}${open ? '' : ' <small>locked</small>'}</button>`; });
   h += '</div><div class="acts">';
-  D.ACTS.forEach((act, ai) => {
-    h += `<div class="act"><h3>${act.name}</h3>`;
-    for (const a of D.AREAS.filter(x => x.act === ai)) {
-      const open = G.isUnlocked(a.idx, tier), done = W.cleared[tier] > a.idx, lvl = D.areaLevel(a.idx, tier), here = W.area === a.idx && W.tier === tier;
-      h += `<button class="area ${done ? 'done' : ''} ${here ? 'here' : ''}" ${open ? '' : 'disabled'} data-go="${a.idx}" data-gotier="${tier}"><b>${a.name}</b><span class="${lvlCls(lvl, tier)}">Level ${lvl}–${lvl + 3}</span><i>${here ? 'You are here' : done ? 'Cleared' : open ? (a.final ? 'Act boss' : 'New') : 'Locked'}</i></button>`;
-    }
-    h += '</div>';
-  });
-  h += `</div><div class="mfoot"><span class="note">${tier ? `Gear stops at item level ${D.GEAR_CAP}, but in ${D.TIERS[tier].name} ${Math.round(D.ANC_CHANCE[tier] * 100)}% of drops are Ancestral: item level ${D.ANC_LEVEL}. More Uniques and Greater affixes too.` : `Gear stops at item level ${D.GEAR_CAP}. Beat The Crucible to unlock Torment, where Ancestral gear drops.`}</span><button data-close="1">Close</button></div>`;
+  for (const a of D.AREAS) {
+    const act = D.ACTS[a.act], open = G.isUnlocked(a.idx, tier), done = W.cleared[tier] > a.idx, lvl = D.areaLevel(a.idx, tier), here = W.area === a.idx && W.tier === tier, boss = D.BOSSES[act.boss];
+    h += `<button class="area ${done ? 'done' : ''} ${here ? 'here' : ''}" ${open ? '' : 'disabled'} data-go="${a.idx}" data-gotier="${tier}"><b>${a.idx + 1}. ${act.name}</b><span><em class="${lvlCls(lvl, tier)}">Level ${lvl}–${lvl + D.areaSpan(tier)}</em> · ${boss.name}, ${boss.title}</span><i>${here ? 'You are here' : done ? 'Cleared' : open ? 'New' : 'Locked'}</i></button>`;
+  }
+  h += `</div><div class="mfoot"><span class="note">${tier ? `Gear stops at item level ${D.GEAR_CAP}, but in ${D.TIERS[tier].name} ${Math.round(D.ANC_CHANCE[tier] * 100)}% of drops are Ancestral: item level ${D.ANC_LEVEL}. More Uniques and Greater affixes too.` : `Gear stops at item level ${D.GEAR_CAP}. Beat Vulkar in Hellforge to unlock Torment, where Ancestral gear drops.`}</span><button data-close="1">Close</button></div>`;
   UI.modal(h, 'travel');
 };
 UI.settings = function () {
@@ -636,11 +632,13 @@ UI.victory = function () {
 };
 UI.areaDone = function (d) {
   const S = G.S, W = S.world, area = D.AREAS[d.area], last = d.area === D.AREAS.length - 1, next = last ? null : D.AREAS[d.area + 1];
-  let h = `<h2>${area.name} cleared</h2>`;
-  if (area.final && d.first && d.tier === 0) h += `<p class="lead">${D.ACTS[area.act].name} is yours. The act boss left a Rare with a Greater affix.</p>`;
-  else if (d.first) h += '<p class="lead">The way on is open.</p>'; else h += '<p class="lead">Cleared again.</p>';
+  let h = `<h2>${D.ACTS[area.act].name} cleared</h2>`;
+  let h0 = '';
+  if (d.first) h0 = `<p class="lead">${D.ACTS[area.act].name} is yours. ${D.BOSSES[D.ACTS[area.act].boss].name} left a Rare${d.tier > 0 || D.areaLevel(d.area, d.tier) >= 20 ? ' with a Greater affix' : ''}.${next ? ` ${D.ACTS[next.act].name} starts at monster level ${D.areaLevel(next.idx, d.tier)}: expect to fall there until your gear catches up.` : ''}</p>`;
+  else h0 = '<p class="lead">Cleared again.</p>';
+  h += h0;
   if (last && d.first && W.cleared[d.tier + 1] != null) h += `<p><b style="color:${D.TIERS[d.tier + 1].color}">${D.TIERS[d.tier + 1].name} unlocked.</b> The whole descent again, far deadlier, with better loot. Open Travel to start it.</p>`;
-  h += '<div class="mfoot"><button data-close="1">Stay and finish the map</button><button data-again="1">Run it again</button>' + (next ? `<button class="big" data-go="${next.idx}" data-gotier="${d.tier}">On to ${next.name}</button>` : '<button class="big" data-travel="1">Travel</button>') + '</div>';
+  h += '<div class="mfoot"><button data-close="1">Stay and finish the map</button><button data-again="1">Run it again</button>' + (next ? `<button class="big" data-go="${next.idx}" data-gotier="${d.tier}">On to ${D.ACTS[next.act].name}</button>` : '<button class="big" data-travel="1">Travel</button>') + '</div>';
   UI.modal(h, 'done');
 };
 
@@ -651,18 +649,18 @@ UI.onGame = function (type, d) {
     case 'stats': mark('gear', 'top', 'hud', 'forge', 'cube', 'skills', 'map'); break;
     case 'map': mark('map', 'top'); break;
     case 'moved': A.play('step', 0.1); break;
-    case 'expedition': mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); UI.banner(D.AREAS[S.world.area].name, `${D.ACTS[D.AREAS[S.world.area].act].name} · Level ${G.areaLevel()}–${G.areaLevel() + 3}`, 'area', 1800); break;
+    case 'expedition': mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); UI.banner(D.ACTS[D.AREAS[S.world.area].act].name, `${D.AREAS[S.world.area].name} · Level ${G.areaLevel()}–${G.areaLevel() + D.areaSpan(S.world.tier)}`, 'area', 1800); break;
+    case 'rerun': mark('map', 'top'); SW.fx.clear(); SW.fx.setScene(D.ACTS[D.AREAS[S.world.area].act].bg); break;
     case 'battleStart':
       SW.fx.battleStart(); S.seen.fought = 1; mark('map');
       if (d.spec.boss) { const b = D.BOSSES[d.spec.boss]; UI.banner(b.name, b.title, 'boss', 2600); }
-      else if (d.spec.champ) UI.banner(d.spec.champ, 'Champion of ' + D.AREAS[S.world.area].name, 'boss', 2200);
       break;
     case 'travel': mark('map'); break;
     case 'route': mark('map'); break;
     case 'battleEnd': if (!d.win) SW.fx.clear(); mark('bag', 'map', 'top', 'skills', 'forge', 'gear'); break;
-    case 'death': UI.banner('You fell', d && d.route > 1 ? 'Nothing is lost, but your route is cleared.' : 'Nothing is lost. Catch your breath and try again.', 'dead', 2400); mark('map'); break;
+    case 'death': UI.banner('You fell', 'The run is over. You keep everything you found, and a new map waits.', 'dead', 2400); mark('map'); break;
     case 'areaClear':
-      A.play('clear'); UI.banner(D.AREAS[d.area].name + ' cleared', d.first ? 'The way on is open' : '', 'clear', 2400);
+      A.play('clear'); UI.banner(D.ACTS[D.AREAS[d.area].act].name + ' cleared', d.first ? 'The way on is open' : '', 'clear', 2400);
       if (d.first && d.area === D.AREAS.length - 1 && d.tier === 0) setTimeout(() => UI.victory(), 1600);
       else if (!S.opts.auto) setTimeout(() => { if (!S.opts.auto && $('modal').classList.contains('hidden')) UI.areaDone(d); }, 1500);
       mark('top', 'map');
@@ -689,7 +687,7 @@ UI.onGame = function (type, d) {
       if (d.kind === 'commission') { UI.feedItem(d.it, 'bag'); UI.forgeFlash = d.it.id; }
       break;
     case 'skills': mark('skills', 'hud', 'top', 'hint'); break;
-    case 'fallback': UI.toast(d.same ? `Not strong enough yet. Running ${d.to} again for loot and experience.` : `Too strong for now. Falling back to ${d.to} to gather strength.`, 'bad'); break;
+    case 'fallback': UI.toast(`Three runs ended at the door. Auto is stepping back to ${d.to} to gather strength.`, 'bad'); break;
   }
 };
 /* battle events the DOM cares about */

@@ -5,9 +5,9 @@ for (const build of ['hammer', 'ember', 'storm']) for (let seed = 1; seed <= see
   const SW = load(), D = SW.data, G = SW.game;
   const snaps = {};
   G.on((type, d) => {
-    if (type === 'areaClear' && d.first && (d.area === 14 || d.area === 7)) {
+    if (type === 'areaClear' && d.first && (d.area === 4 || d.area === 2)) {
       const S = G.S, gear = D.SLOTS.map(s => S.gear[s]).filter(Boolean);
-      snaps[`T${d.tier}${d.area === 14 ? 'end' : 'mid'}`] = `${(S.stats.time / 3600).toFixed(1)}h d${S.stats.deaths} anc${gear.filter(g => g.anc).length} rk${Math.round(gear.reduce((a, g) => a + (g.up || 0), 0) / gear.length)} ga${gear.reduce((a, g) => a + SW.items.greaterCount(g), 0)} p${SW.util.fmt(G.C.rating.power)}`;
+      snaps[`T${d.tier}${d.area === 4 ? 'end' : 'mid'}`] = `${(S.stats.time / 3600).toFixed(1)}h d${S.stats.deaths} anc${gear.filter(g => g.anc).length} rk${Math.round(gear.reduce((a, g) => a + (g.up || 0), 0) / gear.length)} ga${gear.reduce((a, g) => a + SW.items.greaterCount(g), 0)} p${SW.util.fmt(G.C.rating.power)}`;
     }
   });
   const hooks = G.listeners.slice();

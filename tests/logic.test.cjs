@@ -12,7 +12,7 @@ test('A fresh save starts with a weapon, a basic skill and a map', (SW, G, D) =>
 });
 test('Every map is fully reachable and has one boss', (SW, G, D) => {
   for (let i = 0; i < 200; i++) {
-    const m = G.genMap(i % 15, i % 3), start = m.cells.find(c => c.type === 'start');
+    const m = G.genMap(i % 5, i % 3), start = m.cells.find(c => c.type === 'start');
     const seen = new Set([start]), q = [start];
     while (q.length) { const c = q.pop(); for (const x of G.neighbors(m, c)) if (x.type !== 'wall' && !seen.has(x)) { seen.add(x); q.push(x); } }
     assert.equal(seen.size, m.cells.filter(c => c.type !== 'wall').length, 'unreachable tile');
@@ -93,7 +93,7 @@ test('Gear stops at item level 50; Ancestral gear is 55 and only drops in Tormen
   const a = I.roll(12, { rar: 2, anc: true }); assert.equal(D.ANC_LEVEL, 55); assert.equal(a.ilvl, 55); assert.equal(a.anc, 1); assert.ok(I.typeLine(a).startsWith('Ancestral Rare'));
   const w50 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0 }), w55 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0, anc: true });
   const step = I.implicit(w55).dmg / I.implicit(w50).dmg; assert.ok(step > 1.4 && step < 1.6, 'five item levels is about half again: ' + step);
-  const S = G.S, rate = tier => { S.world.tier = tier; let n = 0; for (let i = 0; i < 4000; i++) { const it = G.rollLoot(D.areaLevel(14, tier) + 3, { tier }); assert.ok(it.ilvl === (it.anc ? 55 : Math.min(50, it.ilvl))); assert.ok(it.ilvl <= 55); if (it.anc) n++; } return n / 4000; };
+  const S = G.S, rate = tier => { S.world.tier = tier; let n = 0; for (let i = 0; i < 4000; i++) { const it = G.rollLoot(D.areaLevel(4, tier) + 3, { tier }); assert.ok(it.ilvl === (it.anc ? 55 : Math.min(50, it.ilvl))); assert.ok(it.ilvl <= 55); if (it.anc) n++; } return n / 4000; };
   assert.equal(rate(0), 0, 'never outside Torment');
   const r = [1, 2, 3, 4].map(rate); for (let i = 0; i < 4; i++) assert.ok(Math.abs(r[i] - D.ANC_CHANCE[i + 1]) < 0.025, `T${i + 1}: ${r[i]}`);
   assert.ok(r[0] < r[1] && r[1] < r[2] && r[2] < r[3], 'the chance rises with every tier');
@@ -102,9 +102,9 @@ test('Gear stops at item level 50; Ancestral gear is 55 and only drops in Tormen
   S.world.tier = 0; S.bag.fill(null);
 });
 test('Torment: each tier is ten monster levels, and monsters only ever get harder', (SW, G, D, I, H) => {
-  assert.equal(D.areaLevel(0, 1), 50); assert.equal(D.areaLevel(14, 1), 59); assert.equal(D.areaLevel(0, 2), 60); assert.equal(D.areaLevel(14, 4), 89);
+  assert.equal(D.areaLevel(0, 1), 50); assert.equal(D.areaLevel(4, 1) + D.areaSpan(1), 61); assert.equal(D.areaLevel(0, 2), 60); assert.equal(D.areaLevel(4, 4), 88);
   let hp = 0, dmg = 0;
-  for (let tier = 0; tier <= 4; tier++) for (let a = 0; a < 15; a++) { const l = D.areaLevel(a, tier), h = D.mobHp(l) * D.TIER_HP[tier], d = D.mobDmg(l) * D.TIER_DMG[tier]; assert.ok(h >= hp && d >= dmg, `T${tier} a${a}`); hp = h; dmg = d; }
+  for (let tier = 0; tier <= 4; tier++) for (let a = 0; a < 5; a++) { const l = D.areaLevel(a, tier), h = D.mobHp(l) * D.TIER_HP[tier], d = D.mobDmg(l) * D.TIER_DMG[tier]; assert.ok(h >= hp && d >= dmg, `T${tier} a${a}`); hp = h; dmg = d; }
   assert.equal(H.armorDR(5000, 50), H.armorDR(5000, 89), 'armor is not devalued past the gear cap');
   assert.ok(D.goldScale(89) / D.goldScale(50) < 4, 'gold stops inflating once gear stops growing');
 });
@@ -120,10 +120,10 @@ test('Old saves: gear above item level 50 comes down to the cap and a Torment ma
   const S = G.fresh(); delete S.capv;
   const a = I.roll(50, { slot: 'chest', rar: 2 }); a.ilvl = 138; const b = I.roll(30, { slot: 'ring', rar: 2 });
   const old = I.roll(50, { slot: 'helm', rar: 2, anc: true }); old.ilvl = 60; S.bag[1] = old;
-  S.gear.chest = a; S.bag[0] = b; S.world.tier = 2; S.world.area = 3; S.world.cleared = [15, 15, 3]; S.world.map = { stale: true, cells: [] };
+  S.gear.chest = a; S.bag[0] = b; S.world.tier = 2; S.world.area = 3; S.world.cleared = [5, 5, 3]; S.world.map = { stale: true, cells: [] };
   G.init(S);
   assert.equal(a.ilvl, 50); assert.equal(b.ilvl, 30); assert.equal(old.ilvl, 55, 'an Ancestral piece saved at 60 becomes 55'); assert.equal(S.capv, 1); assert.ok(!S.world.map.stale && S.world.map.cells.length === 35);
-  assert.ok(S.world.map.cells.every(c => c.lvl >= 60 && c.lvl <= 70), 'Torment II levels');
+  assert.ok(S.world.map.cells.every(c => c.lvl >= 66 && c.lvl <= 69), 'Torment II, fourth level');
 });
 test('On the map the smith fights from the doorway and walks in after the win', (SW, G, D, I) => {
   const S = G.S, W = S.world, c = W.map.cells.find(x => G.canEnter(x) && G.isFight(x)), from = { x: W.pos.x, y: W.pos.y }, step = G.stepTime();
@@ -144,7 +144,6 @@ test('Ember dust is the one crafting material: what drops it, what it buys, and 
   assert.ok(Math.abs(hits / kills - D.DUST.chance) < 0.015, 'an ordinary monster carries a pinch about 5% of the time: ' + hits / kills);
   assert.equal(G.dropsFor({ def, id: def.id, lvl: 20, minion: 1 }).mats, undefined, 'summoned minions carry none');
   assert.equal(G.dropsFor({ def, id: def.id, lvl: 20, elite: ['fast'] }).mats.dust, D.DUST.elite, 'an elite always carries some');
-  assert.equal(G.dropsFor({ def, id: def.id, lvl: 20, champ: 1, elite: ['fast'] }).mats.dust, D.DUST.champ);
   // salvage pays dust for every rarity, more for better pieces
   const y = r => I.salvageYield(Object.assign(I.roll(30, { rar: r, slot: 'helm' }), { affixes: [] })); assert.equal(y(0).dust, 1); assert.equal(y(1).dust, 2); assert.equal(y(2).dust, 4); assert.equal(y(0).scrap, undefined);
   // one purse: masterworking and all four cube recipes cost dust and nothing else
@@ -190,13 +189,60 @@ test('With no route, clicking a room while walking sends the smith there instead
   assert.equal(G.phase, 'battle'); assert.equal(G.target, up); assert.ok(near(pos().x, 0) && near(pos().y, 2 - D.DOOR), 'at the doorway of the new room');
   assert.equal(right.state, 'seen', 'the first room was left alone');
 });
-test('Falling clears the route', (SW, G, D, I) => {
+test('A fall ends the run: a fresh map of the same level, everything kept, and the route cleared', (SW, G, D, I) => {
   const S = G.S; S.opts.auto = false; const a = G.cell(1, 2), b = G.cell(2, 2); a.type = b.type = 'fight'; a.state = 'seen';
   G.routeToggle(a); G.routeToggle(b); assert.equal(G.route.length, 2);
+  S.gold = 777; S.bag[5] = I.roll(3, { rar: 1 }); const keep = S.bag[5].id, old = S.world.map; let rerun = null; G.on((type, d) => { if (type === 'rerun') rerun = d; });
   for (let i = 0; i < 4000 && G.phase !== 'battle'; i++) G.update(0.05);
   G.battle.h.hp = 0; G.battle.over = 'lose';
   for (let i = 0; i < 4000 && (G.phase === 'battle' || G.phase === 'dead'); i++) G.update(0.05);
-  assert.equal(G.S.stats.deaths, 1); assert.equal(G.route.length, 0); assert.equal(G.phase, 'idle');
+  assert.equal(S.stats.deaths, 1); assert.equal(G.route.length, 0); assert.equal(G.phase, 'idle');
+  assert.notEqual(S.world.map, old, 'a new map is drawn'); assert.equal(S.world.area, 0); assert.equal(S.world.pos.x, 0); assert.equal(S.world.map.cells.filter(c => c.state === 'done').length, 1, 'only the door is open');
+  assert.equal(G.lifeFrac(), 1, 'at full Life'); assert.equal(S.gold, 777); assert.equal(S.bag[5].id, keep, 'with everything found so far');
+  assert.ok(rerun && rerun.area === 0 && rerun.falls === 1); assert.equal(S.world.falls.n, 1);
+});
+test('Auto remembers a boss that beat it, and steps back a level after three runs that end at the door', (SW, G, D, I) => {
+  const S = G.S, W = S.world; S.opts.auto = true; S.opts.full = false; W.cleared = [2]; G.startExpedition(1, 0, true);
+  const fall = (pick) => { const c = pick(W.map); c.state = 'seen'; G.target = c; G.battle = new SW.Battle(G.C, {}, G.makeSpec(c), {}, false); G.battle.h.hp = 0; G.battle.over = 'lose'; G.phase = 'dead'; G.phaseT = 0; G.update(0.05); };
+  // a fall to the boss: the next map knows, and a rushing Auto clears rooms before it tries again
+  fall(m => m.cells.find(c => c.type === 'boss')); assert.equal(W.area, 1); assert.equal(W.map.bossFalls, 1);
+  const pick = G.autoPick(); assert.notEqual(pick.type, 'boss'); assert.ok(pick.x <= 1, 'it starts with the nearest rooms');
+  // three runs in a row ending in the first two columns: back a level
+  let fb = null; G.on((type, d) => { if (type === 'fallback') fb = d; });
+  fall(m => m.cells.find(c => c.x === 1 && c.type !== 'wall')); assert.equal(W.area, 1); fall(m => m.cells.find(c => c.x === 1 && c.type !== 'wall')); assert.equal(W.area, 1, 'two is not three');
+  fall(m => m.cells.find(c => c.x === 3 && c.type !== 'wall')); assert.equal(W.falls.early, 0, 'a deeper run breaks the streak');
+  for (let i = 0; i < 3; i++) fall(m => m.cells.find(c => c.x === 1 && c.type !== 'wall'));
+  assert.equal(W.area, 0, 'stepped back'); assert.equal(fb.to, D.AREAS[0].name);
+  // by hand, nothing steps back for you
+  S.opts.auto = false; G.startExpedition(1, 0, true); for (let i = 0; i < 5; i++) fall(m => m.cells.find(c => c.x === 1 && c.type !== 'wall')); assert.equal(W.area, 1);
+});
+test('Five levels to a difficulty: one boss each, a level a room inside, a jump between, and old saves folded down', (SW, G, D, I) => {
+  assert.equal(D.AREAS.length, 5); assert.ok(D.AREAS.every(a => a.final)); assert.equal(D.AREAS.map(a => a.lvl).join(), '1,10,20,30,40');
+  for (let a = 0; a < 5; a++) { const m = G.genMap(a, 0), base = D.areaLevel(a, 0);
+    for (const c of m.cells) assert.equal(c.lvl, base + c.x, 'one monster level a room deeper');
+    const boss = m.cells.find(c => c.type === 'boss'), spec = (G.S.world.area = a, G.S.world.map = m, G.makeSpec(boss)); assert.equal(spec.boss, D.ACTS[a].boss); assert.equal(spec.waves.length, 1); assert.equal(spec.waves[0][0].lvl, base + 6);
+    if (a < 4) assert.ok(D.areaLevel(a + 1, 0) >= base + 6 + 3, 'the next level starts at least three levels above this boss'); }
+  for (let t = 1; t <= 4; t++) { const m = G.genMap(2, t); assert.equal(Math.min(...m.cells.map(c => c.lvl)), 50 + (t - 1) * 10 + 4); assert.equal(Math.max(...m.cells.map(c => c.lvl)), 50 + (t - 1) * 10 + 7, 'Torment climbs more gently'); }
+  // an old save: fifteen areas become five levels
+  const old = G.fresh(); delete old.lvlv; old.world.cleared = [15, 7]; old.world.tier = 1; old.world.area = 7; old.world.map = { stale: 1, cells: [] }; G.init(old);
+  assert.equal(old.world.cleared.join(), '5,2'); assert.equal(old.world.area, 2); assert.ok(!old.world.map.stale && old.world.map.area === 2 && old.world.map.tier === 1); assert.equal(old.lvlv, 1);
+  const mid = G.fresh(); delete mid.lvlv; mid.world.cleared = [4]; mid.world.area = 4; mid.world.map = null; G.init(mid); assert.equal(mid.world.cleared[0], 1); assert.equal(mid.world.area, 1);
+});
+test('Rares and Greater affixes come in gradually', (SW, G, D, I) => {
+  const share = (lvl, o) => { const w = I.rarityWeights(lvl, 0, (o && o.tier) || 0, (o && o.boost) || 1), tot = w.reduce((a, b) => a + b, 0); return w.map(x => x / tot); };
+  assert.equal(share(1)[2], 0); assert.equal(share(4)[2], 0, 'the first rooms drop Common and Magic and nothing else'); assert.ok(share(1)[0] > 0.6, 'mostly Common at the very start');
+  assert.ok(share(7)[2] > 0 && share(7)[2] < 0.05, 'a first few by the end of level one: ' + share(7)[2]);
+  let last = 0; for (const lvl of [7, 13, 23, 33, 43]) { const r = share(lvl)[2]; assert.ok(r > last, 'more Rares each level'); last = r; } assert.ok(last > 0.35 && last < 0.55, 'nearly half by the last level: ' + last);
+  for (let lvl = 1; lvl <= 50; lvl++) assert.ok(share(lvl)[0] + share(lvl)[1] > 0.5 || lvl > 40);
+  for (let i = 0; i < 300; i++) assert.ok(I.roll(1 + (i % 4), {}).rar <= 1);
+  assert.equal(I.roll(7, { minRar: 2 }).rar, 2, 'a boss still pays a Rare, even where none drop'); for (let i = 0; i < 50; i++) assert.equal(I.roll(3, { minRar: 2 }).rar, 2);
+  // Greater affixes: none before level 20, a trickle after, Torment in earnest
+  assert.equal(I.greaterChance(0, 5), 0); assert.equal(I.greaterChance(0, 19), 0); assert.ok(I.greaterChance(0, 20) > 0); assert.ok(I.greaterChance(0, 45) > I.greaterChance(0, 25)); assert.ok(I.greaterChance(1, 50) > 2 * I.greaterChance(0, 50) - 1e-9);
+  let g = 0; for (let i = 0; i < 1500; i++) g += I.greaterCount(I.roll(1 + (i % 19), { rar: 2 })); assert.equal(g, 0, 'no Greater affix drops in the first two levels');
+  g = 0; for (let i = 0; i < 1500; i++) g += I.greaterCount(I.roll(45, { rar: 2 })); assert.ok(g > 60 && g < 320, 'some by the last level: ' + g);
+  // the boss's first kill: a Rare, with a Greater affix from the third level on
+  const first = (area, tier) => { const S = G.S; S.stats.bosses = {}; S.world.tier = tier; const id = D.ACTS[area].boss, d = G.dropsFor({ def: D.BOSSES[id], id, lvl: D.areaLevel(area, tier) + D.areaSpan(tier), boss: true }); assert.ok(d.first); return d.items[d.items.length - 1]; };
+  for (let i = 0; i < 20; i++) { assert.equal(I.greaterCount(first(0, 0)), 0); assert.equal(I.greaterCount(first(1, 0)), 0); assert.ok(I.greaterCount(first(2, 0)) >= 1); assert.ok(I.greaterCount(first(0, 1)) >= 1); assert.equal(first(0, 0).rar, 2); }
 });
 test('A Unique can have one affix rerolled at the forge, and can be Tempered, but takes no other cube recipe', (SW, G, D, I) => {
   const S = G.S; S.gold = 1e12; S.mats = { dust: 999, soul: 999 }; S.mats.dust = 1e6;
@@ -653,9 +699,9 @@ test('Cube types: four of them, a few affixes in two, and none that holds only w
 });
 test('Greater affixes come from drops only: no cube orb and no forge reroll can make one', (SW, G, D, I) => {
   const S = G.S; let n = 0, g = 0;
-  for (let i = 0; i < 4000; i++) { const it = I.roll(20, { rar: 2 }); n += it.affixes.length; g += I.greaterCount(it); }
-  assert.ok(g / n > 0.02 && g / n < 0.07, 'about 4% in Normal, got ' + (g / n * 100).toFixed(1) + '%');
-  assert.ok(I.greaterChance(3) > I.greaterChance(0) * 2, 'likelier in Torment');
+  for (let i = 0; i < 4000; i++) { const it = I.roll(45, { rar: 2 }); n += it.affixes.length; g += I.greaterCount(it); }
+  assert.ok(g / n > 0.015 && g / n < 0.05, 'about 3% at the end of the campaign, got ' + (g / n * 100).toFixed(1) + '%');
+  assert.ok(I.greaterChance(3, 50) > I.greaterChance(0, 50) * 2, 'likelier in Torment');
   const it = I.roll(20, { rar: 1, slot: 'ring' }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }];
   const plain = I.affixValue(it, it.affixes[0], 0); it.affixes[0].g = 1;
   const top = I.affixValue(it, { k: 'life', r: 0.9999, g: 0 }, 0);
@@ -675,6 +721,7 @@ test('Greater affixes come from drops only: no cube orb and no forge reroll can 
   const dustBefore = S.mats.dust; assert.equal(G.cube(it.id, 'divine'), null, 'with every affix Greater there is nothing for Tempering to do'); assert.equal(S.mats.dust, dustBefore, 'and nothing is spent');
   assert.ok(it.affixes.every(a => a.g) && it.affixes.map(a => a.k).join() === was);
   G.enchant(it.id, 0); assert.equal(it.affixes[0].g, 0, 'the rerolled affix is ordinary'); assert.equal(it.affixes[1].g, 1, 'the others are untouched');
+  S.world.cleared = [5]; G.startExpedition(4, 0, true);      // the last level: Greater affixes drop there
   for (let k = 0; k < 2000; k++) { const c = G.commission('ring'); if (c && I.greaterCount(c)) { g = -1; break; } S.bag.fill(null); S.bag[0] = it; }
   assert.equal(g, -1, 'a commissioned piece is a fresh roll, so it can still come with one');
   SW.util.rng = real;
@@ -777,12 +824,12 @@ test('Every unique power runs in battle without breaking the numbers', (SW, G, D
   const fight = () => { G.recompute(); const B = new SW.Battle(G.C, { heat: 80 }, { waves: [[{ id: 'ghoul', lvl: 28, elite: ['molten'] }, { id: 'skeleton', lvl: 28 }, { id: 'wisp', lvl: 28 }]], lvl: 28 }, {}, false); for (let t = 0; t < 40 && !B.over; t += 0.05) B.step(0.05); assert.ok(isFinite(B.h.hp) && isFinite(B.dmgDone) && B.dmgDone > 0); };
   for (const u of D.UNIQUES) { for (const s of D.SLOTS) S.gear[s] = null; const it = I.roll(30, { rar: 3, unique: u.id, slot: D.BASES[u.base].slot }); assert.equal(it.uniq, u.id); S.gear.weapon = I.roll(30, { slot: 'weapon', rar: 2 }); S.gear[it.slot === 'ring' ? 'ring1' : it.slot] = it; fight(); assert.ok(I.powerText(it).length > 10 && !I.powerText(it).includes('{')); }
 });
-test('Clearing the boss unlocks the next area; the last one unlocks Torment', (SW, G, D) => {
+test('Clearing the boss unlocks the next level; the last one unlocks Torment', (SW, G, D) => {
   const W = G.S.world, boss = () => W.map.cells.find(c => c.type === 'boss');
   assert.equal(G.isUnlocked(1, 0), false);
   G.completeCell(boss()); assert.ok(G.isUnlocked(1, 0)); assert.equal(G.isUnlocked(0, 1), false);
-  W.cleared[0] = 14; G.startExpedition(14, 0); G.completeCell(boss());
-  assert.ok(G.isUnlocked(0, 1)); assert.equal(D.areaLevel(0, 1), 50); assert.ok(D.areaLevel(14, 4) > D.areaLevel(0, 4));
+  W.cleared[0] = 4; G.startExpedition(4, 0); G.completeCell(boss());
+  assert.ok(G.isUnlocked(0, 1)); assert.equal(D.areaLevel(0, 1), 50); assert.ok(D.areaLevel(4, 4) > D.areaLevel(0, 4));
 });
 test('Item worth: what a piece adds to Damage and Toughness against an empty slot, and how crafting moves it', (SW, G, D, I) => {
   const S = G.S; S.gold = 1e12; S.mats = { dust: 9999, soul: 9999 }; S.mats.dust = 1e6;
@@ -842,26 +889,23 @@ test('Life is not refilled after a battle: it carries to the next, and walking, 
   // and it is saved, so reloading the page is no heal
   G.persist.hp = 0.37; S.hp = G.persist.hp; const copy = JSON.parse(JSON.stringify(S)); G.init(copy); assert.equal(G.persist.hp, 0.37); G.init(null); assert.equal(G.lifeFrac(), 1);
 });
-test('The first map\'s guardian is a gear check: the starting kit dies to it, a smith wearing the map\'s drops wins', (SW, G, D, I) => {
+test('The first level is a gear check: the starting kit cannot finish it, a smith wearing its drops beats the boss', (SW, G, D, I) => {
   const { BUILDS } = require('./harness.cjs');
   const run = (dress, build, N) => { let win = 0;
     for (let s = 1; s <= N; s++) {
       SW.util.seed(s * 13 + 5); G.init(null); const S = G.S, b = BUILDS[build];
       S.hero.bar = b.bar.slice(); S.hero.passives = b.passives.slice(); S.hero.tech = Object.assign({}, b.tech);
-      if (dress) for (const slot of D.SLOTS) S.gear[slot] = I.roll(slot === 'weapon' ? 4 : 3, { slot: slot.replace(/\d/, ''), rar: slot === 'weapon' || slot === 'chest' ? 2 : 1, base: slot === 'weapon' ? 'hammer' : undefined });
+      if (dress) for (const slot of D.SLOTS) S.gear[slot] = I.roll(slot === 'weapon' ? 7 : 6, { slot: slot.replace(/\d/, ''), rar: 1, base: slot === 'weapon' ? 'hammer' : undefined });
       G.recompute();
-      const c = S.world.map.cells.find(x => x.type === 'boss'), spec = G.makeSpec(c); assert.equal(spec.waves[1][0].hpMul, D.GATE[0].hp); assert.equal(spec.waves[1][0].dmgMul, D.GATE[0].dmg);
+      const c = S.world.map.cells.find(x => x.type === 'boss'), spec = G.makeSpec(c); assert.equal(spec.boss, 'grukk'); assert.equal(c.lvl, 7);
       const B = new SW.Battle(G.C, {}, spec, { autoFlask: true }, false); for (let i = 0; i < 4000 && !B.over; i++) B.step(0.05);
       if (B.over === 'win') win++;
     } return win / N; };
   for (const build of ['hammer', 'ember', 'storm']) {
     const bare = run(false, build, 30), kit = run(true, build, 30);
-    assert.ok(bare <= 0.25, `${build} in the starting hammer and apron should fall: won ${Math.round(bare * 100)}%`);
-    assert.ok(kit >= 0.8, `${build} wearing level 3 drops in every slot should win: won ${Math.round(kit * 100)}%`);
+    assert.ok(bare <= 0.1, `${build} in the starting hammer and apron should fall to Grukk: won ${Math.round(bare * 100)}%`);
+    assert.ok(kit >= 0.8, `${build} in Magic gear of the level's last rooms should beat him: won ${Math.round(kit * 100)}%`);
   }
-  // the gate is for the campaign's first maps only
-  G.init(null); G.startExpedition(3, 0, true); let c = G.S.world.map.cells.find(x => x.type === 'boss'), sp = G.makeSpec(c); if (sp.waves[1]) assert.equal(sp.waves[1][0].hpMul, undefined);
-  G.S.world.cleared[1] = 0; G.startExpedition(0, 1, true); c = G.S.world.map.cells.find(x => x.type === 'boss'); assert.equal(G.makeSpec(c).waves[1][0].hpMul, undefined, 'Torment is not gated twice');
 });
 test('Saves survive an export and import', (SW, G, D, I) => {
   G.S.gold = 4242; G.S.bag[3] = I.roll(12, { rar: 2 }); G.S.mats.dust = 7;
@@ -871,14 +915,14 @@ test('Saves survive an export and import', (SW, G, D, I) => {
   assert.equal(G.importSave('not a save'), false);
   const it = I.roll(5, {}); assert.ok(it.id > G.S.bag[0].id, 'new item ids never collide with loaded ones');
 });
-test('Auto-explore clears the first area without help, and never stalls', () => {
+test('Auto-explore clears the first level without help, and never stalls', () => {
   const SW = load();
   const r = play(SW, { build: 'hammer', seed: 5, maxT: 2400, until: g => g.S.world.cleared[0] >= 1 });
-  assert.ok(r.S.world.cleared[0] >= 1, 'first area not cleared in 40 minutes');
+  assert.ok(r.S.world.cleared[0] >= 1, 'first level not cleared in 40 minutes'); assert.ok(r.S.stats.deaths <= 8, 'falls on the way: ' + r.S.stats.deaths);
 });
-test('A rushing, forge-less player still finishes Act I through the fallback loop', () => {
+test('A rushing, forge-less player still gets through the first two levels, by falling and coming back', () => {
   const SW = load();
-  const r = play(SW, { build: 'ember', seed: 9, maxT: 6000, full: false, casual: true, until: g => g.S.world.cleared[0] >= 3 });
-  assert.ok(r.S.world.cleared[0] >= 3, 'Act I not finished in 100 minutes');
+  const r = play(SW, { build: 'ember', seed: 9, maxT: 7200, full: false, casual: true, until: g => g.S.world.cleared[0] >= 2 });
+  assert.ok(r.S.world.cleared[0] >= 2, 'two levels not finished in two hours'); assert.ok(r.S.stats.deaths >= 2, 'and not without falling: ' + r.S.stats.deaths);
 });
 console.log(n + ' checks passed.');

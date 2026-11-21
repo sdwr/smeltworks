@@ -24,12 +24,15 @@ const MAGIC_PRE = { str: 'Mighty', wdmg: 'Honed', dmgPct: 'Brutal', physPct: 'Ja
   thorns: 'Barbed', flask: 'Brimming', barrier: 'Shielding', move: 'Fleet', orbFind: 'Seeking', cdr: 'Tireless', heat: 'Stoked', gold: 'Gilded', mf: 'Lucky', skHammer: "Smith's", skEmber: "Pyre's", skStorm: "Tempest's" };
 
 /* ---------------------------------------------------------------- rolling */
+/* Rarity by level. The first rooms drop Common and Magic gear and nothing else; Rares come in from level 5 and
+   grow to nearly half of all drops by level 45. Elites, bosses and chests (boost) lean harder towards Rare. */
 I.rarityWeights = function (lvl, mf, tier, boost) {
   mf = mf || 0; tier = tier || 0; boost = boost || 1;
+  const rare = lvl < 5 ? 0 : Math.min(46, (lvl - 4) * 1.15);
   const w = [
     70 * (lvl < 10 ? 1 : Math.max(0.2, 1 - lvl / 55)),
-    45,
-    Math.min(46, 9 + lvl * 0.75) * (1 + mf / 200) * (boost > 1 ? 1.8 : 1) + (lvl < 6 ? 0 : Math.min(8.5, 1 + lvl * 0.1) * (1 + tier * 0.6) * (1 + mf / 100) * boost),      // Rare (the second term is what used to drop as Legendary)
+    Math.min(45, 28 + lvl * 1.7),
+    rare * (1 + mf / 200) * (boost > 1 ? 1.8 : 1) + (lvl < 12 ? 0 : Math.min(8.5, 1 + lvl * 0.1) * (1 + tier * 0.6) * (1 + mf / 100) * (boost - 1) / 2),
     lvl < 18 ? 0 : (0.14 + tier * 0.15) * (1 + mf / 100) * boost,                 // Unique
   ];
   if (tier > 0) { w[0] = 0; w[1] *= 0.4; }
@@ -39,12 +42,14 @@ I.rollRarity = function (lvl, mf, tier, boost, minRar) {
   const w = I.rarityWeights(lvl, mf, tier, boost);
   for (let i = 0; i < (minRar || 0); i++) w[i] = 0;
   let tot = w.reduce((a, b) => a + b, 0), r = U.rng() * tot;
-  for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
+  for (let i = minRar || 0; i < w.length; i++) { r -= w[i]; if (r <= 0 && w[i] > 0) return i; }
   return minRar || 0;
 };
 /* An affix can crit when a piece drops (or is commissioned) and come out Greater: half again as strong. Likelier in
    Torment. Greater affixes are found, never crafted: the forge's reroll and every cube recipe roll plain affixes. */
-I.greaterChance = tier => 0.04 + 0.03 * (tier || 0);
+/* The chance for each affix on a drop to be Greater. None before level 20; a trickle through the later campaign;
+   Torment is where they are found in earnest. */
+I.greaterChance = (tier, lvl) => (tier > 0 ? 0.04 + 0.03 * tier : lvl == null || lvl >= 40 ? 0.03 : lvl >= 30 ? 0.02 : lvl >= 20 ? 0.01 : 0);
 I.greaterCount = it => it.affixes.reduce((n, a) => n + (a.g ? 1 : 0), 0);
 /* the affixes a slot can still gain, optionally of one type */
 I.poolKey = it => (it.slot === 'offhand' ? it.base : it.slot);      // shields and lanterns roll different affixes
@@ -71,9 +76,9 @@ I.slotCats = function (it) {
   }
   return out;
 };
-function rollAffix(slot, have, tier, cat, plain) {
+function rollAffix(slot, have, tier, cat, plain, lvl) {
   const a = U.wpick(I.affixPool(slot, have, cat), x => x.w);
-  return { k: a.id, r: U.rng(), g: !plain && U.chance(I.greaterChance(tier)) ? 1 : 0 };   // plain: cube rolls never crit
+  return { k: a.id, r: U.rng(), g: !plain && U.chance(I.greaterChance(tier, lvl)) ? 1 : 0 };   // plain: cube rolls never crit
 }
 /* opts: slot, base, rar, minRar, mf, tier, boost, unique (id), anc, greater (at least one Greater affix) */
 I.roll = function (ilvl, o) {
@@ -90,7 +95,7 @@ I.roll = function (ilvl, o) {
     else {
       const u = U.pick(pool);
       it.uniq = u.id; it.base = u.base; it.slot = D.BASES[u.base].slot;
-      it.affixes = u.affixes.map(k => ({ k, r: 0.35 + U.rng() * 0.65, g: U.chance(I.greaterChance(o.tier) * 1.25) ? 1 : 0 }));
+      it.affixes = u.affixes.map(k => ({ k, r: 0.35 + U.rng() * 0.65, g: U.chance(I.greaterChance(o.tier, ilvl) * 1.25) ? 1 : 0 }));
       it.ur = U.rng();
       it.name = u.name;
       return it;
@@ -98,7 +103,7 @@ I.roll = function (ilvl, o) {
   }
   const [lo, hi] = D.RARITY[rar].affixes;
   const n = U.irand(lo, hi);
-  for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(a => a.k), o.tier || 0));
+  for (let i = 0; i < n; i++) it.affixes.push(rollAffix(I.poolKey(it), it.affixes.map(a => a.k), o.tier || 0, null, false, ilvl));
   if (o.greater && it.affixes.length && !it.affixes.some(a => a.g)) U.pick(it.affixes).g = 1;
   it.name = I.makeName(it);
   return it;

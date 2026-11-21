@@ -35,6 +35,8 @@ const U = SW.util = {
 /* ------------------------------------------------------------ scaling */
 const D = SW.data = {};
 D.FLAT_G = 1.085;      // growth of flat gear stats per item level
+D.MOB_HP0 = 36; D.MOB_DMG0 = 15;      // a level 1 monster's life and damage, before its own multipliers
+D.MOB_SOFT = [0.8, 0.9];               // the first monsters are softer than the curve: this share of it at level 0, the whole of it by level 12
 D.MOB_HP_G = 1.084;    // monster life per level
 D.MOB_DMG_G = 1.075;   // monster damage per level
 /* Gear stops at item level 50. Torment monsters keep rising (levels 50 to 89), but only gently, because from there
@@ -469,17 +471,20 @@ D.ELITE = {
 D.ELITE_IDS = Object.keys(D.ELITE);
 
 /* --------------------------------------------------------------- world */
+/* Five levels to a difficulty, one for each act, each ending in that act's boss. Inside a level the monsters climb
+   a level with every room you go deeper (D.areaSpan), so a run gets harder as it goes and the gear it drops gets
+   better; the next level starts a few monster levels above where the last one ended. */
 D.ACTS = [
   { name: 'Ashen Hollow',  bg: 'ash',   mobs: ['rat', 'wolf', 'bandit', 'archer', 'boar'], boss: 'grukk',
-    areas: [['Cinderpath', 1], ['Bandit Warrens', 4], ["Grukk's Hollow", 7]] },
+    areas: [["Grukk's Hollow", 1]] },
   { name: 'Cinder Mines',  bg: 'mine',  mobs: ['kobold', 'bat', 'slime', 'golem', 'shaman'], boss: 'foreman',
-    areas: [['Upper Shafts', 10], ['Slag Pits', 13], ['The Deep Works', 16]] },
+    areas: [['The Deep Works', 10]] },
   { name: 'Drowned Crypt', bg: 'crypt', mobs: ['skeleton', 'skarcher', 'ghoul', 'wraith', 'necro'], boss: 'morvane',
-    areas: [['Flooded Nave', 19], ['The Ossuary', 22], ["Morvane's Vault", 26]] },
+    areas: [["Morvane's Vault", 20]] },
   { name: 'Stormspire',    bg: 'storm', mobs: ['harpy', 'cultist', 'gargoyle', 'wisp', 'wyrmling'], boss: 'wyrm',
-    areas: [['Windward Stair', 29], ['Thunderhalls', 33], ['The Eyrie', 37]] },
+    areas: [['The Eyrie', 30]] },
   { name: 'Hellforge',     bg: 'hell',  mobs: ['imp', 'hound', 'brute', 'hknight', 'witch'], boss: 'vulkar',
-    areas: [['Brimstone Gate', 40], ['The Chainworks', 44], ['The Crucible', 47]] },
+    areas: [['The Crucible', 40]] },
 ];
 D.AREAS = [];
 D.ACTS.forEach((act, ai) => act.areas.forEach((a, i) => D.AREAS.push({ idx: D.AREAS.length, act: ai, name: a[0], lvl: a[1], final: i === act.areas.length - 1 })));
@@ -493,8 +498,11 @@ D.TIERS = [
 /* Torment multiplies monster life and damage on top of their level */
 D.TIER_HP = [1, 1.7, 1.9, 2.1, 2.3];
 D.TIER_DMG = [1, 1.4, 1.5, 1.6, 1.7];
-/* level of an area at a difficulty tier. Each Torment tier covers ten monster levels: 50-59, 60-69, 70-79, 80-89 */
-D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 10 + Math.floor(area * 2 / 3);
+/* Monster level at the door of a level. Each Torment tier covers about ten monster levels: 50-61, 60-71, ... */
+D.areaLevel = (area, tier) => tier === 0 ? D.AREAS[area].lvl : 50 + (tier - 1) * 10 + area * 2;
+/* ...and how many levels higher its last room and its boss are. In the campaign that is one level a room, which is
+   where the gear comes from; in Torment gear has stopped growing, so the climb is gentler. */
+D.areaSpan = tier => (tier === 0 ? 6 : 3);
 D.MAP_W = 7; D.MAP_H = 5;
 D.TRAVEL_STEP = 3;      // seconds to walk from one room to the next, before Movement Speed
 D.DOOR = 0.5;           // how far towards a room the smith stands while fighting for it: the doorway. The rest is walked after the win
@@ -505,10 +513,6 @@ D.SHRINES = {
   storm: { name: 'Shrine of Haste', desc: '+35% Attack Speed', color: '#7fd4ff' },
 };
 D.SHRINE_FIGHTS = 4;
-/* The guardian of the first maps is a gear check: its Life and damage are multiplied by these (campaign only, by
-   area). In the starting hammer and apron the first one kills you; wearing what the map dropped, you usually win.
-   The second is eased in, and from the third area on the act bosses do this job themselves. */
-D.GATE = { 0: { hp: 2.5, dmg: 1.8 }, 1: { hp: 1.6, dmg: 1.35 } };
 /* Life is not refilled after a battle: what you end a fight with is what you start the next one with. While walking
    the smith gets a little back (this share of maximum Life a second, plus Life per Second), and the flask keeps
    refilling. A shrine, a fall, or a new map restores it all. */

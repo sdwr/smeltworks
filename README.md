@@ -36,11 +36,11 @@ the skill bar to drink it.
 
 ## What is in it
 
-- **The map.** Each area is a 7×5 grid under fog: monster packs, elites with modifiers, chests, shrines and a boss.
-  Clear a tile to reveal its neighbours. Beat the boss to open the next area.
-- **Fifteen areas in five acts**, each act with its own monsters and a scripted boss, then four Torment tiers that
+- **The map.** Each level is a 7×5 grid under fog: monster packs, elites with modifiers, chests, shrines and a boss.
+  Clear a tile to reveal its neighbours. Beat the boss to open the next level.
+- **Five levels**, each with its own monsters and a scripted boss, then four Torment tiers that
   replay the descent against tougher monsters with better drops.
-- **Gear caps at item level 50.** Torment monsters keep climbing (levels 50-59 in Torment I up to 80-89 in
+- **Gear caps at item level 50.** Torment monsters keep climbing (levels 50-61 in Torment I up to 80-91 in
   Torment IV), but gear does not. From there you grow through Ancestral gear, masterworking, greater affixes and
   better rolls.
 - **Ancestral gear.** In Torment any drop, chest piece or commission can come out Ancestral: item level 55, about
@@ -76,7 +76,7 @@ the skill bar to drink it.
   cube lists what it could be.
 - **Soulsteel.** From bosses, and from salvaging the exceptional: 3 for a Unique, 1 for each Greater affix on a
   piece, 1 more if it is Ancestral. A boss's first kill pays a Rare with a guaranteed Greater affix.
-- **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the area's level.
+- **Commission.** Its own page: pay gold for a random piece in a slot you choose, at the level of the first room of where you are.
 - **The flask.** Restores 35% of your Life and refills over 22 seconds. Drink it with Q. By default it also drinks
   itself below 35% Life, so Auto can run unattended; Settings turns that off.
 - **The cube.** Put in a piece of gear, pick a recipe, press Transmute, take what you get. Kindle adds a random
@@ -88,13 +88,24 @@ the skill bar to drink it.
 - **Ember dust.** The one crafting material. Masterworking and all four cube recipes are paid in it and in nothing
   else: Kindle 3, Quench 3, Temper 6, Recast 8; a masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or
   move the masterworked affix. Salvage pays 1 for a Common, 2 for a Magic, 4 for a Rare (more with ranks and
-  Greater affixes) and 8 for a Unique. Elites, champions and bosses always carry some, ordinary monsters a pinch 5%
+  Greater affixes) and 8 for a Unique. Elites and bosses always carry some, ordinary monsters a pinch 5%
   of the time, and chests and full clears add a little. Rerolling an affix and transfiguring take dust as well,
   beside their gold. There are no orbs and no scrap; an old save has them turned into dust.
-- **The first guardian is a gear check.** The guardian of the first map has two and a half times the Life and
-  nearly twice the damage of an ordinary champion. In the starting hammer and apron it kills you (bots lose nine
-  fights in ten or more); wearing what the map dropped, you usually win on the first try. The second map's guardian
-  is eased in, and from there the act bosses do the job.
+- **Five levels to a difficulty.** Ashen Hollow, Cinder Mines, Drowned Crypt, Stormspire and Hellforge, each one
+  map ending in its boss. Inside a level the monsters climb one level with every room you go deeper (1 to 7, 10 to
+  16, 20 to 26, 30 to 36, 40 to 46), and drops are the level of what dropped them, so the gear gets better as the
+  run goes on. The next level starts three levels above the last boss. Torment has the same five levels at monster
+  levels 50 and up, climbing more gently because gear has stopped growing.
+- **A fall ends the run.** You are expected to fall. The smith wakes at the door of a fresh map of the same level,
+  at full Life, with everything found so far: wear the best of it, masterwork it, and the next run gets a room or
+  two deeper. The starting hammer and apron cannot finish the first level. Auto remembers a boss that beat it and
+  clears the map before trying again; after three runs in a row that end in the first two columns it steps back a
+  level.
+- **Rarity comes in gradually.** The first rooms drop Common and Magic gear and nothing else. Rares begin at level 5
+  (about 3% by the end of the first level, 12% in the second, a quarter in the third, nearly half in the fifth);
+  every boss pays one. No affix is Greater before level 20, then 1%, 2% and 3% of them through the last three
+  levels, and 7 to 16% in Torment. A boss's first kill pays a Rare, with a guaranteed Greater affix from the third
+  level on.
 - **Life carries over.** Life is not refilled after a battle: you start the next fight with what you ended the
   last one on. Walking brings back 1% of your Life a second (plus your Life per Second), the flask keeps refilling
   as you walk and can be drunk between fights, and a shrine restores everything. So does a fall, and so does a new
@@ -130,7 +141,7 @@ the skill bar to drink it.
   the Codex are gone. Uniques are untouched.
 - **Damage meter.** The arena shows measured DPS for the current fight, the average over the last ten, and which
   skills, burns and procs it came from.
-- **Auto.** Explores, fights, moves to the next area, and falls back to gather strength if it keeps dying.
+- **Auto.** Explores, fights, starts the next run after a fall, moves on to the next level, and steps back a level if three runs in a row end at the door.
 
 ## Which affixes roll where
 
