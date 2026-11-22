@@ -1350,6 +1350,28 @@ test('A forge reroll holds the new affix beside the old one until you take it or
   // a saved choice that no longer makes sense is dropped on load
   it = mk(); G.enchant(it.id, 0); it.pend.a = { k: 'life', r: 0.5, g: 0, ti: 1 }; const bad = JSON.parse(JSON.stringify(S)); G.init(bad); assert.equal(G.S.bag[0].pend, undefined, 'it would have doubled an affix');
 });
+test('A waiting transmute can be cancelled, and the cube takes a tier from one affix for it', (SW, G, D, I) => {
+  const S = G.S; S.mats.dust = 1000; S.gold = 1e9; const ev = []; G.on((t, d) => { if (t === 'cube') ev.push(d.res); });
+  const mk = (tis, lvl) => { const it = I.roll(lvl || 44, { rar: 2, slot: 'ring' }); it.affixes = ['crit', 'life', 'firePct', 'regen'].slice(0, tis.length).map((k, i) => ({ k, r: 0.4, g: 0, ti: tis[i] })); S.bag[0] = it; return it; };
+  let it = mk([3, 1, 4, 2]); assert.equal(G.cancelTransmute(it.id), null, 'nothing to cancel without an offer');
+  assert.equal(I.cancelTargets(it).join(), '0,2,3', 'an affix at tier 1 has nothing to lose');
+  const dust = S.mats.dust; assert.ok(G.buyTransmute(it.id)); const paid = dust - S.mats.dust, keys = it.affixes.map(a => a.k).join(), sum = () => it.affixes.reduce((n, a) => n + a.ti, 0), before = sum();
+  const res = G.cancelTransmute(it.id); assert.equal(res.op, 'cancel'); assert.equal(it.offer, undefined); assert.equal(S.mats.dust, dust - paid, 'the dust is not returned');
+  assert.equal(it.affixes.map(a => a.k).join(), keys, 'no affix is added, removed or replaced'); assert.equal(sum(), before - 1, 'exactly one tier is lost');
+  assert.equal(res.down.length, 1); assert.equal(res.down[0][1], -1); assert.notEqual(res.down[0][0], 1); assert.equal(res.lost.k, it.affixes[res.down[0][0]].k); assert.equal(res.lost.ti, it.affixes[res.down[0][0]].ti); assert.equal(ev[ev.length - 1], res);
+  assert.equal(I.offerCost(it).dust, 5, 'the cancelled transmute still counts towards the price'); assert.equal(I.offerCheck(it), null, 'and another can be bought');
+  // the value follows the tier down
+  it = mk([4]); const v0 = I.affixValue(it, it.affixes[0], 0); G.buyTransmute(it.id); G.cancelTransmute(it.id); assert.equal(it.affixes[0].ti, 3); assert.ok(I.affixValue(it, it.affixes[0], 0) < v0);
+  // never the affix rerolled at the forge, a Greater affix or a skill rank; and with nothing to take it is free
+  for (let n = 0; n < 200; n++) { it = mk([3, 3, 3, 3]); it.ench = 0; it.affixes[1].g = 1; G.buyTransmute(it.id); const r = G.cancelTransmute(it.id); assert.ok(r.down[0][0] >= 2); assert.equal(it.affixes[0].ti, 3); assert.equal(it.affixes[1].ti, 3); }
+  it = mk([1, 1, 1], 5); assert.equal(I.cancelTargets(it).length, 0); G.buyTransmute(it.id); let r = G.cancelTransmute(it.id); assert.equal(r.down.length, 0); assert.equal(r.lost, undefined); assert.equal(it.offer, undefined); assert.equal(it.affixes.map(a => a.ti).join(), '1,1,1');
+  it = mk([5], 44); it.ench = 0; G.buyTransmute(it.id); r = G.cancelTransmute(it.id); assert.equal(r.down.length, 0, 'the only affix is the locked one'); assert.equal(it.affixes[0].ti, 5);
+  // a free transmute can be cancelled too, and the next one waiting lands at once
+  for (const s of D.SLOTS) S.gear[s] = null; const w = I.roll(44, { rar: 2, slot: 'weapon' }); w.affixes.forEach(a => { a.g = 0; a.ti = 3; }); S.gear.weapon = w; G.recompute();
+  S.xp = D.XP_NEED; G.freeTransmute(); assert.ok(w.offerFree); S.xp = D.XP_NEED; r = G.cancelTransmute(w.id); assert.ok(r); assert.ok(w.offer && w.offerFree, 'the bar was full again, so the next free one lands'); assert.equal(G.cancelTransmute(w.id).op, 'cancel'); assert.equal(w.offerFree, undefined);
+  // not while a forge reroll is waiting to be chosen
+  it = mk([3, 3]); G.buyTransmute(it.id); it.pend = { idx: 0, a: { k: 'dmgPct', r: 0.5, g: 0, ti: 2 } }; assert.equal(G.cancelTransmute(it.id), null); assert.ok(it.offer);
+});
 test('Depth: how far this run has got, how far the last one got, and the deepest ever on the level', (SW, G, D, I) => {
   const S = G.S, W = S.world, clear = x => { const c = W.map.cells.find(k => k.x === x && k.type !== 'wall'); G.completeCell(c); return c; };
   let r = G.depthRec(0, 0); assert.equal(r.now, 0); assert.equal(r.last, null); assert.equal(r.best, 0);

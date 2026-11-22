@@ -35,6 +35,7 @@ function pulse(cls, color, ms) {
 const JUICE = {
   offer() { sparks(['#ffb347', '#ffe9a8'], 10, 60); pulse('j-offer', '#ffb347', 700); },
   cube(d) {
+    if (d.res.op === 'cancel') { sparks(d.res.lost ? ['#ff6b5a', '#8a8478'] : '#8a8478', d.res.lost ? 12 : 6, 55); if (d.res.lost) pulse('j-cube', '#ff6b5a'); return; }      // an offer thrown away: the tier it cost, in red
     const col = I.CUBE_COLOR[I.cubeLabel(d.res.o).fam], big = ['recast', 'tiers', 'sacrifice'].includes(d.res.op), bad = !!d.res.removed;
     if (d.res.op === 'pass') { sparks('#8a8478', 6, 40); return; }
     sparks(col, big ? 30 : 18, big ? 120 : 85); ring(col); pulse('j-cube', col);
@@ -68,9 +69,9 @@ function itemCell(it, extra, idx, box) {
   const bag = idx == null ? '' : ` data-${box || 'bag'}="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.offer ? (it.offerFree ? 'offer-free' : 'offer-wait') : ''} ${it.anc ? 'anc' : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.offer ? (it.offerFree ? 'offer-free' : 'offer-wait') : ''} ${it.anc ? 'anc' : ''} ${it.tf && it.tf.length ? (it.sealed ? 'tfd sealed' : 'tfd') : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
-    (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.up ? `<b class="pl${it.up >= D.MW_MAX ? ' max' : ''}">${it.up}</b>` : '') +
+    (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.tf && it.tf.length ? '<b class="tfm">✧</b>' : '') + (it.up ? `<b class="pl${it.up >= D.MW_MAX ? ' max' : ''}">${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
 }
 function skillIcon(id, cls) {
@@ -552,11 +553,14 @@ function renderCraft() {
       h += `<button class="offer-card f-${L.fam}" data-pick="${n}" data-tg="${tg.join()}" style="--c:${col};animation-delay:${n * 70}ms"><img src="${SP.url('orb', I.CUBE_PAL[L.fam], 3)}" alt=""><b>${L.title}</b><span>${L.desc}</span>${on ? `<small>${on}</small>` : ''}</button>`;
     });
     h += '</div>';
+    { const t = I.cancelTargets(it), armed = UI.cancelArm === it.id;
+      h += `<div class="offer-cancel"><button class="small ${armed ? 'danger' : ''}" data-act="cancel-transmute" data-tg="${t.join()}" style="--c:#ff6b5a" data-tip="Throw this offer away without taking any of it. ${t.length ? 'The cube takes its due: <b class=&quot;neg&quot;>one random affix loses a tier</b> (never the affix you rerolled at the forge, a Greater affix or a skill rank).' : 'Nothing on this piece has a tier to lose, so it costs nothing more.'}${it.offerFree ? '' : ' The ember dust you paid is not returned.'}">${armed ? 'Really cancel?' : 'Cancel the transmute'}</button><span>${t.length ? 'costs one affix a tier' : 'nothing to lose: free'}</span></div>`; }
   } else {
     const why = I.offerCheck(f.it) || (G.canPay(I.offerCost(f.it)) ? null : `This transmute costs ${I.offerCost(f.it).dust} ember dust and you have ${U.fmt(S.mats.dust || 0)}. Salvage gear for more; elites and bosses always carry some.`);
     h += `<div class="cube-box"><button class="big" data-act="buy-transmute" ${why ? 'disabled' : ''} data-tip="The cube draws three things it could do to this piece: add, remove or reroll an affix (sometimes of one type, sometimes the first or last), renumber it, move its tiers, and a few rarer ones. You then have to take one of the three before you can buy another transmute for this piece. The first transmute for a piece costs ${D.CUBE_COST.first} ember dust and each one after costs ${D.CUBE_COST.step} more, up to ${D.CUBE_COST.cap}. Free transmutes cost nothing and do not raise the price.">Buy a transmute <span class="cost ${G.canPay(I.offerCost(f.it)) ? '' : 'short'}"><i class="ci dust"></i>${I.offerCost(f.it).dust}</span></button></div>`;
     const last = UI.cubeLast && UI.cubeLast.itemId === f.it.id && UI.cubeLast.o ? UI.cubeLast : null;      // (a forge reroll also sets cubeLast, without an option)
-    h += `<p class="cube-say ${why ? 'no' : ''}">${why || (last ? `<b style="color:${I.CUBE_COLOR[I.cubeLabel(last.o).fam]}">${I.cubeLabel(last.o).title}.</b> ${last.removed ? 'Lost ' + last.removed + '. ' : ''}${last.was ? 'Gave up ' + last.was + '. ' : ''}${last.op === 'pass' ? 'Nothing changed. ' : ''}Buy another to see three new offers.` : 'You do not choose what the cube does: it offers three things, and you take one. The affix you rerolled at the forge is never touched.')}</p>`;
+    const gone = UI.cubeLast && UI.cubeLast.itemId === f.it.id && UI.cubeLast.op === 'cancel' ? UI.cubeLast : null;
+    h += `<p class="cube-say ${why ? 'no' : ''}">${why || (gone ? `<b class="neg">Offer cancelled.</b> ${gone.lost ? `${affName(gone.lost.k)} fell to tier ${gone.lost.ti}. ` : 'Nothing was lost. '}Buy another to see three new options.` : last ? `<b style="color:${I.CUBE_COLOR[I.cubeLabel(last.o).fam]}">${I.cubeLabel(last.o).title}.</b> ${last.removed ? 'Lost ' + last.removed + '. ' : ''}${last.was ? 'Gave up ' + last.was + '. ' : ''}${last.op === 'pass' ? 'Nothing changed. ' : ''}Buy another to see three new offers.` : 'You do not choose what the cube does: it offers three things, and you take one. The affix you rerolled at the forge is never touched.')}</p>`;
   }
   h += '</div>';
   // ---- the forge
@@ -640,7 +644,7 @@ UI.setTab = function (t) {
 };
 /* bring a piece of gear to the crafting bench */
 UI.craft = function (id) {
-  UI.forgeId = id; UI.cubeLast = null; UI.mwLast = null; UI.worthLast = null; UI.worth = null; UI.tfArm = null; UI.tfLast = null;
+  UI.forgeId = id; UI.cubeLast = null; UI.mwLast = null; UI.worthLast = null; UI.worth = null; UI.tfArm = null; UI.cancelArm = null; UI.tfLast = null;
   UI.setTab('craft'); mark('forge', 'bag', 'gear');
   // when the panes are stacked (narrow windows), the bench is further down the page: go to it
   if (matchMedia('(max-width: 1240px)').matches) $('craft').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -844,7 +848,7 @@ UI.bind = function () {
   window.addEventListener('blur', release);
   // hovering one of the cube's offers lights up the affixes it could touch, in the offer's colour
   document.addEventListener('mouseover', e => {
-    const c = e.target.closest ? e.target.closest('.offer-card') : null; if (c === UI.hoverCard && (!c || c.isConnected)) return; UI.hoverCard = c;
+    const c = e.target.closest ? e.target.closest('.offer-card, [data-act=cancel-transmute]') : null; if (c === UI.hoverCard && (!c || c.isConnected)) return; UI.hoverCard = c;
     document.querySelectorAll('.aff-list li.tg').forEach(x => x.classList.remove('tg'));
     if (c) for (const i of (c.dataset.tg || '').split(',').filter(Boolean)) { const li = document.querySelector(`.aff-list li[data-ai="${i}"]`); if (li) { li.classList.add('tg'); li.style.setProperty('--tc', c.style.getPropertyValue('--c')); } }
   });
@@ -956,6 +960,11 @@ UI.bind = function () {
       }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to reroll this.'); }
       else if (act === 'ench-keep' || act === 'ench-take') G.enchantPick(UI.forgeId, act === 'ench-take');
+      else if (act === 'cancel-transmute') {
+        const f = G.findItem(UI.forgeId), free = f && !I.cancelTargets(f.it).length;
+        if (!free && UI.cancelArm !== UI.forgeId) { UI.cancelArm = UI.forgeId; A.play('click'); mark('forge'); }      // it costs a tier: ask twice
+        else { UI.cancelArm = null; if (!G.cancelTransmute(UI.forgeId)) deny(f && f.it.pend ? I.PEND_FIRST : 'There is no offer to cancel.'); }
+      }
       else if (act === 'salvage-one') { const id = UI.forgeId; UI.forgeId = null; G.salvage(id); }
       else if (act === 'commission') { if (G.bagCount() >= D.BAG_SIZE) deny('Your bag is full.'); else if (!G.commission(el.dataset.slot)) deny('Not enough gold.'); }
       return;

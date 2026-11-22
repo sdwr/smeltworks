@@ -315,6 +315,10 @@ I.temperable = it => it.affixes.map((a, i) => i).filter(i => !it.affixes[i].g &&
 I.removable = (it, cat) => it.affixes.map((a, i) => i).filter(i => i !== it.ench && (!cat || I.inCat(it.affixes[i].k, cat)));
 /* affixes whose tier the cube may move: not the locked one, not Greater (always the best tier), not skill ranks */
 I.tiered = it => it.affixes.map((a, i) => i).filter(i => i !== it.ench && !it.affixes[i].g && !D.AFFIX[it.affixes[i].k].int);
+/* Walking away from an offer has a price: one affix loses a tier. These are the ones the cube can take it from
+   (never the locked affix, a Greater one or a skill rank, and not one already at tier 1); with none of them, there
+   is nothing to take and walking away is free. */
+I.cancelTargets = it => I.tiered(it).filter(i => I.affixTier(it, it.affixes[i]) > 1);
 I.cubeKey = o => [o.op, o.cat || '', o.pos || '', o.to || ''].join(':');
 const maxTier = it => D.tierOf(it.ilvl);
 /* the affixes an option could touch, for showing on the piece. `one` says a single one of them is picked at random. */

@@ -223,6 +223,12 @@ button.icon { padding: 5px 9px; } button.icon.off { opacity: .4; text-decoration
 /* upgrade marker, top right */
 .it.upg { box-shadow: 0 0 0 1px #0a0810, 0 0 10px 1px rgba(61,255,122,.75), inset 0 0 12px color-mix(in srgb, var(--c) 55%, transparent); }
 .it .up { position: absolute; right: 0; top: 0; width: 19px; height: 18px; display: grid; place-items: center; font-size: 12px; line-height: 1; color: #04220e; background: #3dff7a; border-bottom-left-radius: 5px; box-shadow: 0 0 8px rgba(61,255,122,.8); }
+/* a transfigured piece: a violet ring and a ✧ on its right edge, filled once the piece is sealed */
+.it.tfd { box-shadow: inset 0 0 0 2px #b896ff, inset 0 0 12px rgba(184,150,255,.6), 0 0 7px rgba(184,150,255,.55); } .it.tfd.upg { box-shadow: 0 0 0 1px #0a0810, 0 0 10px 1px rgba(61,255,122,.75), inset 0 0 0 2px #b896ff, inset 0 0 12px rgba(184,150,255,.6); }
+.it .tfm { position: absolute; right: -1px; top: 50%; transform: translateY(-50%); width: 17px; height: 19px; display: grid; place-items: center; font: 700 14px/1 var(--sans); color: #e6d9ff; background: rgba(20,14,34,.9); border: 1px solid #b896ff; border-right: 0; border-radius: 5px 0 0 5px; text-shadow: 0 0 5px #b896ff; }
+.it.sealed .tfm { color: #1b0f33; background: linear-gradient(#e6d9ff, #b896ff); text-shadow: none; box-shadow: 0 0 7px rgba(184,150,255,.8); }
+.worn .it .tfm { width: 11px; height: 12px; font-size: 8px; }
+.offer-cancel { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 6px 0 2px; font-size: 11.5px; color: var(--dimmer); } .offer-cancel button { margin: 0; }
 .it .lk { position: absolute; left: 50%; top: 0; transform: translateX(-50%); color: var(--hot); font-size: 9px; }
 /* greater affixes: a gold star (and a count) in the top left */
 .it .ga { position: absolute; left: 0; top: 0; padding: 0 3px 1px 2px; font: 700 12px/15px var(--sans); color: #2a1a00; background: linear-gradient(#fff0a8, #ffb347); border-bottom-right-radius: 5px; box-shadow: 0 0 8px rgba(255,200,90,.8); }

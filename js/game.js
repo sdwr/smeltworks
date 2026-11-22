@@ -756,6 +756,18 @@ G.pickTransmute = function (id, n) {
   return res;
 };
 
+/* Throw a waiting offer away without taking any of it, bought or free. The cube keeps what was paid, and takes a
+   tier from one random affix that has one to lose (see I.cancelTargets). */
+G.cancelTransmute = function (id) {
+  const f = G.findItem(id); if (!f || !f.it.offer || f.it.pend) return null;
+  const it = f.it, t = I.cancelTargets(it), res = { op: 'cancel', idxs: [], down: [] };
+  if (t.length) { const i = t[Math.floor(U.rng() * t.length)], a = it.affixes[i]; a.ti = I.affixTier(it, a) - 1; res.idxs.push(i); res.down.push([i, -1]); res.lost = { k: a.k, ti: a.ti }; }
+  delete it.offer; delete it.offerFree; it.isNew = 0;
+  G.recompute(); G.refreshUpgrades(); G.freeTransmute();
+  G.emit('cube', { it, res }); G.save();
+  return res;
+};
+
 /* Skills: no points and no levels. Pick up to five for the bar and three passives; gear supplies the ranks. */
 G.skillOn = id => Hr.selected(G.S).includes(id);
 /* drink the flask by hand. Returns null, or a line saying why not */

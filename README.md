@@ -82,6 +82,9 @@ the skill bar to drink it.
 - **The crafting bench.** The cube and the forge share one page and work on whichever piece you last clicked.
 - **The forge.** Masterwork, enchant (the Reroll button beside an affix), transfigure and salvage. Rerolling costs a
   little more each time on the same piece and levels off at five times the first price.
+- **Transfigured pieces are marked.** A piece that has been transfigured wears a violet ring and a ✧ on the right
+  edge of its tile, in the bag, the stash and on the smith: outlined while the piece is still open, filled once it
+  is sealed.
 - **A reroll is a choice.** Rerolling does not replace the affix outright. The new affix appears on the same line,
   after the old one and an arrow, each with what it would add to Damage and Toughness, and you press Keep old or
   Take new. The gold is spent either way. Until you choose, the piece cannot be rerolled again, transmuted or
@@ -131,6 +134,11 @@ the skill bar to drink it.
   While an offer waits the piece can still be masterworked, rerolled at the forge and transfigured. If the reroll
   locks an affix that an option was aimed at, or the change leaves an option with nothing to do, that option turns
   into "Leave it be". A piece that transfiguring seals loses its offer.
+  **Cancelling.** Under the three options is Cancel the transmute: the offer is thrown away with nothing taken.
+  The price is a tier: one random affix drops one tier (never the affix you rerolled at the forge, a Greater affix
+  or a skill rank; hovering the button shows which are at risk, and it asks twice). If nothing on the piece has a
+  tier to lose, cancelling costs nothing more. Dust already paid is not returned, and a free transmute can be
+  cancelled the same way.
 - **Free transmutes.** Kills fill a bar at the head of the character pane (1 for a monster, 4 for an elite, 12 for a
   boss, 30 to fill). When it is full, one piece you are wearing that has no offer waiting gets a transmute for
   nothing: it gets a pulsing gold border and sparkles until you take one of its three offers, and a count beside the
