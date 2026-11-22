@@ -91,15 +91,14 @@ function rollAffix(slot, have, tier, cat, plain, lvl) {
   const a = U.wpick(I.affixPool(slot, have, cat), x => x.w), g = !plain && U.chance(I.greaterChance(tier, lvl)) ? 1 : 0;   // plain: cube rolls never crit
   return { k: a.id, r: U.rng(), g, ti: g ? D.tierOf(lvl) : I.rollTier(lvl) };      // a Greater affix is always of the best tier
 }
-/* opts: slot, base, rar, minRar, mf, tier, boost, unique (id), anc, greater (at least one Greater affix) */
+/* opts: slot, base, rar, minRar, mf, tier, boost, unique (id), greater (at least one Greater affix) */
 I.roll = function (ilvl, o) {
   o = o || {};
-  ilvl = U.clamp(Math.round(ilvl), 1, D.GEAR_CAP);         // gear stops at the cap; only Ancestral gear is above it
+  ilvl = U.clamp(Math.round(ilvl), 1, D.GEAR_CAP);         // gear stops at the cap (what drops where is G.dropLevel's business)
   const slot = o.slot || U.wpick(D.ITEM_SLOTS, s => D.SLOT_WEIGHT[s]);
   let rar = o.rar != null ? U.clamp(o.rar, 0, D.RARITY.length - 1) : I.rollRarity(ilvl, o.mf, o.tier, o.boost, o.minRar);
   let base = o.base || U.pick(D.BASES_BY_SLOT[slot]);
-  if (o.anc) ilvl = D.ANC_LEVEL;
-  const it = { id: uid++, slot, base, rar, ilvl, anc: o.anc ? 1 : 0, affixes: [], uniq: null, up: 0, mw: [], ench: -1, enchN: 0, lock: 0, isNew: 1 };
+  const it = { id: uid++, slot, base, rar, ilvl, affixes: [], uniq: null, up: 0, mw: [], ench: -1, enchN: 0, lock: 0, isNew: 1 };
   if (rar === 3) {
     const pool = D.UNIQUES.filter(u => (o.unique ? u.id === o.unique : D.BASES[u.base].slot === slot && u.minLvl <= ilvl));
     if (!pool.length) rar = it.rar = 2;                    // no Unique for this slot at this level: a Rare instead
@@ -191,7 +190,7 @@ I.powerText = function (it) {
 I.itemPower = it => it.ilvl * 10 + ((it.up || 0) + (it.tq || 0)) * 2;
 I.typeLine = function (it) {
   const b = D.BASES[it.base];
-  return (it.anc ? 'Ancestral ' : '') + D.RARITY[it.rar].name + ' ' + (b.slot === 'weapon' || b.slot === 'offhand' ? b.name : D.SLOT_NAME[it.slot]);
+  return D.RARITY[it.rar].name + ' ' + (b.slot === 'weapon' || b.slot === 'offhand' ? b.name : D.SLOT_NAME[it.slot]);
 };
 I.spriteKey = function (it) {
   return { spr: D.BASES[it.base].spr, pal: it.uniq ? D.UNIQUE[it.uniq].pal : D.material(it.ilvl).pal };
@@ -214,8 +213,8 @@ I.salvageYield = function (it) {
   if (it.rar === 0) return { dust: 1 + back };
   if (it.rar === 1) return { dust: 2 + back };
   if (it.uniq) return { dust: 12 + back };
-  /* the exceptional pays more: three for each Greater affix, five more for an Ancestral piece */
-  return { dust: 4 + 3 * I.greaterCount(it) + (it.anc ? 5 : 0) + back };
+  /* the exceptional pays more: three for each Greater affix */
+  return { dust: 4 + 3 * I.greaterCount(it) + back };
 };
 I.goldScale = D.goldScale;
 /* One strike of masterworking. Below rank 25 the price follows the rank you are at; at 25 it is the price of
@@ -273,8 +272,8 @@ I.commissionCost = lvl => Math.round(55 * I.goldScale(lvl));
    Each recipe changes affixes at random. Returns a reason string when the recipe cannot run. */
 /* ---- transfiguring: the last step (see D.TRANSFIG) ---- */
 I.SEALED = 'It has been transfigured and is sealed: nothing more can be done to it.';
-/* any piece can be transfigured; Uniques and Ancestral gear roll on their own rows of the table */
-I.tfKind = it => (it.uniq ? (it.anc ? 'ancUniq' : 'uniq') : it.anc ? 'ancGear' : 'gear');
+/* any piece can be transfigured; Uniques and gear of the top item level roll on their own rows of the table */
+I.tfKind = it => (it.ilvl >= D.GEAR_CAP ? (it.uniq ? 'topUniq' : 'top') : it.uniq ? 'uniq' : 'gear');
 I.transfigCost = it => ({ gold: Math.round(500 * I.goldScale(it.ilvl)) });      // gold only: no ember dust, and nothing that only bosses drop
 I.OFFER_FIRST = 'The cube has made its offer for this piece. Pick one of the three first.';
 I.transfigCheck = it => (it.sealed ? I.SEALED : it.pend ? I.PEND_FIRST : null);

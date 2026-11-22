@@ -47,7 +47,8 @@ G.init = function (saved) {
     for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it) { it.up = Math.min(D.MW_MAX, (it.up || 0) * 5); if (it.mw && it.mw.length > 1) it.mw = [it.mw[0]]; }
     S.mwv = 1;
   }
-  for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && it.anc) it.ilvl = D.ANC_LEVEL;      // Ancestral is one fixed level, whatever it was when the save was made
+  const wasAnc = new Set();
+  for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it) { if (it.anc) { it.ilvl = D.GEAR_CAP; wasAnc.add(it); } delete it.anc; if (it.ilvl > D.GEAR_CAP) it.ilvl = D.GEAR_CAP; }      // Ancestral gear is gone: such a piece is now an ordinary one of the top item level
   if (!S.afxv) {
     // saves from before Strength: the four affixes that were removed are rerolled into something the slot can take
     for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && !it.uniq) I.fixAffixes(it);
@@ -67,7 +68,7 @@ G.init = function (saved) {
   }
   if (!S.capv) {
     // saves from before the gear cap: anything above item level 50 comes down to it, and a Torment map is redrawn at the new monster levels
-    for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && it.ilvl > D.GEAR_CAP && !it.anc) it.ilvl = D.GEAR_CAP;
+    for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && it.ilvl > D.CAMPAIGN_CAP && !wasAnc.has(it)) it.ilvl = D.CAMPAIGN_CAP;      // a save from before there was a cap
     if (S.world.tier > 0) S.world.map = null;
     S.capv = 1;
   }
@@ -294,7 +295,7 @@ G.addItem = function (it) {
   const S = G.S;
   if (it.uniq) S.stats.uniq++;
   it.upg = G.isUpgrade(it) ? 1 : 0;
-  if (!it.uniq && S.opts.salv[it.rar] && !it.upg && !it.anc) { G.emit('autoSalvage', { y: G.salvageItem(it, true) }); return 'salvaged'; }      // Ancestral gear is never auto-salvaged
+  if (!it.uniq && S.opts.salv[it.rar] && !it.upg) { G.emit('autoSalvage', { y: G.salvageItem(it, true) }); return 'salvaged'; }
   // no room: the new piece is salvaged where it drops. Nothing already in the bag is touched.
   if (G.bagCount() >= D.BAG_SIZE) { G.emit('autoSalvage', { y: G.salvageItem(it, true) }); G.emit('bagfull'); return 'salvaged'; }
   let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length;
@@ -302,18 +303,17 @@ G.addItem = function (it) {
   return 'bag';
 };
 /* Drops lean towards the slots where the smith's gear has fallen furthest behind, so fewer drops still keep pace. */
-/* in Torment any piece of gear, from any source, has a chance to be Ancestral */
-G.ancestral = () => U.chance(D.ANC_CHANCE[G.S.world.tier] || 0);
+/* the item level a piece dropped or made here has: the monster's or area's level, up to the cap of this difficulty */
+G.dropLevel = lvl => Math.max(1, Math.min(Math.round(lvl), D.gearCap(G.S.world.tier)));
 G.rollLoot = function (ilvl, o) {
-  o.anc = G.ancestral();
-  const gear = G.S.gear, dl = o.anc ? D.ANC_LEVEL : Math.min(ilvl, D.GEAR_CAP);     // the level the piece will really have
+  const gear = G.S.gear, dl = G.dropLevel(ilvl);            // the level the piece will really have
   const lag = s => {
     const worn = s === 'ring' ? [gear.ring1, gear.ring2] : [gear[s]];
     let worst = 0; for (const it of worn) worst = Math.max(worst, it ? U.clamp((dl - it.ilvl) / 5, 0, 3) : 4);
     return worst;
   };
   o.slot = U.wpick(D.ITEM_SLOTS, s => D.SLOT_WEIGHT[s] * (1 + lag(s)));
-  return I.roll(ilvl, o);
+  return I.roll(dl, o);
 };
 G.dropsFor = function (m) {
   const S = G.S, st = G.C.st, tier = S.world.tier, greed = G.battle && G.battle.shrine === 'greed';
@@ -332,7 +332,7 @@ G.dropsFor = function (m) {
     const key = m.id + tier;
     if (!S.stats.bosses[key]) {
       S.stats.bosses[key] = 1; out.first = true;
-      out.items.push(I.roll(m.lvl + 1, { rar: 2, tier, anc: G.ancestral(), greater: tier > 0 || m.lvl >= 20 ? 1 : 0 }));      // a first kill pays a Rare; from the third level on it has a Greater affix
+      out.items.push(I.roll(G.dropLevel(m.lvl + 1), { rar: 2, tier, greater: tier > 0 || m.lvl >= 20 ? 1 : 0 }));      // a first kill pays a Rare; from the third level on it has a Greater affix
     } else S.stats.bosses[key]++;
     out.mats = { dust: D.DUST.boss + (tier > 0 ? D.DUST.bossTorment : 0) };
   } else if (m.champ) out.mats = { dust: D.DUST.champ };
@@ -672,10 +672,10 @@ G.salvage = function (id) {
   G.S.bag[f.idx] = null; G.salvageItem(f.it); G.save();
   return true;
 };
-/* the bulk buttons leave upgrades, locked pieces and Ancestral gear alone (anc: true takes Ancestral too) */
-G.salvageAll = function (maxRar, anc) {
+/* the bulk buttons leave upgrades and locked pieces alone */
+G.salvageAll = function (maxRar) {
   const S = G.S; let n = 0; const tot = {};
-  S.bag.forEach((b, i) => { if (b && !b.lock && b.rar <= maxRar && !b.upg && (anc || !b.anc)) { S.bag[i] = null; const y = G.salvageItem(b, true); for (const k in y) tot[k] = (tot[k] || 0) + y[k]; n++; } });
+  S.bag.forEach((b, i) => { if (b && !b.lock && b.rar <= maxRar && !b.upg) { S.bag[i] = null; const y = G.salvageItem(b, true); for (const k in y) tot[k] = (tot[k] || 0) + y[k]; n++; } });
   if (n) { G.emit('salvageAll', { n, y: tot }); G.save(); }
   return n;
 };
@@ -730,7 +730,7 @@ G.pendWorth = function (it) {
 G.commission = function (slot) {
   const S = G.S, ilvl = G.areaLevel(), cost = { gold: I.commissionCost(ilvl) };
   if (G.bagCount() >= D.BAG_SIZE || !G.pay(cost)) return null;
-  const it = I.roll(ilvl, { slot, mf: G.C.st.mf + 40, tier: S.world.tier, minRar: 1, boost: 1.5, anc: G.ancestral() });
+  const it = I.roll(G.dropLevel(ilvl), { slot, mf: G.C.st.mf + 40, tier: S.world.tier, minRar: 1, boost: 1.5 });
   it.upg = G.isUpgrade(it) ? 1 : 0;
   if (it.uniq) S.stats.uniq++;
   let i = S.bag.indexOf(null); if (i < 0) i = S.bag.length; S.bag[i] = it;

@@ -99,17 +99,20 @@ test('Old saves: an upgrade becomes five masterwork ranks, and one masterworked 
   assert.equal(a.up, 15); assert.equal(b.up, 25); assert.equal(b.mw.join(), '2'); assert.equal(S.mwv, 1);
   G.init(S); assert.equal(a.up, 15, 'only converted once');
 });
-test('Gear stops at item level 50; Ancestral gear is 55 and only drops in Torment', (SW, G, D, I, H) => {
-  assert.equal(I.roll(999, { rar: 2 }).ilvl, 50); assert.equal(I.roll(50, { rar: 2 }).anc, 0);
-  const a = I.roll(12, { rar: 2, anc: true }); assert.equal(D.ANC_LEVEL, 55); assert.equal(a.ilvl, 55); assert.equal(a.anc, 1); assert.ok(I.typeLine(a).startsWith('Ancestral Rare'));
-  const w50 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0 }), w55 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0, anc: true });
+test('Gear stops at item level 50 in the campaign and Torment I, 53 in Torment II and 55 from Torment III; there is no Ancestral gear', (SW, G, D, I, H) => {
+  assert.equal(D.GEAR_CAPS.join(), '50,50,53,55,55'); assert.equal(D.GEAR_CAP, 55); assert.equal(D.gearCap(0), 50); assert.equal(D.gearCap(3), 55); assert.equal(D.gearCap(9), 55);
+  assert.equal(I.roll(999, { rar: 2 }).ilvl, 55, 'nothing is ever above the top item level'); const plain = I.roll(55, { rar: 2 }); assert.equal(plain.anc, undefined); assert.ok(!/Ancestral/.test(I.typeLine(plain))); assert.equal(D.ANC_LEVEL, undefined); assert.equal(G.ancestral, undefined);
+  const w50 = I.roll(50, { slot: 'weapon', base: 'sword', rar: 0 }), w55 = I.roll(55, { slot: 'weapon', base: 'sword', rar: 0 });
   const step = I.implicit(w55).dmg / I.implicit(w50).dmg; assert.ok(step > 1.4 && step < 1.6, 'five item levels is about half again: ' + step);
-  const S = G.S, rate = tier => { S.world.tier = tier; let n = 0; for (let i = 0; i < 4000; i++) { const it = G.rollLoot(D.areaLevel(4, tier) + 3, { tier }); assert.ok(it.ilvl === (it.anc ? 55 : Math.min(50, it.ilvl))); assert.ok(it.ilvl <= 55); if (it.anc) n++; } return n / 4000; };
-  assert.equal(rate(0), 0, 'never outside Torment');
-  const r = [1, 2, 3, 4].map(rate); for (let i = 0; i < 4; i++) assert.ok(Math.abs(r[i] - D.ANC_CHANCE[i + 1]) < 0.025, `T${i + 1}: ${r[i]}`);
-  assert.ok(r[0] < r[1] && r[1] < r[2] && r[2] < r[3], 'the chance rises with every tier');
-  S.world.tier = 4; S.gold = 1e15; let anc = 0; for (let i = 0; i < 300; i++) { S.bag.fill(null); const it = G.commission('ring'); assert.ok(it.ilvl === 50 || (it.anc && it.ilvl === 55)); if (it.anc) anc++; }
-  assert.ok(anc > 15, 'commissions can come out Ancestral in Torment: ' + anc);
+  assert.equal(D.tierOf(50), 6); assert.equal(D.tierOf(53), 6); assert.equal(D.tierOf(55), 7, 'the last affix tier is at the top item level');
+  // what drops where: the monster's level, up to the cap of the difficulty, from every source
+  const S = G.S, top = tier => { S.world.tier = tier; let hi = 0, lo = 99; for (let i = 0; i < 1500; i++) { const it = G.rollLoot(D.areaLevel(4, tier) + 3, { tier }); hi = Math.max(hi, it.ilvl); lo = Math.min(lo, it.ilvl); assert.equal(it.anc, undefined); } assert.equal(lo, hi, 'every drop there is of one level'); return hi; };
+  assert.equal(top(0), 43, 'the last campaign level drops gear of its monsters\' level'); assert.equal([1, 2, 3, 4].map(top).join(), '50,53,55,55');
+  S.world.tier = 0; assert.equal(G.rollLoot(12, {}).ilvl, 12); assert.equal(G.dropLevel(80), 50); S.world.tier = 2; assert.equal(G.dropLevel(80), 53); assert.equal(G.dropLevel(51), 51);
+  S.gold = 1e15; for (const [tier, want] of [[1, 50], [2, 53], [4, 55]]) { S.world.tier = tier; S.world.area = 4; S.bag.fill(null); assert.equal(G.commission('ring').ilvl, want, 'commissions follow the same cap'); }
+  // tier 7 affixes therefore only turn up from Torment III
+  const best = tier => { S.world.tier = tier; let m = 0; for (let i = 0; i < 400; i++) for (const a of G.rollLoot(90, { tier, minRar: 2 }).affixes) if (a.ti) m = Math.max(m, a.ti); return m; };
+  assert.equal(best(1), 6); assert.equal(best(2), 6); assert.equal(best(3), 7);
   S.world.tier = 0; S.bag.fill(null);
 });
 test('Torment: each tier is ten monster levels, and monsters only ever get harder', (SW, G, D, I, H) => {
@@ -119,21 +122,22 @@ test('Torment: each tier is ten monster levels, and monsters only ever get harde
   assert.equal(H.armorDR(5000, 50), H.armorDR(5000, 89), 'armor is not devalued past the gear cap');
   assert.ok(D.goldScale(89) / D.goldScale(50) < 4, 'gold stops inflating once gear stops growing');
 });
-test('Ancestral gear is never auto-salvaged or bulk-salvaged', (SW, G, D, I) => {
-  const S = G.S; S.opts.salv = [true, true, true, true]; S.world.tier = 2;
-  const plain = I.roll(50, { rar: 2, slot: 'ring' }), anc = I.roll(50, { rar: 2, slot: 'ring', anc: true });
-  G.isUpgrade = () => false;
-  assert.equal(G.addItem(plain), 'salvaged'); assert.equal(G.addItem(anc), 'bag');
-  assert.equal(G.salvageAll(4), 0, 'the bulk buttons skip it'); assert.ok(S.bag.includes(anc));
-  assert.equal(G.salvage(anc.id), true, 'but it can be salvaged by hand');
+test('Old saves: an Ancestral piece becomes an ordinary piece of the top item level', (SW, G, D, I) => {
+  const S = G.fresh(), a = I.roll(50, { rar: 2, slot: 'ring' }), b = I.roll(50, { rar: 2, slot: 'helm' }), keys = a.affixes.map(x => x.k).join();
+  a.anc = 1; a.ilvl = 55; b.anc = 0; S.gear.ring1 = a; S.bag[0] = b; S.opts.salv = [true, true, true];
+  G.init(JSON.parse(JSON.stringify(S))); const A = G.S.gear.ring1, B = G.S.bag[0];
+  assert.equal(A.anc, undefined); assert.equal(B.anc, undefined); assert.equal(A.ilvl, 55); assert.equal(B.ilvl, 50); assert.equal(A.affixes.map(x => x.k).join(), keys, 'it keeps everything else');
+  assert.ok(!/Ancestral/.test(I.typeLine(A))); assert.equal(I.tfKind(A), 'top', 'and transfigures on the top row, where an affix can be made Greater'); assert.equal(I.tfKind(B), 'gear');
+  // with the flag gone it is salvaged like anything else
+  G.isUpgrade = () => false; const c = I.roll(55, { rar: 2, slot: 'ring' }); assert.equal(G.addItem(c), 'salvaged', 'auto-salvage no longer spares it');
 });
 test('Old saves: gear above item level 50 comes down to the cap and a Torment map is redrawn', (SW, G, D, I) => {
   const S = G.fresh(); delete S.capv;
   const a = I.roll(50, { slot: 'chest', rar: 2 }); a.ilvl = 138; const b = I.roll(30, { slot: 'ring', rar: 2 });
-  const old = I.roll(50, { slot: 'helm', rar: 2, anc: true }); old.ilvl = 60; S.bag[1] = old;
+  const old = I.roll(50, { slot: 'helm', rar: 2 }); old.anc = 1; old.ilvl = 60; S.bag[1] = old;
   S.gear.chest = a; S.bag[0] = b; S.world.tier = 2; S.world.area = 3; S.world.cleared = [5, 5, 3]; S.world.map = { stale: true, cells: [] };
   G.init(S);
-  assert.equal(a.ilvl, 50); assert.equal(b.ilvl, 30); assert.equal(old.ilvl, 55, 'an Ancestral piece saved at 60 becomes 55'); assert.equal(S.capv, 1); assert.ok(!S.world.map.stale && S.world.map.cells.length === 35);
+  assert.equal(a.ilvl, 50); assert.equal(b.ilvl, 30); assert.equal(old.ilvl, 55, 'an Ancestral piece saved at 60 becomes 55'); assert.equal(old.anc, undefined); assert.equal(S.capv, 1); assert.ok(!S.world.map.stale && S.world.map.cells.length === 35);
   assert.ok(S.world.map.cells.every(c => c.lvl >= 66 && c.lvl <= 69), 'Torment II, fourth level');
 });
 test('On the map the smith fights from the doorway and walks in after the win', (SW, G, D, I) => {
@@ -437,27 +441,27 @@ test('The same Unique cannot be worn twice', (SW, G, D, I) => {
 });
 test('Transfiguring: the last step, with Diablo 4\'s odds, and it seals the piece', (SW, G, D, I) => {
   const S = G.S; S.gold = 1e15; S.mats = { dust: 1e6 }; S.mats.dust = 1e6;
-  const leg = anc => { const it = I.roll(50, { rar: 2, slot: 'ring', anc }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }, { k: 'crit', r: 0.5, g: 0 }, { k: 'firePct', r: 0.5, g: 0 }, { k: 'heat', r: 0.5, g: 0 }]; return it; };
-  const uniq = anc => I.roll(50, { unique: 'coil', rar: 3, anc });
+  const leg = top => { const it = I.roll(top ? 55 : 50, { rar: 2, slot: 'ring' }); it.affixes = [{ k: 'life', r: 0.5, g: 0 }, { k: 'crit', r: 0.5, g: 0 }, { k: 'firePct', r: 0.5, g: 0 }, { k: 'heat', r: 0.5, g: 0 }]; return it; };
+  const uniq = top => I.roll(top ? 55 : 50, { unique: 'coil', rar: 3 });
   // who may: anything, whatever its rarity, and it costs
   for (const rar of [0, 1, 2]) { const x = I.roll(50, { rar, slot: 'ring' }); S.bag[0] = x; assert.equal(I.transfigCheck(x), null); assert.equal(I.tfKind(x), 'gear'); assert.ok(G.transfigure(x.id), D.RARITY[rar].name + ' gear can be transfigured'); }
   // a Common piece has nothing to replace or make Greater, so those outcomes turn into a new affix or quality, and a gained affix makes it Magic
   const plainForce = (it, kind) => { const real = SW.util.wpick; SW.util.wpick = (arr, wf) => (arr === D.TRANSFIG_KINDS ? kind : real(arr, wf)); const r = I.transfigure(it); SW.util.wpick = real; return r; };
   let cm = I.roll(50, { rar: 0, slot: 'helm' }); assert.equal(plainForce(cm, 'replace').kind, 'affix'); assert.equal(cm.affixes.length, 1); assert.equal(cm.rar, 1, 'a Common with an affix is Magic');
-  cm = I.roll(50, { rar: 0, slot: 'helm', anc: true }); assert.equal(plainForce(cm, 'greater').kind, 'quality'); assert.equal(cm.rar, 0);
+  cm = I.roll(55, { rar: 0, slot: 'helm' }); assert.equal(plainForce(cm, 'greater').kind, 'quality'); assert.equal(cm.rar, 0);
   const mg = I.roll(50, { rar: 1, slot: 'helm' }); mg.affixes = mg.affixes.slice(0, 1); plainForce(mg, 'affix'); assert.equal(mg.rar, 1); mg.sealed = 0; plainForce(mg, 'affix'); assert.equal(mg.affixes.length, 3); assert.equal(mg.rar, 2, 'three affixes make a Rare');
   const a = leg(false); S.bag[0] = a; const gold = S.gold; assert.ok(G.transfigure(a.id)); assert.ok(S.gold < gold, 'it costs gold'); assert.equal(a.tf.length, 1);
   // the odds follow the table, for each kind of item
-  const makers = { gear: () => leg(false), uniq: () => uniq(false), ancGear: () => leg(true), ancUniq: () => uniq(true) };
+  const makers = { gear: () => leg(false), uniq: () => uniq(false), top: () => leg(true), topUniq: () => uniq(true) };
   for (const kind in makers) {
     const n = {}, N = 6000; let open = 0;
     for (let i = 0; i < N; i++) { const it = makers[kind](); assert.equal(I.tfKind(it), kind); const r = I.transfigure(it); n[r.kind] = (n[r.kind] || 0) + 1; if (r.open) open++; assert.equal(it.sealed, r.open ? 0 : 1); }
     const odds = D.TRANSFIG[kind], tot = D.TRANSFIG_KINDS.reduce((x, k) => x + odds[k], 0);
     for (const k of D.TRANSFIG_KINDS) assert.ok(Math.abs((n[k] || 0) / N - odds[k] / tot) < 0.02, `${kind} ${k}: ${((n[k] || 0) / N * 100).toFixed(1)}% against ${odds[k]}%`);
     assert.ok(Math.abs(open / N - odds.open / 100) < 0.012, `${kind} stays open ${(open / N * 100).toFixed(1)}%`);
-    if (!kind.startsWith('anc')) assert.ok(!n.greater, 'only Ancestral gear can have an affix made Greater');
+    if (!kind.startsWith('top')) assert.ok(!n.greater, 'only gear of the top item level can have an affix made Greater');
   }
-  assert.equal(D.TRANSFIG.gear.greater, 0); assert.equal(D.TRANSFIG.ancGear.greater, 28); assert.equal(D.TRANSFIG.gear.replace, 13); assert.equal(D.TRANSFIG.gear.open, 4);
+  assert.equal(D.TRANSFIG.gear.greater, 0); assert.equal(D.TRANSFIG.top.greater, 28); assert.equal(D.TRANSFIG.ancGear, undefined); assert.equal(D.TRANSFIG.gear.replace, 13); assert.equal(D.TRANSFIG.gear.open, 4);
   // what each outcome does (the dice are steered to pick it)
   const force = (it, kind) => { const real = SW.util.wpick; SW.util.wpick = (arr, wf) => (arr === D.TRANSFIG_KINDS ? kind : real(arr, wf)); const r = I.transfigure(it); SW.util.wpick = real; return r; };
   let it = leg(false), base = I.implicit(it).life, v0 = I.affixValue(it, it.affixes[0], 0);
@@ -512,7 +516,7 @@ test('Salvage pays more ember dust for the exceptional, and there is no soulstee
   const rare = I.roll(20, { slot: 'ring', rar: 2 }); rare.affixes.forEach(a => { a.g = 0; });
   assert.equal(I.salvageYield(rare).dust, 4); assert.equal(Object.keys(I.salvageYield(rare)).join(), 'dust');
   rare.affixes[0].g = 1; assert.equal(I.salvageYield(rare).dust, 7); rare.affixes[1].g = 1; assert.equal(I.salvageYield(rare).dust, 10, 'three more for each Greater affix');
-  const anc = I.roll(50, { slot: 'ring', rar: 2, anc: true }); anc.affixes.forEach(a => { a.g = 0; }); assert.equal(I.salvageYield(anc).dust, 9, 'and five for being Ancestral');
+  const top = I.roll(55, { slot: 'ring', rar: 2 }); top.affixes.forEach(a => { a.g = 0; }); assert.equal(I.salvageYield(top).dust, 4, 'a piece of the top item level pays no more for that');
   assert.equal(I.salvageYield(I.roll(50, { unique: 'coil', rar: 3 })).dust, 12);
   G.S.bag[0] = rare; G.S.mats = { dust: 0 }; assert.ok(G.salvage(rare.id)); assert.equal(G.S.mats.dust, 10); assert.equal(G.S.mats.soul, undefined); assert.equal(G.S.codex, undefined, 'there is no Codex to learn into');
   // transfiguring asks for gold only, and a boss drops no material of its own
@@ -657,7 +661,7 @@ test('Affix pools: slot-limited like Diablo, and every slot can be aimed at two 
 });
 test('Movement Speed on boots shortens the walk between tiles', (SW, G, D, I) => {
   const S = G.S, base = G.stepTime(); assert.equal(base, D.TRAVEL_STEP);
-  const boots = I.roll(50, { rar: 2, slot: 'boots', anc: true }); boots.affixes = [{ k: 'move', r: 0.99, g: 0, ti: 7 }]; S.gear.boots = boots; G.recompute();
+  const boots = I.roll(55, { rar: 2, slot: 'boots' }); boots.affixes = [{ k: 'move', r: 0.99, g: 0, ti: 7 }]; S.gear.boots = boots; G.recompute();
   assert.ok(G.C.st.move >= 29); assert.ok(G.stepTime() < base * 0.8, 'at least a fifth faster');
   // walking three tiles really does take less game time
   const walk = () => { G.startExpedition(0, 0); S.world.cool = 0; const m = S.world.map; for (const c of m.cells) if (c.y === 2 && c.x <= 3) { c.type = c.x ? 'fight' : 'start'; c.state = c.x < 3 ? 'done' : 'seen'; }
@@ -1028,7 +1032,7 @@ test('Affix tiers: each a higher band than the last, unlocked by item level, and
   const seen = lvl => { const c = {}; for (let i = 0; i < 1500; i++) for (const a of I.roll(lvl, { rar: 2 }).affixes) if (!D.AFFIX[a.k].int) c[a.ti] = (c[a.ti] || 0) + 1; return c; };
   assert.equal(Object.keys(seen(5)).join(), '1'); const z2 = seen(14); assert.equal(Object.keys(z2).join(), '1,2'); assert.ok(z2[2] > z2[1], 'mostly the better tier');
   const z5 = seen(44), tot = Object.values(z5).reduce((a, b) => a + b, 0); assert.equal(Object.keys(z5).join(), '1,2,3,4,5'); assert.ok(Math.abs(z5[5] / tot - 0.62) < 0.05 && Math.abs(z5[4] / tot - 0.26) < 0.05 && z5[1] / tot < 0.04, 'about 62% the best, 26% one below: ' + JSON.stringify(z5));
-  assert.equal(Math.max(...Object.keys(seen(50)).map(Number)), 6); assert.equal(Math.max(...Object.keys((() => { const c = {}; for (let i = 0; i < 300; i++) for (const a of I.roll(50, { rar: 2, anc: true }).affixes) c[a.ti] = 1; return c; })()).map(Number)), 7, 'tier 7 is Ancestral only');
+  assert.equal(Math.max(...Object.keys(seen(50)).map(Number)), 6); assert.equal(Math.max(...Object.keys((() => { const c = {}; for (let i = 0; i < 300; i++) for (const a of I.roll(55, { rar: 2 }).affixes) c[a.ti] = 1; return c; })()).map(Number)), 7, 'tier 7 is for the top item level only');
   // a level-two piece is a clear step up: the same affix at the same roll
   const ring = lvl => { const it = I.roll(lvl, { rar: 2, slot: 'ring' }); it.affixes = [{ k: 'physPct', r: 0.5, g: 0, ti: D.tierOf(lvl) }, { k: 'life', r: 0.5, g: 0, ti: D.tierOf(lvl) }, { k: 'crit', r: 0.5, g: 0, ti: D.tierOf(lvl) }]; return it.affixes.map((a, i) => I.affixValue(it, a, i)); };
   const a1 = ring(7), a2 = ring(12), a5 = ring(44); for (let i = 0; i < 3; i++) { assert.ok(a2[i] >= a1[i] * 1.45, `tier 2 against tier 1: ${a2[i]} vs ${a1[i]}`); assert.ok(a5[i] > a2[i] * 1.9); }
@@ -1135,7 +1139,7 @@ test('The cube: every option does what it says, and never touches the affix rero
   it = mk(); const snap = JSON.stringify(it.affixes); res = cube(SW, it.id, 'pass'); assert.equal(JSON.stringify(it.affixes), snap);
   // the lock: across thousands of random offers taken at random, the forge-rerolled affix is never changed in any way
   for (let n = 0; n < 150; n++) {
-    it = I.roll(1 + (n * 7) % 55 > 50 ? 50 : 1 + (n * 7) % 50, { rar: 2, slot: ['ring', 'helm', 'weapon', 'chest', 'gloves', 'amulet', 'boots'][n % 7], anc: n % 9 === 0 }); S.bag[0] = it; if (!it.affixes.length) continue;
+    it = I.roll(n % 9 === 0 ? 55 : 1 + (n * 7) % 50, { rar: 2, slot: ['ring', 'helm', 'weapon', 'chest', 'gloves', 'amulet', 'boots'][n % 7] }); S.bag[0] = it; if (!it.affixes.length) continue;
     it.ench = n % it.affixes.length; it.mw = n % 3 ? [] : [(n + 1) % it.affixes.length]; const lock = JSON.stringify(it.affixes[it.ench]), mwk = it.mw.length ? it.affixes[it.mw[0]].k : null, max = D.tierOf(it.ilvl);
     for (let k = 0; k < 25; k++) {
       const offer = G.buyTransmute(it.id); if (!offer) break; assert.ok(offer.length >= 1 && offer.every(o => I.cubeValid(it, o)));

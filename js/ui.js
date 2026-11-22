@@ -71,7 +71,7 @@ function itemCell(it, extra, idx, box) {
   const bag = idx == null ? '' : ` data-${box || 'bag'}="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.offer ? (I.offerHidden(it) ? 'offer-free' : 'offer-wait') : ''} ${it.anc ? 'anc' : ''} ${it.tf && it.tf.length ? (it.sealed ? 'tfd sealed' : 'tfd') : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.offer ? (I.offerHidden(it) ? 'offer-free' : 'offer-wait') : ''} ${it.ilvl >= D.GEAR_CAP ? 'top' : ''} ${it.tf && it.tf.length ? (it.sealed ? 'tfd sealed' : 'tfd') : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
     (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.tf && it.tf.length ? '<b class="tfm">✧</b>' : '') + (it.up ? `<b class="pl${it.up >= D.MW_MAX ? ' max' : ''}">${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
@@ -110,7 +110,7 @@ function itemTooltip(it, o) {
   if (o.label) h += `<div class="tt-label">${o.label}</div>`;
   h += `<div class="tt-name">${esc(it.name)}</div>`;
   h += `<div class="tt-type">${I.typeLine(it)}<span>${I.itemPower(it)} Item Power</span></div>`;
-  if (it.anc) h += `<div class="tt-anc">Ancestral<span>item level ${it.ilvl}, above the cap of ${D.GEAR_CAP}</span></div>`;
+  if (it.ilvl >= D.GEAR_CAP) h += `<div class="tt-anc">Top item level<span>its affixes can reach tier ${D.TIER_MAX}</span></div>`;
   if (it.up || it.tq) h += `<div class="tt-mw"><em>Masterwork rank ${it.up || 0}/${D.MW_MAX}${it.tq ? ` <b class="tf">+${it.tq} quality</b>` : ''}</em><span>+${(it.up || 0) + (it.tq || 0)}% to everything on it</span></div>`;
   if (it.tf && it.tf.length) h += `<div class="tt-tf">✧ Transfigured${it.indes ? ' · Indestructible' : ''}<span>${it.sealed ? 'sealed: it cannot be changed again' : 'still open to change'}</span></div>`;
   if (imp.dmg) h += `<div class="tt-base"><b>${U.fmt(imp.dmg)}</b> damage per hit<span>${imp.aps.toFixed(2)} attacks per second</span></div>`;
@@ -433,7 +433,7 @@ function renderBag() {
   h += '<span class="sep"></span><span class="lbl">Salvage</span>';
   h += ['Common', 'Magic', 'Rare'].map((nm, i) => `<button class="small r${i}" data-act="salv" data-rar="${i}" data-tip="Salvage every unlocked ${nm} item${i ? ' or lower' : ''} in your bag. Anything marked as an upgrade is kept.">${i ? nm : 'Com.'}</button>`).join('');
   h += '<span class="autos"><span class="lbl" data-tip="Tick a rarity to salvage those drops the moment you pick them up. Upgrades are always kept.">Auto</span>';
-  h += ['C', 'M', 'R'].map((nm, i) => `<label class="chk mini r${i}" data-tip="Auto-salvage ${D.RARITY[i].name} drops${i === 2 ? '. Ancestral pieces are kept.' : ''}"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('') + '</span>';
+  h += ['C', 'M', 'R'].map((nm, i) => `<label class="chk mini r${i}" data-tip="Auto-salvage ${D.RARITY[i].name} drops"><input type="checkbox" data-autosalv="${i}" ${S.opts.salv[i] ? 'checked' : ''}><span>${nm}</span></label>`).join('') + '</span>';
   $('baghead').innerHTML = h;
   const sel = it => (it && it.id === UI.forgeId ? 'sel' : '');
   let b = '';
@@ -588,7 +588,7 @@ function renderCraft() {
 }
 /* Transfiguring: the last step. Shows the odds for this kind of piece, and asks twice, because it is final. */
 const TF_TIP = { indes: 'Indestructible: nothing changes. This is the dud.', quality: `Item Quality: +1 to +${D.TRANSFIG_QUALITY}% to everything on the piece, beyond its masterwork ranks.`, affix: 'A fifth affix. It can be one this slot could never roll.',
-  greater: 'One ordinary affix becomes Greater: its maximum roll, and half again. Ancestral gear only.', replace: 'One affix, chosen at random, is replaced by a new random one. It can take your best affix, a Greater one included.' };
+  greater: 'One ordinary affix becomes Greater: its maximum roll, and half again. Only on gear of the top item level.', replace: 'One affix, chosen at random, is replaced by a new random one. It can take your best affix, a Greater one included.' };
 function transfigHtml(it) {
   const kind = I.tfKind(it), last = UI.tfLast && UI.tfLast.id === it.id ? UI.tfLast.res : null;
   let h = '<div class="op tfig"><div class="op-t"><b>Transfigure</b><span>The last step. One roll on the table below, and then the piece is almost always sealed for good: no more masterworking, rerolling or cube. Any piece can be transfigured, whatever its rarity. Finish everything else first.</span></div>';
@@ -607,8 +607,8 @@ function transfigHtml(it) {
   return h;
 }
 function renderCommission() {
-  const S = G.S, lvl = G.areaLevel(), cc = { gold: I.commissionCost(lvl) }, anc = D.ANC_CHANCE[S.world.tier] || 0;
-  let h = `<div class="cx-head"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice. It comes at item level ${Math.min(lvl, D.GEAR_CAP)}${lvl > D.GEAR_CAP ? ', the cap' : ", this area's level"}, and is never Common.${anc ? ` In ${D.TIERS[S.world.tier].name} it has a ${Math.round(anc * 100)}% chance to be Ancestral (item level ${D.ANC_LEVEL}).` : ''} It lands in your bag.</span></div>`;
+  const S = G.S, lvl = G.areaLevel(), cc = { gold: I.commissionCost(lvl) }, cap = D.gearCap(S.world.tier);
+  let h = `<div class="cx-head"><b>Commission</b><span>Pay the smelter to cast a random piece for a slot of your choice. It comes at item level ${Math.min(lvl, cap)}${lvl > cap ? `, the most gear can be in ${S.world.tier ? D.TIERS[S.world.tier].name : 'the campaign'}` : ", this area's level"}, and is never Common. It lands in your bag.</span></div>`;
   h += `<div class="op-a" style="justify-content:flex-start">${costHtml(cc)}<span class="note">each. You have ${U.fmt(S.gold)} gold${G.bagCount() >= D.BAG_SIZE ? ', but your bag is full' : ''}.</span></div><div class="com-row">` +
     D.ITEM_SLOTS.map(s => { const worn = (s === 'ring' ? [S.gear.ring1, S.gear.ring2] : [S.gear[s]]).map(x => (x ? x.ilvl : '–')).join(' / ');
       return `<button class="com" data-act="commission" data-slot="${s}" ${G.canPay(cc) ? '' : 'disabled'} data-tip="Cast a ${D.SLOT_NAME[s].toLowerCase()}. You are wearing item level ${worn}."><img src="${SP.url(D.BASES[D.BASES_BY_SLOT[s][0]].spr, D.material(lvl).pal, 3)}" alt=""><b>${D.SLOT_NAME[s]}</b><span>wearing ${worn}</span></button>`; }).join('') + '</div>';
@@ -703,9 +703,9 @@ UI.feed = function (html, cls) {
 UI.feedItem = function (it, fate) {
   UI.shown = UI.shown || {}; UI.shown[it.id] = it;
   UI.shownIds = UI.shownIds || []; UI.shownIds.push(it.id); if (UI.shownIds.length > 40) delete UI.shown[UI.shownIds.shift()];
-  if (fate === 'salvaged') { if (it.rar >= 2 || it.anc) UI.feed(`<span class="dim">Salvaged</span> <b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b>${it.anc ? ' <span class="anc-t">Ancestral</span>' : ''}`, 'sal'); return; }
+  if (fate === 'salvaged') { if (it.rar >= 2) UI.feed(`<span class="dim">Salvaged</span> <b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b>`, 'sal'); return; }
   if (it.rar === 0 && !it.upg) return;
-  UI.feed(`${it.upg ? '<i class="pos">▲</i> ' : ''}${I.greaterCount(it) ? '<i class="hot">' + '★'.repeat(I.greaterCount(it)) + '</i> ' : ''}<b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b> <span class="${it.anc ? 'anc-t' : 'dim'}">${I.typeLine(it)}</span>`, 'r' + it.rar + (it.anc ? ' anc' : ''));
+  UI.feed(`${it.upg ? '<i class="pos">▲</i> ' : ''}${I.greaterCount(it) ? '<i class="hot">' + '★'.repeat(I.greaterCount(it)) + '</i> ' : ''}<b style="color:${RC(it.rar)}" data-item="${it.id}">${esc(it.name)}</b> <span class="dim">${I.typeLine(it)}</span>`, 'r' + it.rar);
 };
 UI.toast = function (msg, cls) {
   const t = $('toasts'), d = document.createElement('div');
@@ -727,7 +727,7 @@ UI.travel = function (tier) {
     const act = D.ACTS[a.act], open = G.isUnlocked(a.idx, tier), done = W.cleared[tier] > a.idx, lvl = D.areaLevel(a.idx, tier), here = W.area === a.idx && W.tier === tier, boss = D.BOSSES[act.boss];
     h += `<button class="area ${done ? 'done' : ''} ${here ? 'here' : ''}" ${open ? '' : 'disabled'} data-go="${a.idx}" data-gotier="${tier}"><b>${a.idx + 1}. ${act.name}</b><span><em class="${lvlCls(lvl, tier)}">Level ${lvl}–${lvl + D.areaSpan(tier)}</em> · ${boss.name}, ${boss.title}</span><i>${here ? 'You are here' : done ? 'Cleared' : open ? 'New' : 'Locked'}</i></button>`;
   }
-  h += `</div><div class="mfoot"><span class="note">${tier ? `Gear stops at item level ${D.GEAR_CAP}, but in ${D.TIERS[tier].name} ${Math.round(D.ANC_CHANCE[tier] * 100)}% of drops are Ancestral: item level ${D.ANC_LEVEL}. More Uniques and Greater affixes too.` : `Gear stops at item level ${D.GEAR_CAP}. Beat Vulkar in Hellforge to unlock Torment, where Ancestral gear drops.`}</span><button data-close="1">Close</button></div>`;
+  h += `</div><div class="mfoot"><span class="note">${tier ? `In ${D.TIERS[tier].name} gear drops up to item level ${D.gearCap(tier)}${D.gearCap(tier) >= D.GEAR_CAP ? `, where affixes reach tier ${D.TIER_MAX}` : D.gearCap(tier) > D.gearCap(0) ? '' : ', as in the campaign'}. More Uniques and Greater affixes too.` : `Gear stops at item level ${D.gearCap(0)} in the campaign. Beat Vulkar in Hellforge to unlock Torment: gear rises to ${D.gearCap(2)} in Torment II and to ${D.GEAR_CAP}, with the last affix tier, in Torment III.`}</span><button data-close="1">Close</button></div>`;
   UI.modal(h, 'travel');
 };
 UI.settings = function () {
@@ -763,7 +763,7 @@ UI.victory = function () {
   UI.modal(`<h1>The forges burn again</h1>
     <p class="lead">Vulkar is slag. Heat climbs back up through the mountain, shaft by shaft, and somewhere above you a bellows starts to breathe.</p>
     <p>You finished the descent in ${hh ? hh + 'h ' : ''}${mm}m, with gear level ${Hr.gearLevel(S.gear)}, after ${U.fmt(S.stats.kills)} kills and ${S.stats.deaths} fall${S.stats.deaths === 1 ? '' : 's'}.</p>
-    <p><b style="color:${D.TIERS[1].color}">Torment I is open.</b> The same descent, far deadlier. No Common gear drops there, Uniques come faster, more affixes roll Greater, and Ancestral gear appears. </p>
+    <p><b style="color:${D.TIERS[1].color}">Torment I is open.</b> The same descent, far deadlier. No Common gear drops there, Uniques come faster and more affixes roll Greater. From Torment II gear rises above item level 50, and in Torment III it reaches 55, where the last affix tier is.</p>
     <div class="mfoot"><button data-close="1">Keep farming here</button><button class="big" data-go="0" data-gotier="1">Enter Torment I</button></div>`, 'welcome');
 };
 /* ------------------------------------------------------ game → ui glue */
@@ -791,7 +791,7 @@ UI.onGame = function (type, d) {
       break;
     case 'leaving': UI.victoryMove(d); break;
     case 'stay': if (UI.vic) { UI.vic.moving = false; $('victory').classList.remove('moving', 'auto'); $('vic-move').innerHTML = ''; } break;
-    case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', `Ancestral gear drops there: ${Math.round(D.ANC_CHANCE[d.tier] * 100)}% of all drops`, 'boss', 3600), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
+    case 'tierUnlock': setTimeout(() => UI.banner(D.TIERS[d.tier].name + ' unlocked', D.gearCap(d.tier) > D.gearCap(d.tier - 1) ? `Gear drops there up to item level ${D.gearCap(d.tier)}` : 'More Uniques and Greater affixes drop there', 'boss', 3600), 2600); UI.feed(`<b style="color:${D.TIERS[d.tier].color}">${D.TIERS[d.tier].name} unlocked.</b> Open Travel to begin.`, 'r3'); break;
     case 'chest': A.play('chest'); SW.fx.spill(d.items, d.fate); UI.feed(`Chest: <b class="gold">${U.fmt(d.gold)} gold</b> and ${d.dust} ember dust`, ''); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag', 'map'); break;
     case 'fullClear': SW.fx.spill(d.items, d.fate); UI.feed(`Map cleared out: <b class="gold">${U.fmt(d.gold)} gold</b>, ${d.dust} ember dust and a bonus piece`, 'r2'); d.items.forEach((it, i) => UI.feedItem(it, d.fate[i])); mark('bag'); break;
     case 'shrine': { const s = D.SHRINES[d.id]; A.play('shrine'); SW.fx.heroGlow(s.color); UI.banner(s.name, `Life restored. ${s.desc} for ${D.SHRINE_FIGHTS} battles`, 'shrine', 1800); break; }
@@ -956,7 +956,7 @@ UI.bind = function () {
       const act = el.dataset.act;
       if (act === 'drink') drink();
       else if (act === 'sort') { G.sortBag(); A.play('click'); }
-      else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity. Upgrades, locked and Ancestral pieces are kept.'); }
+      else if (act === 'salv') { if (!G.salvageAll(+el.dataset.rar)) deny('Nothing to salvage at that rarity. Upgrades and locked pieces are kept.'); }
       else if (act === 'clear-skills') { G.clearSkills(); A.play('salvage'); }
       else if (act === 'buy-transmute') { if (!G.buyTransmute(UI.forgeId)) deny(I.offerCheck(G.findItem(UI.forgeId).it) || 'Not enough ember dust.'); }
       else if (act === 'equip-one') { if (!G.equip(UI.forgeId)) deny(G.equipWhy(UI.forgeId) || 'That cannot be equipped.'); }

@@ -80,7 +80,7 @@ H.compute = function (S, gearOverride, bareAps) {
   return C;
 };
 /* armor is measured against the attacker's level, up to the gear cap: past it monsters hit harder instead of piercing more */
-H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * D.flat(Math.min(attackerLvl, D.GEAR_CAP))));
+H.armorDR = (armor, attackerLvl) => Math.min(0.85, armor / (armor + D.ARMOR_K * D.flat(Math.min(attackerLvl, D.CAMPAIGN_CAP))));
 
 /* A rough offence × defence estimate from the stat sheet, used for the upgrade arrow and the tooltip comparison.
    It counts stats only. Unique powers are left out on purpose: most are conditional, and a guess at

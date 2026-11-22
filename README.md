@@ -61,12 +61,15 @@ the skill bar to drink it.
   Clear a tile to reveal its neighbours. Beat the boss to open the next level.
 - **Five levels**, each with its own monsters and a scripted boss, then four Torment tiers that
   replay the descent against tougher monsters with better drops.
-- **Gear caps at item level 50.** Torment monsters keep climbing (levels 50-61 in Torment I up to 80-91 in
-  Torment IV), but gear does not. From there you grow through Ancestral gear, masterworking, greater affixes and
-  better rolls.
-- **Ancestral gear.** In Torment any drop, chest piece or commission can come out Ancestral: item level 55, about
-  one and a half times the main stat of a level 50 piece. The chance is 3% in Torment I, then 6%, 10% and 15%. Ancestral gear
-  has a bright frame and a gold item level, and is never auto-salvaged or caught by the bulk salvage buttons.
+- **Gear caps by difficulty.** Item level stops at 50 in the campaign and Torment I, 53 in Torment II, and 55 in
+  Torment III and IV. Every drop, chest piece and commission there is of that level. Five item levels are worth
+  about half again on a piece's main stat, and 55 is where the last affix tier (T7) is, so the late Torment tiers
+  are where gear is finished. Torment monsters keep climbing past that (levels 50-61 in Torment I up to 80-91 in
+  Torment IV); beyond the cap you grow through masterworking, Greater affixes and better rolls. A piece of the top
+  item level has a gold level badge.
+- **No Ancestral gear.** There used to be a rare "Ancestral" kind of piece at item level 55. It did the same job
+  as the affix tiers do now, so it is gone: the top item level simply drops in late Torment. A piece that was
+  Ancestral in an old save becomes an ordinary piece of item level 55 and keeps everything else.
 - **Gear is the only progression.** There are no character levels or experience. Every piece has one fixed main stat
   for its type and level (weapons damage, armour armor, rings and amulets life) plus random affixes: 1-2 on Magic,
   3-4 on Rare, 4 on a Unique. Skill ranks come from "+ to skills" affixes.
@@ -161,13 +164,13 @@ the skill bar to drink it.
 - **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 2 to 25, climbing with each one bought for the same piece; a
   masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix. Rerolling an affix
   at the forge and transfiguring cost gold only. Salvage pays 1 for a Common, 2 for a Magic, 4
-  for a Rare (plus 3 for each Greater affix and 5 if Ancestral) and 12 for a Unique, and on top of that any piece
+  for a Rare (plus 3 for each Greater affix) and 12 for a Unique, and on top of that any piece
   gives back half the ember dust that went into masterworking it. Elites and bosses always carry
   some, ordinary monsters a pinch 5% of the time, and chests and full clears add a little.
 - **Affix tiers.** Every affix comes in seven tiers, each a band of values that starts where the one below ends, and
   each affix on a piece shows its tier (T1 to T7) beside it. A piece can roll tiers up to the one its item level
   has reached: T1 from level 1, T2 from 10, T3 from 20, T4 from 30, T5 from 40, T6 from 50 (Torment) and T7 at 55
-  (Ancestral). So level one drops only T1, level two drops T1 and T2, and so on: 62% of new affixes are the best
+  (Torment III and IV). So level one drops only T1, level two drops T1 and T2, and so on: 62% of new affixes are the best
   tier the piece allows, 26% one lower, 9% two lower. Inside a tier the item level does not matter (it still sets
   the piece's own damage, armor or life).
 
@@ -232,11 +235,11 @@ the skill bar to drink it.
   | --- | --- | --- | --- | --- | --- | --- |
   | Common, Magic, Rare | 22% | 27% | 38% | – | 13% | 4% |
   | Unique | 18% | 26% | 44% | – | 13% | 3% |
-  | Ancestral Common, Magic, Rare | 14% | 20% | 28% | 28% | 10% | 4% |
-  | Ancestral Unique | 15% | 22% | 27% | 25% | 11% | 4% |
+  | Item level 55: Common, Magic, Rare | 14% | 20% | 28% | 28% | 10% | 4% |
+  | Item level 55: Unique | 15% | 22% | 27% | 25% | 11% | 4% |
 
   Item Quality is +1 to +15% to everything on the piece, on top of masterwork ranks. The fifth affix can be one the
-  slot could never roll. Making an affix Greater is Ancestral only, and is the one way crafting produces a Greater
+  slot could never roll. Making an affix Greater is for gear of the top item level only, and is the one way crafting produces a Greater
   affix. A replaced affix is chosen at random and can be your best. There is no durability in this game, so
   Indestructible does nothing: it is the dud, as in Diablo. A piece that stays open can be worked on as
   before, or transfigured again. A piece with nothing to replace gains an affix instead, and gaining affixes

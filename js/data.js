@@ -39,16 +39,19 @@ D.MOB_HP0 = 36; D.MOB_DMG0 = 15;      // a level 1 monster's life and damage, be
 D.MOB_SOFT = [0.8, 0.9];               // the first monsters are softer than the curve: this share of it at level 0, the whole of it by level 12
 D.MOB_HP_G = 1.08;     // monster life per level
 D.MOB_DMG_G = 1.071;   // monster damage per level
-/* Gear stops at item level 50. Torment monsters keep rising (levels 50 to 89), but only gently, because from there
-   the player grows by Ancestral gear (item level 55, Torment only), masterworking, greater affixes and better rolls. */
-D.GEAR_CAP = 50;
-D.ANC_LEVEL = 55;
-D.ANC_CHANCE = [0, 0.03, 0.06, 0.10, 0.15];   // chance for a Torment drop to be Ancestral, by tier
+/* Gear stops at an item level that depends on the difficulty: 50 in the campaign and Torment I, 53 in Torment II
+   and 55 in Torment III and IV, which is where the last affix tier is (see D.TIER_LVL). Torment monsters keep
+   rising (levels 50 to 89), but only gently, because from there the player grows by those last item levels,
+   masterworking, Greater affixes and better rolls. (There is no Ancestral gear: the top item level simply drops.) */
+D.GEAR_CAPS = [50, 50, 53, 55, 55];
+D.GEAR_CAP = 55;                                                    // the highest of them
+D.gearCap = tier => D.GEAR_CAPS[Math.max(0, Math.min(D.GEAR_CAPS.length - 1, tier || 0))];
 D.MOB_HP_G2 = 1.046;   // ...and past level 50
 D.MOB_DMG_G2 = 1.052;
 D.flat = l => Math.pow(D.FLAT_G, l - 1);
 /* gold from monsters and the price of forge work: 8% a level to 50, then 3% a level, since gear no longer grows with it */
-D.goldScale = l => Math.pow(1.08, Math.min(l, D.GEAR_CAP) - 1) * Math.pow(1.03, Math.max(0, l - D.GEAR_CAP));
+D.CAMPAIGN_CAP = 50;      // where the campaign's steep growth ends: prices and armour are reckoned against this level, not the gear cap
+D.goldScale = l => Math.pow(1.08, Math.min(l, D.CAMPAIGN_CAP) - 1) * Math.pow(1.03, Math.max(0, l - D.CAMPAIGN_CAP));
 D.pct = l => 1 + l / 70;
 D.BAG_SIZE = 24;        // three rows of eight
 D.STASH_SIZE = 16;      // two rows kept safe from salvage, for crafting
@@ -96,14 +99,14 @@ D.MATERIALS = [
   { to: 29,   name: 'Steel',       pal: 'steel' },
   { to: 39,   name: 'Darksteel',   pal: 'dark' },
   { to: 54,   name: 'Runed',       pal: 'rune' },
-  { to: 9999, name: 'Starmetal',   pal: 'star' },      // Ancestral gear
+  { to: 9999, name: 'Starmetal',   pal: 'star' },      // the top item level, late Torment only
 ];
 D.material = l => D.MATERIALS.find(m => l <= m.to);
 
 /* ------------------------------------------------------------- affix tiers
    Every affix comes in seven tiers, each a band of values that starts where the one below it ends. A piece can roll
    tiers up to the one its item level has reached: tier 1 from level 1, tier 2 from 10, then 20, 30 and 40 (one
-   for each level of the campaign), tier 6 from 50 (Torment) and tier 7 at 55 (Ancestral). Inside a tier the item
+   for each level of the campaign), tier 6 from 50 (Torment) and tier 7 at 55 (Torment III and IV). Inside a tier the item
    level does not matter. So the gear of each new level is a clear step above the last, and so is each roll. */
 D.TIER_LVL = [1, 10, 20, 30, 40, 50, 55];
 D.TIER_MAX = D.TIER_LVL.length;
@@ -189,14 +192,14 @@ D.AFFIX = {
      indes    Indestructible. There is no durability here, so it does nothing at all: the dud, as in Diablo
      quality  Item Quality: +1 to +15% to everything on the piece, on top of its masterwork ranks
      affix    a fifth affix, which may be one its slot could never roll
-     greater  one ordinary affix becomes Greater (Ancestral gear only). The one way crafting makes a Greater affix
+     greater  one ordinary affix becomes Greater (gear of the top item level only). The one way crafting makes a Greater affix
      replace  one affix, chosen at random, is replaced by a new random one. The gamble: it can take your best
      open     the chance the piece is NOT sealed and can still be worked on, or transfigured again */
 D.TRANSFIG = {
   gear:    { indes: 22, quality: 27, affix: 38, greater: 0,  replace: 13, open: 4 },      // Diablo's Legendary row: here, anything that is not a Unique
   uniq:    { indes: 18, quality: 26, affix: 44, greater: 0,  replace: 13, open: 3 },
-  ancGear: { indes: 14, quality: 20, affix: 28, greater: 28, replace: 10, open: 4 },
-  ancUniq: { indes: 15, quality: 22, affix: 27, greater: 25, replace: 11, open: 4 },
+  top:     { indes: 14, quality: 20, affix: 28, greater: 28, replace: 10, open: 4 },      // gear of the highest item level (D.GEAR_CAP): the only gear on which an affix can be made Greater
+  topUniq: { indes: 15, quality: 22, affix: 27, greater: 25, replace: 11, open: 4 },
 };
 D.TRANSFIG_KINDS = ['indes', 'quality', 'affix', 'greater', 'replace'];
 D.TRANSFIG_NAME = { indes: 'Indestructible', quality: 'Item Quality', affix: 'A fifth affix', greater: 'An affix made Greater', replace: 'An affix replaced' };
