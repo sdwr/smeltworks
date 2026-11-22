@@ -1157,20 +1157,27 @@ test('The cube: every option does what it says, and never touches the affix rero
   for (let i = 0; i < 20; i++) { const off = G.buyTransmute(u.id); assert.ok(off); G.pickTransmute(u.id, i % off.length); assert.equal(u.affixes.map(a => a.k).join(), uk); assert.ok(u.affixes.every(a => a.ti === 5)); }
   u.affixes.forEach(a => { a.g = 1; }); assert.ok(/nothing left/.test(I.offerCheck(u))); assert.equal(G.buyTransmute(u.id), null);
 });
-test('The transmute bar: kills fill it, and a full bar gives one worn piece a free transmute', (SW, G, D, I, H) => {
+test('The transmute bar: rooms fill it, and a full bar gives one worn piece a free transmute, one at a time', (SW, G, D, I, H) => {
   const S = G.S; S.mats.dust = 0;
   for (const s of D.SLOTS) S.gear[s] = null; S.gear.weapon = I.roll(5, { rar: 1, slot: 'weapon' }); S.gear.chest = I.roll(5, { rar: 1, slot: 'chest' }); G.recompute();
   const def = Object.values(D.MOB).find(m => !m.flee), kill = (o) => G.onKill(Object.assign({ def, id: def.id, lvl: 5 }, o));
-  S.xp = 0; kill(); assert.equal(S.xp, D.XP_KILL); kill({ elite: ['fast'] }); assert.equal(S.xp, D.XP_KILL + D.XP_ELITE); kill({ minion: 1 }); assert.equal(S.xp, D.XP_KILL + D.XP_ELITE, 'summoned minions do not count');
+  // a room is worth the same however many monsters are in it: each kill adds its share
+  const near = (x, y) => Math.abs(x - y) < 1e-9, room = (type, sizes) => { G.battle = { spec: { type, waves: sizes.map(n => new Array(n).fill(0)) } }; };
+  assert.equal(JSON.stringify(D.XP_ROOM), '{"fight":3,"elite":5,"boss":10}'); assert.equal(D.XP_KILL, undefined);
+  S.xp = 0; room('fight', [2]); kill(); assert.ok(near(S.xp, 1.5)); kill(); assert.ok(near(S.xp, 3), 'two monsters, three in all');
+  S.xp = 0; room('fight', [5, 5, 2]); for (let i = 0; i < 12; i++) kill(); assert.ok(near(S.xp, 3), 'twelve monsters, still three in all: ' + S.xp);
+  S.xp = 0; room('elite', [4]); kill({ elite: ['fast'] }); kill(); kill(); kill(); assert.ok(near(S.xp, 5), 'an elite room is worth five');
+  S.xp = 0; room('boss', [1]); kill({ boss: true }); assert.ok(near(S.xp, 10), 'and a boss ten');
+  S.xp = 0; room('fight', [3]); kill({ minion: 1 }); assert.equal(S.xp, 0, 'summoned minions do not count'); G.battle = null; kill(); assert.ok(near(S.xp, 3), 'with no fight to go by, a kill counts as a room of one');
   // monsters far below your gear are worth less, and nothing at 13 levels below
   assert.equal(D.xpShare(5, 5), 1); assert.equal(D.xpShare(2, 5), 1); assert.ok(D.xpShare(10, 18) > 0 && D.xpShare(10, 18) < 1); assert.equal(D.xpShare(7, 20), 0); assert.equal(D.xpShare(60, 50), 1);
   // filling it: one of the two worn pieces gets an offer, free, and sparkles
   let given = null; G.on((type, d) => { if (type === 'freeTransmute') given = d.it; });
-  S.xp = D.XP_NEED - 1; kill(); assert.ok(given, 'a free transmute'); assert.ok(given === S.gear.weapon || given === S.gear.chest); assert.equal(given.offer.length, 3); assert.equal(given.offerFree, 1); assert.equal(S.xp, 0); assert.ok(S.mats.dust <= D.DUST.kill * 3, 'and it cost nothing');
+  S.mats.dust = 0; S.xp = D.XP_NEED - 1; kill(); assert.ok(given, 'a free transmute'); assert.ok(given === S.gear.weapon || given === S.gear.chest); assert.equal(given.offer.length, 3); assert.equal(given.offerFree, 1); assert.equal(S.xp, 0); assert.ok(S.mats.dust <= D.DUST.kill * 3, 'and it cost nothing');
   // never two waiting on one piece: the next goes to the other
   const first = given; S.xp = D.XP_NEED - 1; kill(); assert.notEqual(given, first); assert.ok(S.gear.weapon.offer && S.gear.chest.offer);
   // with every worn piece busy, the bar stays full and waits
-  S.xp = D.XP_NEED - 1; given = null; kill(); kill(); assert.equal(given, null); assert.ok(S.xp >= D.XP_NEED); assert.ok(S.xp <= D.XP_NEED * 2, 'and does not bank more than one more');
+  S.xp = D.XP_NEED - 1; given = null; for (let i = 0; i < 40; i++) kill(); assert.equal(given, null); assert.equal(S.xp, D.XP_NEED, 'the bar holds one transmute and banks nothing behind it');
   assert.equal(G.freeWaiting().length, 2, 'both are counted as waiting'); assert.ok(G.freeWaiting().every(x => x.offerFree));
   // taking an offer frees the piece, and the waiting transmute lands on it at once
   // a free transmute lands face down: nothing can be taken or cancelled until it is revealed, and revealing draws the three options afresh
@@ -1178,8 +1185,15 @@ test('The transmute bar: kills fill it, and a full bar gives one worn piece a fr
   let seen = 0; G.on((t, d) => { if (t === 'offer' && d.free) seen++; });
   const shown = G.revealOffer(first.id); assert.equal(shown.length, 3); assert.equal(shown, first.offer); assert.ok(!I.offerHidden(first)); assert.equal(first.offerSeen, 1); assert.equal(seen, 1); assert.equal(G.revealOffer(first.id), null, 'only once');
   assert.equal(G.freeWaiting().length, 1, 'a revealed one is no longer counted as waiting to be revealed');
-  assert.ok(G.pickTransmute(first.id, 0)); assert.equal(given, first, 'the held transmute went to the piece that came free'); assert.equal(first.offer.length, 3); assert.equal(first.offerFree, 1); assert.equal(first.offerSeen, undefined, 'and it is face down again');
-  assert.ok(G.revealOffer(first.id)); assert.ok(G.pickTransmute(first.id, 0)); assert.equal(first.offerFree, undefined); assert.equal(first.offerSeen, undefined);
+  // taking it frees the piece, but nothing lands the moment it does: the held transmute comes with the next kill
+  given = null; assert.ok(G.pickTransmute(first.id, 0)); assert.equal(given, null, 'nothing lands at once'); assert.equal(first.offer, undefined); assert.equal(S.xp, D.XP_NEED);
+  kill(); assert.equal(given, first, 'the next kill gives it to the piece that is free'); assert.equal(first.offer.length, 3); assert.equal(first.offerFree, 1); assert.equal(first.offerSeen, undefined, 'face down again'); assert.equal(S.xp, 0);
+  // and that is the only one: no second and third behind it
+  assert.ok(G.revealOffer(first.id)); given = null; assert.ok(G.pickTransmute(first.id, 0)); assert.equal(first.offerFree, undefined); assert.equal(first.offerSeen, undefined); kill(); kill(); assert.equal(given, null, 'the bar has to fill again first'); assert.ok(S.xp < D.XP_NEED);
+  // not the same piece twice running while another can take it
+  { const other = S.gear.weapon === first ? S.gear.chest : S.gear.weapon; if (I.offerHidden(other)) G.revealOffer(other.id); G.pickTransmute(other.id, 0); assert.ok(!first.offer && !other.offer);
+    for (let n = 0; n < 12; n++) { const last = S.lastFree; S.xp = D.XP_NEED; const got = G.freeTransmute(); assert.ok(got); assert.notEqual(got.id, last, 'it alternates between the two'); G.revealOffer(got.id); G.pickTransmute(got.id, 0); }
+    S.xp = D.XP_NEED - 1; kill(); }
   // revealing fits the piece as it is by then: with the piece full, there is no add among the options
   { const o = S.gear.weapon === first ? S.gear.chest : S.gear.weapon; while (o.affixes.length < D.MAX_AFFIXES) o.affixes.push(I.roll(o.ilvl, { rar: 2, slot: o.slot }).affixes.find(a => !o.affixes.some(x => x.k === a.k)) || { k: 'life', r: 0.5, g: 0, ti: 1 });
     if (I.offerHidden(o)) { const r = G.revealOffer(o.id); assert.ok(!r.some(q => q.op === 'add'), 'drawn for the piece as it now stands'); } }
@@ -1405,7 +1419,7 @@ test('A waiting transmute can be cancelled, and the cube takes a tier from one a
   it = mk([5], 44); it.ench = 0; G.buyTransmute(it.id); r = G.cancelTransmute(it.id); assert.equal(r.down.length, 0, 'the only affix is the locked one'); assert.equal(it.affixes[0].ti, 5);
   // a free transmute can be cancelled too, and the next one waiting lands at once
   for (const s of D.SLOTS) S.gear[s] = null; const w = I.roll(44, { rar: 2, slot: 'weapon' }); w.affixes.forEach(a => { a.g = 0; a.ti = 3; }); S.gear.weapon = w; G.recompute();
-  S.xp = D.XP_NEED; G.freeTransmute(); assert.ok(w.offerFree); assert.equal(G.cancelTransmute(w.id), null, 'a free one has to be revealed before it can be cancelled'); G.revealOffer(w.id); S.xp = D.XP_NEED; r = G.cancelTransmute(w.id); assert.ok(r); assert.ok(w.offer && w.offerFree && I.offerHidden(w), 'the bar was full again, so the next free one lands, face down'); G.revealOffer(w.id); assert.equal(G.cancelTransmute(w.id).op, 'cancel'); assert.equal(w.offerFree, undefined);
+  S.xp = D.XP_NEED; G.freeTransmute(); assert.ok(w.offerFree); assert.equal(G.cancelTransmute(w.id), null, 'a free one has to be revealed before it can be cancelled'); G.revealOffer(w.id); S.xp = D.XP_NEED; r = G.cancelTransmute(w.id); assert.ok(r); assert.equal(w.offer, undefined, 'a full bar does not drop its transmute the moment the piece is free'); G.addXp(0); assert.ok(w.offer && w.offerFree && I.offerHidden(w), 'the next kill does, face down'); G.revealOffer(w.id); assert.equal(G.cancelTransmute(w.id).op, 'cancel'); assert.equal(w.offerFree, undefined);
   // not while a forge reroll is waiting to be chosen
   it = mk([3, 3]); G.buyTransmute(it.id); it.pend = { idx: 0, a: { k: 'dmgPct', r: 0.5, g: 0, ti: 2 } }; assert.equal(G.cancelTransmute(it.id), null); assert.ok(it.offer);
 });

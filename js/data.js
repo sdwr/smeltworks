@@ -430,7 +430,9 @@ D.LEAVE_TIME = 4;
 /* Free transmutes. Kills fill a bar; when it is full, one worn piece that has no offer waiting gets a transmute for
    nothing. Monsters far below your gear level are worth less, and nothing at 13 levels below, so the first level
    cannot be farmed for them. */
-D.XP_NEED = 30; D.XP_KILL = 1; D.XP_ELITE = 4; D.XP_BOSS = 12;
+/* The transmute bar is filled by rooms, not by head count: a room is worth the same however many monsters are in
+   it, shared out among them as they fall, so later levels with their bigger packs fill it no faster than the first. */
+D.XP_NEED = 30; D.XP_ROOM = { fight: 3, elite: 5, boss: 10 };
 D.xpShare = (mobLvl, gearLvl) => Math.max(0, Math.min(1, 1 - (gearLvl - mobLvl - 3) / 10));
 /* seconds before a new run can begin after a fall, or after walking away from a run in progress */
 D.RUN_COOLDOWN = 10;

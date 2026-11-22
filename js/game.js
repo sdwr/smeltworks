@@ -31,6 +31,7 @@ G.fresh = function () {
 G.init = function (saved) {
   G.S = saved || G.fresh(); G.leaving = null;
   const S = G.S;
+  if (S.xp > D.XP_NEED) S.xp = D.XP_NEED;                    // the bar no longer banks more than one
   for (const it of Object.values(S.gear).concat(S.bag, S.stash || [])) if (it && it.pend && !(it.pend.a && D.AFFIX[it.pend.a.k] && it.affixes[it.pend.idx] && !it.affixes.some((x, k) => k !== it.pend.idx && x.k === it.pend.a.k))) delete it.pend;      // a reroll choice that no longer makes sense is dropped
   S.bag = S.bag.filter(Boolean); while (S.bag.length < D.BAG_SIZE) S.bag.push(null);   // fixed slots, so items can be arranged
   if (!S.curv) {
@@ -347,21 +348,29 @@ G.onKill = function (m) {
   S.gold += d.gold;
   if (d.mats) G.gainMats(d.mats);
   d.fate = d.items.map(it => G.addItem(it));
-  if (!m.minion) G.addXp((m.boss ? D.XP_BOSS : m.elite ? D.XP_ELITE : D.XP_KILL) * D.xpShare(m.lvl, Hr.gearLevel(S.gear)));
+  G.addXp(G.killXp(m));
   return d;
 };
 /* The transmute bar. When it fills, a random worn piece with no offer waiting is given one for nothing; if every
    worn piece is busy (or sealed, or beyond the cube), the bar stays full until one is free. */
-G.addXp = function (n) { const S = G.S; S.xp = Math.min(D.XP_NEED * 2, (S.xp || 0) + n); G.freeTransmute(); };
+/* Kills fill the bar; it holds one free transmute and no more. A full bar gives its transmute, on a kill, to a
+   worn piece with no offer waiting: one per piece at a time, and not the piece that had the last one while another
+   can take it. Nothing is banked behind it, and nothing lands the moment a piece comes free: the next kill does it. */
+/* what one kill adds to the bar: its share of what the room is worth (see D.XP_ROOM), less for monsters far below the smith's gear. Summoned minions add nothing. */
+G.killXp = function (m) {
+  if (m.minion) return 0;
+  const sp = G.battle && G.battle.spec, n = sp ? Math.max(1, sp.waves.reduce((a, w) => a + w.length, 0)) : 1;
+  return (D.XP_ROOM[sp ? sp.type : 'fight'] || D.XP_ROOM.fight) / n * D.xpShare(m.lvl, Hr.gearLevel(G.S.gear));
+};
+G.addXp = function (n) { const S = G.S; S.xp = Math.min(D.XP_NEED, (S.xp || 0) + n); G.freeTransmute(); };
+G.freeOpen = () => D.SLOTS.map(s => G.S.gear[s]).filter(it => it && !I.offerCheck(it));
 G.freeTransmute = function () {
-  const S = G.S; let given = null;
-  while ((S.xp || 0) >= D.XP_NEED) {
-    const open = D.SLOTS.map(s => S.gear[s]).filter(it => it && !I.offerCheck(it));
-    if (!open.length) break;
-    const it = U.pick(open); it.offer = I.cubeOffer(it); it.offerFree = 1; S.xp -= D.XP_NEED; given = it;
-    G.emit('freeTransmute', { it });
-  }
-  return given;
+  const S = G.S, open = G.freeOpen();
+  if ((S.xp || 0) < D.XP_NEED || !open.length) return null;
+  const others = open.filter(it => it.id !== S.lastFree), it = U.pick(others.length ? others : open);
+  it.offer = I.cubeOffer(it); it.offerFree = 1; S.xp -= D.XP_NEED; S.lastFree = it.id;
+  G.emit('freeTransmute', { it });
+  return it;
 };
 G.openChest = function (c) {
   const S = G.S, st = G.C.st, items = [];
@@ -703,7 +712,7 @@ G.transfigure = function (id) {
   if (I.transfigCheck(it) || !G.pay(I.transfigCost(it))) return null;
   const res = I.transfigure(it);
   res.offer = I.offerMend(it);                                // the cube's waiting offer: put right, or lost with the sealing
-  G.recompute(); G.refreshUpgrades(); if (res.offer < 0) G.freeTransmute(); G.emit('forge', { kind: 'transfigure', it, res }); G.save();
+  G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'transfigure', it, res }); G.save();
   return res;
 };
 /* reroll an affix: pays, and holds the new affix beside the old one until G.enchantPick answers */
@@ -752,7 +761,7 @@ G.pickTransmute = function (id, n) {
   if (!o || f.it.pend || I.offerHidden(f.it)) return null;      // a reroll waiting to be chosen comes first; a free transmute has to be revealed
   const it = f.it, res = I.cubeValid(it, o) ? I.cubeApply(it, o, S.world.tier) : { op: 'pass', o, idxs: [] };      // an option that can no longer do anything costs its pick and nothing else
   delete it.offer; delete it.offerFree; delete it.offerSeen; it.isNew = 0;
-  G.recompute(); G.refreshUpgrades(); G.freeTransmute();      // a full bar may have been waiting for a piece to come free
+  G.recompute(); G.refreshUpgrades();
   G.emit('cube', { it, res }); G.save();
   return res;
 };
@@ -772,7 +781,7 @@ G.cancelTransmute = function (id) {
   const it = f.it, t = I.cancelTargets(it), res = { op: 'cancel', idxs: [], down: [] };
   if (t.length) { const i = t[Math.floor(U.rng() * t.length)], a = it.affixes[i]; a.ti = I.affixTier(it, a) - 1; res.idxs.push(i); res.down.push([i, -1]); res.lost = { k: a.k, ti: a.ti }; }
   delete it.offer; delete it.offerFree; delete it.offerSeen; it.isNew = 0;
-  G.recompute(); G.refreshUpgrades(); G.freeTransmute();
+  G.recompute(); G.refreshUpgrades();
   G.emit('cube', { it, res }); G.save();
   return res;
 };

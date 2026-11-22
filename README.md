@@ -154,9 +154,12 @@ the skill bar to drink it.
   or a skill rank; hovering the button shows which are at risk, and it asks twice). If nothing on the piece has a
   tier to lose, cancelling costs nothing more. Dust already paid is not returned, and a free transmute can be
   cancelled the same way.
-- **Free transmutes.** Kills fill a bar at the head of the character pane (1 for a monster, 4 for an elite, 12 for a
-  boss, 30 to fill). When it is full, one piece you are wearing that has no offer waiting gets a transmute for
-  nothing. It lands face down: the piece gets a pulsing gold border and sparkles, and a count beside the bar says
+- **Free transmutes.** A bar at the head of the character pane fills as you clear rooms: 3 for a fight, 5 for an elite room
+  and 10 for a boss, 30 to fill. A room is worth the same however many monsters are in it (each kill adds its share),
+  so the bigger packs of later levels do not fill it any faster. When it is full, your next kill gives one piece you are wearing that has no offer waiting a transmute for
+  nothing. The bar holds one transmute and banks nothing behind it; a piece never has more than one waiting; taking
+  or cancelling one does not make the next land at once; and the same piece is not chosen twice running while
+  another can take it. It lands face down: the piece gets a pulsing gold border and sparkles, and a count beside the bar says
   how many are waiting (click it to bring the next one to the bench). On the bench a Reveal button turns the three
   options over, drawn for the piece as it is at that moment; the sparkle then gives way to the same "?" a bought
   transmute shows until you take one of them. If every worn piece is busy the bar waits, full.

@@ -262,7 +262,7 @@ UI.frame = function () {
   // the transmute bar, and the wait before a new run
   { const need = D.XP_NEED, xp = Math.min(need, S.xp || 0), full = xp >= need, e = $('xpbar');
     e.firstElementChild.style.width = xp / need * 100 + '%'; e.classList.toggle('full', full);
-    const t = full ? 'Free transmute ready: no worn piece is free to take it' : `Next free transmute  ${Math.floor(xp)} / ${need}`; if (e.lastElementChild.textContent !== t) e.lastElementChild.textContent = t;
+    const t = full ? (G.freeOpen().length ? 'Free transmute ready: it lands with your next kill' : 'Free transmute ready: every worn piece has an offer waiting') : `Next free transmute  ${Math.floor(xp)} / ${need}`; if (e.lastElementChild.textContent !== t) e.lastElementChild.textContent = t;
     const n = G.freeWaiting().length, fb = $('xpfree'), ft = n ? `✦ ${n} free` : ''; if (fb.textContent !== ft) { fb.textContent = ft; fb.classList.toggle('hidden', !n); }      // how many are waiting to be taken
     const W = S.world, cool = W.cool > 0 && G.phase === 'idle', c = $('combat'); c.classList.toggle('cooling', cool);
     if (cool) { const t2 = `<b>${W.coolWhy === 'left' ? 'Run abandoned' : 'You fell'}</b><i>${Math.ceil(W.cool)}</i><span>A new run can begin when the count is done. Use the wait: wear what dropped, masterwork it, take your transmutes.</span>`; if (UI.coolHtml !== t2) { UI.coolHtml = t2; $('cooldown').innerHTML = t2; } }
