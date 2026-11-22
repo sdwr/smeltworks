@@ -40,8 +40,10 @@ text, load one back in, or wipe it.
 | S F O C | Skills, Crafting, Commission, Stats |
 | T | Travel |
 
-The screen is three panes. Left: Skills, Crafting and Commission. Middle: your character, bag and
-stash, centred. Right: the fight and the map, the same width as the left pane. On a window narrower than 1240px they stack instead.
+The screen is three panes. Left: your character, bag and stash. The pane uses its whole height: the purse, bag and
+stash take what they need and the smith takes the rest, so the worn pieces are drawn larger on a taller window.
+Middle: Skills, Crafting, Commission and Stats. Right: the fight and the map, the same width as the middle pane.
+On a window narrower than 1240px they stack instead (fight and map, then character, then the tabs).
 
 Mouse: click a glowing tile to fight there. Click more tiles to lay a route: they are numbered 1, 2, 3 and visited
 in that order whether Auto is on or off (Auto only chooses when the route is empty). A route can run through
