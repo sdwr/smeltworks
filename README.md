@@ -159,7 +159,8 @@ the skill bar to drink it.
 - **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 2 to 25, climbing with each one bought for the same piece; a
   masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix. Rerolling an affix
   at the forge and transfiguring cost gold only. Salvage pays 1 for a Common, 2 for a Magic, 4
-  for a Rare (plus 3 for each Greater affix and 5 if Ancestral) and 12 for a Unique. Elites and bosses always carry
+  for a Rare (plus 3 for each Greater affix and 5 if Ancestral) and 12 for a Unique, and on top of that any piece
+  gives back half the ember dust that went into masterworking it. Elites and bosses always carry
   some, ordinary monsters a pinch 5% of the time, and chests and full clears add a little.
 - **Affix tiers.** Every affix comes in seven tiers, each a band of values that starts where the one below ends, and
   each affix on a piece shows its tier (T1 to T7) beside it. A piece can roll tiers up to the one its item level

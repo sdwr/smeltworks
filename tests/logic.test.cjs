@@ -157,6 +157,17 @@ test('Ember dust is the one crafting material: what drops it, what it buys, and 
   assert.equal(G.dropsFor({ def, id: def.id, lvl: 20, elite: ['fast'] }).mats.dust, D.DUST.elite, 'an elite always carries some');
   // salvage pays dust for every rarity, more for better pieces
   const y = r => I.salvageYield(Object.assign(I.roll(30, { rar: r, slot: 'helm' }), { affixes: [] })); assert.equal(y(0).dust, 1); assert.equal(y(1).dust, 2); assert.equal(y(2).dust, 4); assert.equal(y(0).scrap, undefined);
+  // a masterworked piece gives back half the ember dust that went into it, whatever its rarity
+  { const mk = (r, up) => Object.assign(I.roll(30, { rar: r, slot: 'helm' }), { up });
+    const S = G.S, it = mk(2, 0); it.affixes.forEach(a => { a.g = 0; }); S.bag[0] = it; S.mats.dust = 1000; let spent = 0; assert.equal(I.masterworkSpent(it), 0); assert.equal(I.salvageBack(it), 0);
+    for (let i = 0; i < 9; i++) { const d = S.mats.dust; assert.ok(G.upgrade(it.id)); spent += d - S.mats.dust; assert.equal(I.masterworkSpent(it), spent, 'it is what was really paid'); }
+    assert.ok(spent >= 18 && it.up >= 9, spent + ' dust for rank ' + it.up); assert.equal(I.salvageBack(it), Math.floor(spent / 2)); assert.equal(I.salvageYield(it).dust, 4 + Math.floor(spent / 2));
+    while (it.up < D.MW_MAX) { const d = S.mats.dust; G.upgrade(it.id); spent += d - S.mats.dust; } { const d = S.mats.dust; assert.ok(G.upgrade(it.id), 'a strike at the top rank'); spent += d - S.mats.dust; } assert.equal(it.mwDust, spent, 'strikes at the top rank count too');
+    const copy = JSON.parse(JSON.stringify(it)); assert.equal(I.salvageBack(copy), Math.floor(spent / 2), 'and it is saved with the piece');
+    const d0 = S.mats.dust; G.salvage(it.id); assert.equal(S.mats.dust, d0 + 4 + Math.floor(spent / 2), 'and salvaging pays it');
+    // pieces masterworked before this was counted get an estimate from their rank: about half a strike a rank
+    assert.equal(I.masterworkSpent(mk(2, 8)), 8); assert.equal(I.masterworkSpent(mk(2, 16)), 24); assert.equal(I.masterworkSpent(mk(2, 25)), 51);
+    for (const r of [0, 1]) assert.equal(I.salvageYield(mk(r, 16)).dust, (r ? 2 : 1) + 12, 'Commons and Magic pieces too'); }
   // one purse: masterworking and all four cube recipes cost dust and nothing else
   const S = G.S, it = I.roll(30, { rar: 2, slot: 'helm' }); S.bag[0] = it;
   for (const up of [0, 7, 8, 15, 16, 24, 25]) { it.up = up; assert.equal(Object.keys(I.upgradeCost(it)).join(), 'dust', 'masterwork at rank ' + up); } it.up = 0;

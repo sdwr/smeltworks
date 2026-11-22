@@ -582,7 +582,7 @@ function renderCraft() {
     h += '</div>';
     }
     h += transfigHtml(it);
-    if (f.where === 'bag') { const y = I.salvageYield(it); h += `<div class="op slim"><div class="op-t"><b>Salvage</b><span>Break it down for ${Object.keys(y).map(k => y[k] + ' ' + MAT_NAME[k]).join(', ')}.</span></div><div class="op-a"><button class="danger" data-act="salvage-one">Salvage</button></div></div>`; }
+    if (f.where === 'bag') { const y = I.salvageYield(it); h += `<div class="op slim"><div class="op-t"><b>Salvage</b><span>Break it down for ${Object.keys(y).map(k => y[k] + ' ' + MAT_NAME[k]).join(', ')}${I.salvageBack(it) ? `, of which ${I.salvageBack(it)} is half of what went into masterworking it` : ''}.</span></div><div class="op-a"><button class="danger" data-act="salvage-one">Salvage</button></div></div>`; }
   }
   put('tab-craft', h, x => x.split(AGE).join(String(-Math.round(UI.worthLast ? performance.now() - UI.worthLast.t : 0))));
 }

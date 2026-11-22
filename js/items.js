@@ -198,13 +198,24 @@ I.spriteKey = function (it) {
 };
 
 /* ------------------------------------------------------------------ forge */
+/* The ember dust that has gone into masterworking a piece: counted as it is spent (it.mwDust). A piece from before
+   that was counted gets an estimate from its rank: a strike gives one to three ranks, so about half a strike's
+   price for each rank. */
+I.masterworkSpent = function (it) {
+  if (it.mwDust != null) return it.mwDust;
+  let n = 0; for (let r = 0; r < Math.min(it.up || 0, D.MW_MAX); r++) n += I.upgradeCost({ up: r }).dust / 2;
+  return Math.round(n);
+};
+I.MW_REFUND = 0.5;
+/* Salvage. A piece pays for what it is, and gives back half the ember dust that went into masterworking it. */
+I.salvageBack = it => Math.floor(I.masterworkSpent(it) * I.MW_REFUND);
 I.salvageYield = function (it) {
-  const up = it.up || 0;
-  if (it.rar === 0) return { dust: 1 };
-  if (it.rar === 1) return { dust: 2 };
-  if (it.uniq) return { dust: 12 };
+  const back = I.salvageBack(it);
+  if (it.rar === 0) return { dust: 1 + back };
+  if (it.rar === 1) return { dust: 2 + back };
+  if (it.uniq) return { dust: 12 + back };
   /* the exceptional pays more: three for each Greater affix, five more for an Ancestral piece */
-  return { dust: 4 + Math.floor(up / 6) + 3 * I.greaterCount(it) + (it.anc ? 5 : 0) };
+  return { dust: 4 + 3 * I.greaterCount(it) + (it.anc ? 5 : 0) + back };
 };
 I.goldScale = D.goldScale;
 /* One strike of masterworking. Below rank 25 the price follows the rank you are at; at 25 it is the price of

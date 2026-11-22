@@ -691,8 +691,9 @@ G.pay = function (c) { if (!G.canPay(c)) return false; for (const k in c) { if (
 G.upgrade = function (id) {
   const f = G.findItem(id); if (!f) return null;
   const it = f.it;
-  if (I.upgradeCheck(it) || !G.pay(I.upgradeCost(it))) return null;
-  const r = I.upgrade(it);
+  const cost = I.upgradeCost(it), before = I.masterworkSpent(it);
+  if (I.upgradeCheck(it) || !G.pay(cost)) return null;
+  const r = I.upgrade(it); it.mwDust = before + cost.dust;      // remembered, so that salvage can give half of it back
   G.recompute(); G.refreshUpgrades(); G.emit('forge', { kind: 'upgrade', it, mw: r.mw, ranks: r.ranks }); G.save();
   return r;
 };
