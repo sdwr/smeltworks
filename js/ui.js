@@ -33,7 +33,7 @@ function pulse(cls, color, ms) {
   t.classList.remove(cls); void t.offsetWidth; t.classList.add(cls); clearTimeout(pulse[cls]); pulse[cls] = setTimeout(() => t.classList.remove(cls), ms || 750);
 }
 const JUICE = {
-  offer() { sparks(['#ffb347', '#ffe9a8'], 10, 60); pulse('j-offer', '#ffb347', 700); },
+  offer() { sparks(['#ffb347', '#ffe9a8'], 10, 60); pulse('j-offer', '#ffb347', 700); for (let n = 1; n < 3; n++) setTimeout(() => sparks(['#ffb347', '#ffe9a8'], 6, 45), n * DEAL_STEP); },
   cube(d) {
     if (d.res.op === 'cancel') { sparks(d.res.lost ? ['#ff6b5a', '#8a8478'] : '#8a8478', d.res.lost ? 12 : 6, 55); if (d.res.lost) pulse('j-cube', '#ff6b5a'); return; }      // an offer thrown away: the tier it cost, in red
     const col = I.CUBE_COLOR[I.cubeLabel(d.res.o).fam], big = ['recast', 'tiers', 'sacrifice'].includes(d.res.op), bad = !!d.res.removed;
@@ -64,12 +64,14 @@ function tierTag(it, a) {
 }
 const MAT_NAME = { gold: 'gold', dust: 'ember dust' };
 
+/* the cube deals its three options one at a time, this many milliseconds apart */
+const DEAL_STEP = 480;
 /* ------------------------------------------------------------- pieces */
 function itemCell(it, extra, idx, box) {
   const bag = idx == null ? '' : ` data-${box || 'bag'}="${idx}"`;
   if (!it) return `<div class="it empty ${extra || ''}"${bag}></div>`;
   const k = I.spriteKey(it);
-  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.offer ? (it.offerFree ? 'offer-free' : 'offer-wait') : ''} ${it.anc ? 'anc' : ''} ${it.tf && it.tf.length ? (it.sealed ? 'tfd sealed' : 'tfd') : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
+  return `<div class="it r${it.rar} ${it.isNew ? 'new' : ''} ${I.greaterCount(it) ? 'has-ga' : ''} ${it.upg ? 'upg' : ''} ${it.lock ? 'lock' : ''} ${it.offer ? (I.offerHidden(it) ? 'offer-free' : 'offer-wait') : ''} ${it.anc ? 'anc' : ''} ${it.tf && it.tf.length ? (it.sealed ? 'tfd sealed' : 'tfd') : ''} ${extra || ''}" data-item="${it.id}"${bag} draggable="true">` +
     `<img src="${SP.url(k.spr, k.pal, 3)}" alt="">` +
     (it.upg ? '<b class="up">▲</b>' : '') + (I.greaterCount(it) ? `<b class="ga">★${I.greaterCount(it) > 1 ? I.greaterCount(it) : ''}</b>` : '') + (it.lock ? '<b class="lk">●</b>' : '') + (it.tf && it.tf.length ? '<b class="tfm">✧</b>' : '') + (it.up ? `<b class="pl${it.up >= D.MW_MAX ? ' max' : ''}">${it.up}</b>` : '') +
     `<span class="il">${it.ilvl}</span></div>`;
@@ -539,9 +541,11 @@ function renderCraft() {
   // ---- the cube: buy a transmute, get three offers for this piece, take one
   h += '<h4 class="sect">The cube</h4><div class="cube">';
   if (!f) h += `<div class="cube-box"><button class="big" disabled>Buy a transmute ${costHtml(I.offerCost())}</button></div><p class="cube-say no">Bring a piece of gear to the bench first.</p>`;
-  else if (f.it.offer) {
-    const it = f.it, names = l => l.map(i => affName(it.affixes[i].k)), short = (l, n) => (l.length > n ? l.slice(0, n).join(', ') + ' and ' + (l.length - n) + ' more' : l.join(', '));
-    h += `<p class="cube-say">${it.offerFree ? '<b class="free">✦ A free transmute.</b> ' : ''}The cube offers three things it could do. Take one: hover a card to see what it could touch.</p><div class="offer">`;
+  else if (I.offerHidden(f.it)) {      // a free transmute, face down: one click turns the three options over
+    h += `<div class="cube-box free"><button class="big reveal" data-act="reveal-transmute" data-tip="Turn over the three things the cube offers for this piece. It costs nothing, and you then take one of them (or cancel).">✦ Reveal the free transmute</button></div><p class="cube-say"><b class="free">A free transmute is waiting on this piece.</b> Reveal it to see the cube's three options.</p>`;
+  } else if (f.it.offer) {
+    const it = f.it, deal = UI.deal && UI.deal.id === it.id ? performance.now() - UI.deal.t0 : 1e9, dealing = deal < DEAL_STEP * 3 + 600, names = l => l.map(i => affName(it.affixes[i].k)), short = (l, n) => (l.length > n ? l.slice(0, n).join(', ') + ' and ' + (l.length - n) + ' more' : l.join(', '));
+    h += `<p class="cube-say">${it.offerFree ? '<b class="free">✦ A free transmute.</b> ' : ''}The cube offers three things it could do. Take one: hover a card to see what it could touch.</p><div class="offer ${dealing ? 'deal' : ''}">`;
     it.offer.forEach((o, n) => {
       const L = I.cubeLabel(o), tg = I.cubeValid(it, o) ? I.cubeTargets(it, o) : [], col = I.CUBE_COLOR[L.fam];
       let on = '';
@@ -550,7 +554,7 @@ function renderCraft() {
       else if (o.op === 'recast') on = `Replaces ${tg.length} affix${tg.length === 1 ? '' : 'es'}`;
       else if (o.op === 'shuffle' || o.op === 'pass') on = '';
       else if (tg.length) on = (o.op === 'tiers' ? 'Three of: ' : ['values', 'polish'].includes(o.op) ? 'On: ' : tg.length === 1 ? 'Hits ' : `One of ${tg.length}: `) + short(names(tg), 4);
-      h += `<button class="offer-card f-${L.fam}" data-pick="${n}" data-tg="${tg.join()}" style="--c:${col};animation-delay:${n * 70}ms"><img src="${SP.url('orb', I.CUBE_PAL[L.fam], 3)}" alt=""><b>${L.title}</b><span>${L.desc}</span>${on ? `<small>${on}</small>` : ''}</button>`;
+      h += `<button class="offer-card f-${L.fam}" data-pick="${n}" data-tg="${tg.join()}" style="--c:${col}${dealing ? `;animation-delay:${Math.round(n * DEAL_STEP - deal)}ms` : ''}"><img src="${SP.url('orb', I.CUBE_PAL[L.fam], 3)}" alt=""><b>${L.title}</b><span>${L.desc}</span>${on ? `<small>${on}</small>` : ''}</button>`;
     });
     h += '</div>';
     { const t = I.cancelTargets(it), armed = UI.cancelArm === it.id;
@@ -799,8 +803,11 @@ UI.onGame = function (type, d) {
     case 'spend': purseSpend(d.cost); mark('top'); break;
     case 'salvageAll': A.play('salvage'); purseGain(d.y); JUICE.salvage({ n: 9 }); UI.toast(`Salvaged ${d.n} item${d.n === 1 ? '' : 's'}: ${Object.keys(d.y).map(k => d.y[k] + ' ' + MAT_NAME[k]).join(', ')}`); mark('bag', 'forge', 'hint'); break;
     case 'bagfull': if (!UI.fullT || Date.now() - UI.fullT > 8000) { UI.fullT = Date.now(); UI.toast('Bag full. New drops are being salvaged until you make room.', 'bad'); } break;
-    case 'offer': A.play('click'); JUICE.offer(); mark('cube', 'bag', 'forge', 'top'); break;
-    case 'freeTransmute': { A.play('shrine', 0.5); UI.feed(`<i class="hot">✦ Free transmute</i> for <b style="color:${RC(d.it.rar)}">${esc(d.it.name)}</b>: click it to see the three offers`, '');
+    case 'offer':      // the three options are dealt one at a time, each with a tick as it lands
+      UI.deal = { id: d.it.id, t0: performance.now() }; A.play('click'); JUICE.offer();
+      for (let n = 0, len = d.it.offer.length; n < len; n++) setTimeout(() => { if (d.it.offer && UI.deal && UI.deal.id === d.it.id && UI.forgeId === d.it.id && UI.tab === 'craft') A.play(n === len - 1 ? 'forge' : 'click', 0.5); }, 120 + n * DEAL_STEP);
+      mark('cube', 'bag', 'gear', 'forge', 'top'); break;
+    case 'freeTransmute': { A.play('shrine', 0.5); UI.feed(`<i class="hot">✦ Free transmute</i> for <b style="color:${RC(d.it.rar)}">${esc(d.it.name)}</b>: open it and reveal the three offers`, '');
       const at = centerOf(`.doll .dslot[data-slot="${D.SLOTS.find(sl => S.gear[sl] === d.it)}"]`); if (at) { sparks(['#ffe9a8', '#fff', '#ffb347'], 22, 90, at); ring('#ffe9a8', at); }
       mark('gear', 'bag', 'forge', 'cube'); break; }
     case 'coolEnd': A.play('click'); mark('map', 'hint'); break;
@@ -937,7 +944,8 @@ UI.bind = function () {
       return;
     }
     if ((el = t.closest('[data-tech]'))) { const [sk, id] = el.dataset.tech.split(':'); if (G.setTech(sk, id)) A.play('click'); hideTip(); return; }
-    if ((el = t.closest('[data-pick]'))) { if (!G.pickTransmute(UI.forgeId, +el.dataset.pick)) { const f = G.findItem(UI.forgeId); deny(f && f.it.pend ? I.PEND_FIRST : 'That offer is gone.'); } return; }
+    if ((el = t.closest('[data-pick]'))) { if (UI.deal && UI.deal.id === UI.forgeId && performance.now() - UI.deal.t0 < +el.dataset.pick * DEAL_STEP) return;      // not dealt yet
+      if (!G.pickTransmute(UI.forgeId, +el.dataset.pick)) { const f = G.findItem(UI.forgeId); deny(f && f.it.pend ? I.PEND_FIRST : 'That offer is gone.'); } return; }
     if ((el = t.closest('[data-skill][data-tree]'))) {
       const id = el.dataset.skill, was = G.skillOn(id), msg = G.toggleSkill(id);
       if (msg) deny(msg); else A.play(was ? 'click' : 'learn');
@@ -960,6 +968,7 @@ UI.bind = function () {
       }
       else if (act === 'enchant') { if (!G.enchant(UI.forgeId, +el.dataset.idx)) deny('You cannot afford to reroll this.'); }
       else if (act === 'ench-keep' || act === 'ench-take') G.enchantPick(UI.forgeId, act === 'ench-take');
+      else if (act === 'reveal-transmute') { if (!G.revealOffer(UI.forgeId)) deny('There is nothing to reveal.'); }
       else if (act === 'cancel-transmute') {
         const f = G.findItem(UI.forgeId), free = f && !I.cancelTargets(f.it).length;
         if (!free && UI.cancelArm !== UI.forgeId) { UI.cancelArm = UI.forgeId; A.play('click'); mark('forge'); }      // it costs a tier: ask twice

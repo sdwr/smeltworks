@@ -14,7 +14,7 @@ const BUILDS = {
 /* The bot: picks a loadout, equips anything flagged as an upgrade and melts the rest. Unless it is playing
    casually it also masterworks, buys transmutes at the cube for pieces that still have room for an affix, and commissions its weakest slot. Both crafts spend ember dust. */
 /* how much the bot wants each kind of cube option while it is trying to fill a piece out */
-const BOT_LIKES = { add: 10, polish: 7, perfect: 7, raise: 7, pass: 5, shuffle: 5, tiers: 4, values: 3, convert: 2, reroll: 2, recast: 1, sacrifice: 0, remove: -5 };
+const BOT_LIKES = { add: 10, polish: 7, perfect: 7, raise: 7, lift: 7, retier: 3, pass: 5, shuffle: 5, tiers: 4, values: 3, convert: 2, reroll: 2, recast: 1, sacrifice: 0, remove: -5 };
 function botTurn(SW, build, casual) {
   const G = SW.game, S = G.S, D = SW.data, I = SW.items, H = SW.hero;
   if (S.hero.bar.join() !== build.bar.join()) { S.hero.bar = build.bar.slice(); S.hero.passives = build.passives.slice(); S.hero.tech = Object.assign({}, build.tech); G.recompute(); }
@@ -26,7 +26,7 @@ function botTurn(SW, build, casual) {
   for (const slot of ['weapon', 'chest', 'ring1', 'amulet', 'gloves', 'helm', 'pants', 'ring2', 'boots', 'offhand']) {
     const it = S.gear[slot]; if (!it) continue;
     const take = () => { const offer = it.offer; let best = 0; for (let k = 1; k < offer.length; k++) if (BOT_LIKES[offer[k].op] > BOT_LIKES[offer[best].op]) best = k; G.pickTransmute(it.id, best); };
-    while (it.offer) take();                                 // free transmutes are always taken, the best of the three
+    while (it.offer) { if (I.offerHidden(it)) G.revealOffer(it.id); take(); }                                 // free transmutes are always taken, the best of the three
     if (it.rar >= 2 && it.ilvl >= gl - 4) while ((it.up || 0) < 20 && G.upgrade(it.id));
     // bought transmutes come after masterworking, only with dust to spare, and only for current gear with room for an affix
     if (it.ilvl >= gl - 2 && !it.uniq && !it.sealed) for (let n = 0; n < 3 && it.affixes.length < D.MAX_AFFIXES && (S.mats.dust || 0) >= 60; n++) { if (!G.buyTransmute(it.id)) break; take(); }

@@ -122,6 +122,8 @@ the skill bar to drink it.
   | Perfect one value | One random affix gets the best number of its tier |
   | Two up, one down | Two random affixes rise a tier or two (never past what the piece can roll), another falls a tier or two. Needs three affixes, and is only offered when two of them have room to rise and a third has room to fall: never on a piece that can only roll tier 1 |
   | Raise the lowest tier | The lowest-tier affix rises one tier |
+  | Raise a random tier | One random affix that has room above it rises one tier |
+  | Reroll all tiers, Reroll *type* tiers | Each tier is rolled again as on a new piece of that level: the best tier the piece can have about six times in ten, sometimes lower. The numbers keep their place within the tier |
   | Sacrifice an affix | One random affix is removed; every other rises one tier |
   | Shuffle the order | Changes which affix is first and last |
   | Leave it be | Nothing happens |
@@ -129,6 +131,14 @@ the skill bar to drink it.
   Adding is much the commonest offer: a piece with room for another affix is offered a way to add one more than nine
   times in ten, and two different ways (an affix of any type and one of a named type, say) more often than not. Every
   other kind turns up once at most in an offer.
+  **The odds.** On a piece with room, about three options in four help it and one in fifteen takes something away.
+  On a full piece the weight is on improving what is there: about half the options help (raising a random tier is
+  the commonest), about one in eight removes an affix, and the rest are gambles (new numbers, new tiers, and, less
+  often now, swapping an affix for another: rerolls, "turn X into Y" and rerolling everything). About one offer in
+  ten on a full piece has nothing helpful in it, down from nearly one in two. A piece whose tiers are all at the top
+  has less left to gain: about three options in ten help it.
+  **The deal.** The three options are dealt one at a time, about half a second apart, and a card cannot be taken
+  before it has landed.
   The affix you rerolled at the forge is locked (and marked so): no offer removes it, replaces it, renumbers it or
   moves its tier. Greater affixes keep their number and tier. A Unique is only ever offered ways to renumber it.
   While an offer waits the piece can still be masterworked, rerolled at the forge and transfigured. If the reroll
@@ -141,8 +151,10 @@ the skill bar to drink it.
   cancelled the same way.
 - **Free transmutes.** Kills fill a bar at the head of the character pane (1 for a monster, 4 for an elite, 12 for a
   boss, 30 to fill). When it is full, one piece you are wearing that has no offer waiting gets a transmute for
-  nothing: it gets a pulsing gold border and sparkles until you take one of its three offers, and a count beside the
-  bar says how many are waiting (click it to bring the next one to the bench). If every worn piece is busy the bar waits, full.
+  nothing. It lands face down: the piece gets a pulsing gold border and sparkles, and a count beside the bar says
+  how many are waiting (click it to bring the next one to the bench). On the bench a Reveal button turns the three
+  options over, drawn for the piece as it is at that moment; the sparkle then gives way to the same "?" a bought
+  transmute shows until you take one of them. If every worn piece is busy the bar waits, full.
   Monsters well below your gear level fill it more slowly, and those 13 levels below not at all.
 - **Ember dust.** The one crafting material: there is no scrap, no orbs and no soulsteel. A transmute costs 2 to 25, climbing with each one bought for the same piece; a
   masterwork strike 2, 4 or 6 as the ranks climb, and 12 to set or move the masterworked affix. Rerolling an affix

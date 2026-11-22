@@ -1093,7 +1093,7 @@ test('The cube: every option does what it says, and never touches the affix rero
   // it is only offered when the tiers can move both ways: never on a tier 1 piece, nor one with every affix at the top or at the bottom
   const tiersOn = (lvl, tis) => { const x = I.roll(lvl, { rar: 2, slot: 'ring' }); x.affixes = ['crit', 'life', 'firePct', 'regen'].slice(0, tis.length).map((k, i) => ({ k, r: 0.4, g: 0, ti: tis[i] })); S.bag[0] = x; return x; };
   let x = tiersOn(5, [1, 1, 1, 1]); assert.equal(D.tierOf(x.ilvl), 1); assert.ok(!I.cubeValid(x, { op: 'tiers' }), 'a level 5 piece has only tier 1'); assert.equal(cube(SW, x.id, 'tiers'), null);
-  for (let i = 0; i < 300; i++) assert.ok(!I.cubeOffer(tiersOn(1 + (i % 9), [1, 1, 1, 1])).some(o => o.op === 'tiers' || o.op === 'raise' || o.op === 'sacrifice'), 'no tier option of any kind on a tier 1 piece');
+  for (let i = 0; i < 300; i++) assert.ok(!I.cubeOffer(tiersOn(1 + (i % 9), [1, 1, 1, 1])).some(o => ['tiers', 'raise', 'lift', 'retier', 'sacrifice'].includes(o.op)), 'no tier option of any kind on a tier 1 piece');
   x = tiersOn(44, [1, 1, 1, 1]); assert.ok(!I.cubeValid(x, { op: 'tiers' }), 'nothing can fall'); assert.ok(I.cubeValid(x, { op: 'raise' }), 'though the lowest can still be raised');
   x = tiersOn(44, [5, 5, 5, 5]); assert.ok(!I.cubeValid(x, { op: 'tiers' }), 'nothing can rise'); assert.equal(I.cubeTargets(x, { op: 'tiers' }).length, 0);
   x = tiersOn(44, [5, 5, 5, 1]); assert.ok(!I.cubeValid(x, { op: 'tiers' }), 'only one has room to rise');
@@ -1104,6 +1104,20 @@ test('The cube: every option does what it says, and never touches the affix rero
   it = mk(); it.affixes = it.affixes.slice(0, 2); assert.equal(cube(SW, it.id, 'tiers'), null, 'not with fewer than three affixes');
   // raise the lowest; sacrifice one to lift the rest
   it = mk(); res = cube(SW, it.id, 'raise'); assert.equal(res.idxs.join(), '3'); assert.equal(it.affixes.map(a => a.ti).join(), '3,2,5,2');
+  // raise a random tier: one affix with room above it rises one tier, never the one already at the top, the locked one, a Greater one or a skill rank
+  { const hit = {}; for (let n = 0; n < 200; n++) { it = mk(); const was = it.affixes.map(a => a.ti); res = cube(SW, it.id, 'lift'); assert.equal(res.up.length, 1); const k = res.up[0][0]; hit[k] = 1; assert.equal(res.up[0][1], 1); assert.equal(it.affixes[k].ti, was[k] + 1); assert.ok(was[k] < 5); assert.equal(it.affixes.reduce((n2, a) => n2 + a.ti, 0), was.reduce((a, b) => a + b, 0) + 1, 'nothing else moves'); }
+    assert.ok(Object.keys(hit).length >= 2, 'any of them can be the one'); }
+  it = mk(); it.affixes.forEach(a => { a.ti = 5; }); assert.equal(cube(SW, it.id, 'lift'), null, 'nothing to raise at the top'); assert.ok(I.cubeLabel({ op: 'lift' }).title === 'Raise a random tier');
+  it = mk(); it.ench = 1; for (let n = 0; n < 60; n++) { const t1 = it.affixes[1].ti; const r2 = cube(SW, it.id, 'lift'); if (!r2) break; assert.equal(it.affixes[1].ti, t1, 'never the locked affix'); }
+  // reroll tiers: every tier (or every tier of one type) is rolled again within what the piece can have; numbers and affixes stay
+  { let ups = 0, downs = 0, top = 0, n2 = 0;
+    for (let n = 0; n < 300; n++) { it = mk(); const was = it.affixes.map(a => a.ti), ks = keys(), rs = it.affixes.map(a => a.r).join(); res = cube(SW, it.id, 'retier'); assert.equal(keys(), ks); assert.equal(it.affixes.map(a => a.r).join(), rs, 'the numbers keep their place in the tier');
+      assert.equal(res.idxs.length, 4); it.affixes.forEach((a, i) => { assert.ok(a.ti >= 1 && a.ti <= 5); n2++; if (a.ti === 5) top++; if (a.ti > was[i]) ups++; if (a.ti < was[i]) downs++; });
+      for (const [k, d] of res.up.concat(res.down)) assert.equal(it.affixes[k].ti, was[k] + d); }
+    assert.ok(ups > downs, 'on a piece with low tiers it helps more often than it hurts'); assert.ok(downs > 20, 'but it can cost a tier'); assert.ok(top / n2 > 0.5 && top / n2 < 0.75, 'the best tier about six times in ten: ' + (top / n2).toFixed(2)); }
+  it = mk(); { const was = it.affixes.map(a => a.ti); res = cube(SW, it.id, 'retier', 'def'); const def = it.affixes.map((a, i) => i).filter(i => I.inCat(it.affixes[i].k, 'def')); assert.equal(res.idxs.join(), def.join(), 'only the Defence affixes'); it.affixes.forEach((a, i) => { if (!def.includes(i)) assert.equal(a.ti, was[i]); }); assert.equal(I.cubeLabel({ op: 'retier', cat: 'def' }).title, 'Reroll Defence tiers'); assert.equal(I.cubeLabel({ op: 'retier' }).title, 'Reroll all tiers'); }
+  it = mk(); it.ench = 0; it.affixes[2].g = 1; { const t0 = it.affixes[0].ti; for (let n = 0; n < 40; n++) cube(SW, it.id, 'retier'); assert.equal(it.affixes[0].ti, t0, 'not the locked affix'); assert.equal(I.affixTier(it, it.affixes[2]), 5, 'nor a Greater one'); }
+  { const low = I.roll(5, { rar: 2, slot: 'ring' }); S.bag[0] = low; assert.ok(!I.cubeValid(low, { op: 'retier' }), 'a piece with only tier 1 has no tiers to reroll'); assert.ok(!I.cubeValid(low, { op: 'lift' })); }
   it = mk(); res = cube(SW, it.id, 'sacrifice'); assert.equal(it.affixes.length, 3); assert.ok(res.removed); for (const a of it.affixes) assert.equal(a.ti, Math.min(5, { crit: 3, life: 2, firePct: 5, regen: 1 }[a.k] + 1));
   // shuffle keeps everything but the order, and the lock and the masterwork follow their affixes
   it = mk(); it.ench = 0; it.mw = [2]; res = cube(SW, it.id, 'shuffle'); assert.notEqual(keys(), 'crit,life,firePct,regen'); assert.equal(it.affixes.map(a => a.k).sort().join(), 'crit,firePct,life,regen'); assert.equal(it.affixes[it.ench].k, 'crit'); assert.equal(it.affixes[it.mw[0]].k, 'firePct');
@@ -1144,8 +1158,16 @@ test('The transmute bar: kills fill it, and a full bar gives one worn piece a fr
   S.xp = D.XP_NEED - 1; given = null; kill(); kill(); assert.equal(given, null); assert.ok(S.xp >= D.XP_NEED); assert.ok(S.xp <= D.XP_NEED * 2, 'and does not bank more than one more');
   assert.equal(G.freeWaiting().length, 2, 'both are counted as waiting'); assert.ok(G.freeWaiting().every(x => x.offerFree));
   // taking an offer frees the piece, and the waiting transmute lands on it at once
-  assert.ok(G.pickTransmute(first.id, 0)); assert.equal(given, first, 'the held transmute went to the piece that came free'); assert.equal(first.offer.length, 3); assert.equal(first.offerFree, 1);
-  assert.ok(G.pickTransmute(first.id, 0)); assert.equal(first.offerFree, undefined);
+  // a free transmute lands face down: nothing can be taken or cancelled until it is revealed, and revealing draws the three options afresh
+  assert.ok(I.offerHidden(first)); assert.equal(G.pickTransmute(first.id, 0), null, 'not before it is revealed'); assert.equal(G.cancelTransmute(first.id), null); assert.ok(first.offer);
+  let seen = 0; G.on((t, d) => { if (t === 'offer' && d.free) seen++; });
+  const shown = G.revealOffer(first.id); assert.equal(shown.length, 3); assert.equal(shown, first.offer); assert.ok(!I.offerHidden(first)); assert.equal(first.offerSeen, 1); assert.equal(seen, 1); assert.equal(G.revealOffer(first.id), null, 'only once');
+  assert.equal(G.freeWaiting().length, 1, 'a revealed one is no longer counted as waiting to be revealed');
+  assert.ok(G.pickTransmute(first.id, 0)); assert.equal(given, first, 'the held transmute went to the piece that came free'); assert.equal(first.offer.length, 3); assert.equal(first.offerFree, 1); assert.equal(first.offerSeen, undefined, 'and it is face down again');
+  assert.ok(G.revealOffer(first.id)); assert.ok(G.pickTransmute(first.id, 0)); assert.equal(first.offerFree, undefined); assert.equal(first.offerSeen, undefined);
+  // revealing fits the piece as it is by then: with the piece full, there is no add among the options
+  { const o = S.gear.weapon === first ? S.gear.chest : S.gear.weapon; while (o.affixes.length < D.MAX_AFFIXES) o.affixes.push(I.roll(o.ilvl, { rar: 2, slot: o.slot }).affixes.find(a => !o.affixes.some(x => x.k === a.k)) || { k: 'life', r: 0.5, g: 0, ti: 1 });
+    if (I.offerHidden(o)) { const r = G.revealOffer(o.id); assert.ok(!r.some(q => q.op === 'add'), 'drawn for the piece as it now stands'); } }
   // gear in the bag is never chosen, and a sealed piece is skipped
   S.gear.chest.offer = null; delete S.gear.chest.offer; S.gear.weapon.offer = null; delete S.gear.weapon.offer; S.gear.weapon.sealed = 1; S.bag[0] = I.roll(5, { rar: 2 });
   for (let i = 0; i < 6; i++) { S.xp = D.XP_NEED; given = null; G.freeTransmute(); if (given) { assert.equal(given, S.gear.chest); G.pickTransmute(given.id, 0); } } assert.equal(S.bag[0].offer, undefined); assert.equal(S.gear.weapon.offer, undefined);
@@ -1176,7 +1198,7 @@ test('The forge reroll and transfiguring work while the cube\'s offer waits, and
   assert.ok(rr(SW, it.id, 2)); assert.equal(it.ench, 2); assert.equal(ev.swapped, 0); assert.equal(it.offer.map(I.cubeKey).join(), 'add:::,pass:::,shuffle:::');
   // one aimed at the affix that is now locked turns into "Leave it be" where it stands; the rest are untouched
   for (let i = 0; i < 60; i++) {
-    it = mk(); it.offer = [{ op: 'remove', cat: 'off' }, { op: 'add' }, { op: 'perfect' }]; it.offerFree = 1;
+    it = mk(); it.offer = [{ op: 'remove', cat: 'off' }, { op: 'add' }, { op: 'perfect' }]; it.offerFree = 1; it.offerSeen = 1;
     assert.ok(rr(SW, it.id, 2)); assert.equal(it.offer.length, 3); assert.equal(it.offerFree, 1);
     const stillOff = I.cubeValid(it, { op: 'remove', cat: 'off' });      // only if the reroll... never: the one Offence affix is the locked one
     assert.equal(stillOff, false); assert.equal(ev.swapped, 1);
@@ -1296,7 +1318,7 @@ test('Transmutes cost more each time on the same piece, up to a cap, and free on
   for (const s of D.SLOTS) S.gear[s] = null; const w = I.roll(44, { rar: 2, slot: 'weapon' }); S.gear.weapon = w; G.recompute(); S.mats.dust = 50;
   assert.ok(G.buyTransmute(w.id)); w.offer = [{ op: 'pass' }]; G.pickTransmute(w.id, 0); assert.equal(I.offerCost(w).dust, 5);
   S.xp = D.XP_NEED; G.freeTransmute(); assert.ok(w.offer && w.offerFree, 'the free one landed on the only worn piece'); assert.equal(S.mats.dust, 48); assert.equal(w.cubeN, 1);
-  G.pickTransmute(w.id, 0); assert.equal(I.offerCost(w).dust, 5, 'still 5 for the second bought one'); assert.equal(S.mats.dust, 48);
+  G.revealOffer(w.id); assert.ok(G.pickTransmute(w.id, 0)); assert.equal(I.offerCost(w).dust, 5, 'still 5 for the second bought one'); assert.equal(S.mats.dust, 48);
   // the count is saved with the piece
   const copy = JSON.parse(JSON.stringify(S)); G.init(copy); assert.equal(I.offerCost(G.S.bag[0]).dust, 25); assert.equal(I.offerCost(G.S.gear.weapon).dust, 5);
 });
@@ -1368,9 +1390,19 @@ test('A waiting transmute can be cancelled, and the cube takes a tier from one a
   it = mk([5], 44); it.ench = 0; G.buyTransmute(it.id); r = G.cancelTransmute(it.id); assert.equal(r.down.length, 0, 'the only affix is the locked one'); assert.equal(it.affixes[0].ti, 5);
   // a free transmute can be cancelled too, and the next one waiting lands at once
   for (const s of D.SLOTS) S.gear[s] = null; const w = I.roll(44, { rar: 2, slot: 'weapon' }); w.affixes.forEach(a => { a.g = 0; a.ti = 3; }); S.gear.weapon = w; G.recompute();
-  S.xp = D.XP_NEED; G.freeTransmute(); assert.ok(w.offerFree); S.xp = D.XP_NEED; r = G.cancelTransmute(w.id); assert.ok(r); assert.ok(w.offer && w.offerFree, 'the bar was full again, so the next free one lands'); assert.equal(G.cancelTransmute(w.id).op, 'cancel'); assert.equal(w.offerFree, undefined);
+  S.xp = D.XP_NEED; G.freeTransmute(); assert.ok(w.offerFree); assert.equal(G.cancelTransmute(w.id), null, 'a free one has to be revealed before it can be cancelled'); G.revealOffer(w.id); S.xp = D.XP_NEED; r = G.cancelTransmute(w.id); assert.ok(r); assert.ok(w.offer && w.offerFree && I.offerHidden(w), 'the bar was full again, so the next free one lands, face down'); G.revealOffer(w.id); assert.equal(G.cancelTransmute(w.id).op, 'cancel'); assert.equal(w.offerFree, undefined);
   // not while a forge reroll is waiting to be chosen
   it = mk([3, 3]); G.buyTransmute(it.id); it.pend = { idx: 0, a: { k: 'dmgPct', r: 0.5, g: 0, ti: 2 } }; assert.equal(G.cancelTransmute(it.id), null); assert.ok(it.offer);
+});
+test('What the cube offers a full piece: mostly ways to improve it, seldom to swap or lose an affix', (SW, G, D, I) => {
+  const POS = ['add', 'raise', 'lift', 'perfect', 'polish', 'tiers'], NEG = ['remove', 'sacrifice'], SWAP = ['reroll', 'convert', 'recast'];
+  let pos = 0, neg = 0, swap = 0, tot = 0, none = 0; const N = 3000, seen = {};
+  for (let i = 0; i < N; i++) { const x = I.roll(44, { rar: 2, slot: ['ring', 'chest', 'gloves', 'weapon'][i % 4] }); while (x.affixes.length < 4) { const a = I.roll(44, { rar: 2, slot: x.slot }).affixes.find(q => !x.affixes.some(y => y.k === q.k)); if (a) x.affixes.push(a); } x.affixes.forEach(a => { a.g = 0; });
+    const o = I.cubeOffer(x); let p = 0; for (const q of o) { tot++; seen[q.op] = (seen[q.op] || 0) + 1; if (POS.includes(q.op)) { pos++; p++; } else if (NEG.includes(q.op)) neg++; else if (SWAP.includes(q.op)) swap++; } if (!p) none++; }
+  const pc = v => Math.round(v / tot * 100), msg = `helpful ${pc(pos)}% harmful ${pc(neg)}% swaps ${pc(swap)}% none helpful ${Math.round(none / N * 100)}%`;
+  assert.ok(pos / tot > 0.42 && pos / tot < 0.56, msg); assert.ok(neg / tot > 0.08 && neg / tot < 0.17, msg); assert.ok(swap / tot < 0.18, 'affix swaps are the rarer kind: ' + msg); assert.ok(none / N < 0.16, 'an offer with nothing helpful is uncommon: ' + msg);
+  assert.ok(seen.lift > seen.reroll * 1.5 && seen.lift > seen.remove, 'raising a random tier is the commonest: ' + JSON.stringify(seen)); assert.ok(seen.retier > 0 && seen.convert < seen.retier, JSON.stringify(seen));
+  for (const op of ['lift', 'retier', 'raise', 'tiers', 'polish', 'perfect', 'values', 'remove', 'reroll', 'convert', 'recast', 'shuffle', 'pass']) assert.ok(seen[op] > 0, op + ' is offered');
 });
 test('Depth: how far this run has got, how far the last one got, and the deepest ever on the level', (SW, G, D, I) => {
   const S = G.S, W = S.world, clear = x => { const c = W.map.cells.find(k => k.x === x && k.type !== 'wall'); G.completeCell(c); return c; };

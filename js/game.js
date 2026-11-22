@@ -602,8 +602,8 @@ G.winCell = function () {
 };
 
 /* -------------------------------------------------------- player actions */
-/* pieces with a free transmute waiting to be answered, worn ones first */
-G.freeWaiting = () => Object.values(G.S.gear).concat(G.S.bag, G.S.stash || []).filter(it => it && it.offer && it.offerFree);
+/* pieces with a free transmute waiting to be revealed, worn ones first */
+G.freeWaiting = () => Object.values(G.S.gear).concat(G.S.bag, G.S.stash || []).filter(it => it && I.offerHidden(it));
 G.findItem = function (id) {
   const S = G.S;
   for (const s of D.SLOTS) if (S.gear[s] && S.gear[s].id === id) return { it: S.gear[s], where: 'gear', slot: s };
@@ -748,9 +748,9 @@ G.buyTransmute = function (id) {
 };
 G.pickTransmute = function (id, n) {
   const S = G.S, f = G.findItem(id), o = f && f.it.offer && f.it.offer[n];
-  if (!o || f.it.pend) return null;                          // a reroll waiting to be chosen comes first
+  if (!o || f.it.pend || I.offerHidden(f.it)) return null;      // a reroll waiting to be chosen comes first; a free transmute has to be revealed
   const it = f.it, res = I.cubeValid(it, o) ? I.cubeApply(it, o, S.world.tier) : { op: 'pass', o, idxs: [] };      // an option that can no longer do anything costs its pick and nothing else
-  delete it.offer; delete it.offerFree; it.isNew = 0;
+  delete it.offer; delete it.offerFree; delete it.offerSeen; it.isNew = 0;
   G.recompute(); G.refreshUpgrades(); G.freeTransmute();      // a full bar may have been waiting for a piece to come free
   G.emit('cube', { it, res }); G.save();
   return res;
@@ -758,11 +758,19 @@ G.pickTransmute = function (id, n) {
 
 /* Throw a waiting offer away without taking any of it, bought or free. The cube keeps what was paid, and takes a
    tier from one random affix that has one to lose (see I.cancelTargets). */
+/* A free transmute lands face down: the piece sparkles, and the three options are only drawn when the player
+   reveals them (for the piece as it is then, whatever has been done to it in between). */
+G.revealOffer = function (id) {
+  const f = G.findItem(id); if (!f || !I.offerHidden(f.it)) return null;
+  const it = f.it; it.offer = I.cubeOffer(it); it.offerSeen = 1;
+  G.emit('offer', { it, free: true }); G.save();
+  return it.offer;
+};
 G.cancelTransmute = function (id) {
-  const f = G.findItem(id); if (!f || !f.it.offer || f.it.pend) return null;
+  const f = G.findItem(id); if (!f || !f.it.offer || f.it.pend || I.offerHidden(f.it)) return null;
   const it = f.it, t = I.cancelTargets(it), res = { op: 'cancel', idxs: [], down: [] };
   if (t.length) { const i = t[Math.floor(U.rng() * t.length)], a = it.affixes[i]; a.ti = I.affixTier(it, a) - 1; res.idxs.push(i); res.down.push([i, -1]); res.lost = { k: a.k, ti: a.ti }; }
-  delete it.offer; delete it.offerFree; it.isNew = 0;
+  delete it.offer; delete it.offerFree; delete it.offerSeen; it.isNew = 0;
   G.recompute(); G.refreshUpgrades(); G.freeTransmute();
   G.emit('cube', { it, res }); G.save();
   return res;

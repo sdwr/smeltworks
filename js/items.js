@@ -318,6 +318,8 @@ I.tiered = it => it.affixes.map((a, i) => i).filter(i => i !== it.ench && !it.af
 /* Walking away from an offer has a price: one affix loses a tier. These are the ones the cube can take it from
    (never the locked affix, a Greater one or a skill rank, and not one already at tier 1); with none of them, there
    is nothing to take and walking away is free. */
+/* a free transmute that has landed on the piece but has not been revealed yet */
+I.offerHidden = it => !!(it.offer && it.offerFree && !it.offerSeen);
 I.cancelTargets = it => I.tiered(it).filter(i => I.affixTier(it, it.affixes[i]) > 1);
 I.cubeKey = o => [o.op, o.cat || '', o.pos || '', o.to || ''].join(':');
 const maxTier = it => D.tierOf(it.ilvl);
@@ -330,6 +332,8 @@ I.cubeTargets = function (it, o) {
     case 'values': case 'polish': case 'perfect': return I.temperable(it).filter(i => !o.cat || I.inCat(it.affixes[i].k, o.cat));
     case 'tiers': { const pl = I.tierPlan(it); return pl ? I.tiered(it).filter(i => pl.ups.includes(i) || pl.downs.includes(i)) : []; }
     case 'raise': { const t = I.tiered(it).filter(i => I.affixTier(it, it.affixes[i]) < maxTier(it)); if (!t.length) return []; const lo = Math.min(...t.map(i => I.affixTier(it, it.affixes[i]))); return [t.find(i => I.affixTier(it, it.affixes[i]) === lo)]; }
+    case 'lift': return I.tiered(it).filter(i => I.affixTier(it, it.affixes[i]) < maxTier(it));
+    case 'retier': return I.tiered(it).filter(i => !o.cat || I.inCat(it.affixes[i].k, o.cat));
     case 'shuffle': return it.affixes.map((a, i) => i);
     default: return [];
   }
@@ -358,22 +362,26 @@ I.cubeValid = function (it, o) {
     case 'polish': return t.length > 0;
     case 'perfect': return t.some(i => it.affixes[i].r < 0.95);
     case 'tiers': return n >= 3 && !!I.tierPlan(it);
-    case 'raise': return t.length > 0;
+    case 'raise': case 'lift': return t.length > 0;
+    case 'retier': return t.length > 0 && maxTier(it) > 1 && (!o.cat || t.length < I.tiered(it).length);      // only where there is more than one tier to roll; a type that covers everything is just "all tiers"
     case 'sacrifice': return t.length > 0 && n >= 2 && I.tiered(it).filter(i => I.affixTier(it, it.affixes[i]) < maxTier(it)).length >= 2;
     case 'shuffle': return n >= 2;
     case 'pass': return true;
   }
   return false;
 };
-/* how often each kind of option turns up, shared among its valid variants. Adding is much the commonest: a piece
-   with room for another affix is offered a way to add one more than nine times in ten, and two ways more often than not. */
-I.CUBE_W = { add: 100, remove: 20, reroll: 20, convert: 8, recast: 7, values: 12, polish: 5, perfect: 4, tiers: 10, raise: 5, sacrifice: 4, shuffle: 3, pass: 3 };
+/* How often each kind of option turns up, shared among its valid variants. Adding is much the commonest: a piece
+   with room for another affix is offered a way to add one more than nine times in ten, and two ways more often than
+   not. On a full piece the weight is on making what is there better (tiers and numbers) rather than on swapping
+   affixes for other ones: about half the options help, about one in eight takes something away, and the rest are
+   gambles. Measured by tests/odds: an offer with nothing helpful in it comes up about one time in ten. */
+I.CUBE_W = { add: 140, lift: 30, raise: 10, tiers: 12, retier: 10, polish: 14, perfect: 10, values: 10, remove: 12, reroll: 8, convert: 3, recast: 4, sacrifice: 4, shuffle: 3, pass: 4 };
 I.cubeOptions = function (it) {
   const cats = I.slotCats(it), out = [], C = [null].concat(cats);
-  for (const cat of C) { out.push({ op: 'add', cat }); out.push({ op: 'remove', cat }); out.push({ op: 'reroll', cat }); out.push({ op: 'values', cat });
+  for (const cat of C) { out.push({ op: 'add', cat }); out.push({ op: 'remove', cat }); out.push({ op: 'reroll', cat }); out.push({ op: 'values', cat }); out.push({ op: 'retier', cat });
     for (const pos of ['first', 'last']) { out.push({ op: 'remove', cat, pos }); out.push({ op: 'reroll', cat, pos }); }
     if (cat) for (const to of cats) out.push({ op: 'convert', cat, to }); }
-  for (const op of ['recast', 'polish', 'perfect', 'tiers', 'raise', 'sacrifice', 'shuffle', 'pass']) out.push({ op });
+  for (const op of ['recast', 'polish', 'perfect', 'tiers', 'raise', 'lift', 'sacrifice', 'shuffle', 'pass']) out.push({ op });
   return out.map(o => { for (const k in o) if (o[k] == null) delete o[k]; return o; }).filter(o => I.cubeValid(it, o));
 };
 /* Three of them, each kind as likely as its weight says. They are of different kinds where the piece allows it,
@@ -395,7 +403,7 @@ I.cubeOffer = function (it, n) {
    it stands; a piece that has been sealed loses its offer. Returns how many were turned, or -1 when the offer is gone. */
 I.offerMend = function (it) {
   if (!it.offer) return 0;
-  if (it.sealed) { delete it.offer; delete it.offerFree; return -1; }
+  if (it.sealed) { delete it.offer; delete it.offerFree; delete it.offerSeen; return -1; }
   let n = 0;
   it.offer = it.offer.map(o => (I.cubeValid(it, o) ? o : (n++, { op: 'pass' })));
   return n;
@@ -423,6 +431,8 @@ I.cubeLabel = function (o) {
     case 'perfect': return { title: 'Perfect one value', desc: 'One random affix gets the best number of its tier.', fam: 'values' };
     case 'tiers': return { title: 'Two up, one down', desc: 'Two random affixes rise a tier or two, as far as this piece allows. Another falls a tier or two.', fam: 'tiers' };
     case 'raise': return { title: 'Raise the lowest tier', desc: 'The lowest-tier affix rises one tier.', fam: 'tiers' };
+    case 'lift': return { title: 'Raise a random tier', desc: 'One random affix rises one tier.', fam: 'tiers' };
+    case 'retier': return { title: o.cat ? `Reroll ${T(o.cat)}tiers` : 'Reroll all tiers', desc: 'Each tier is rolled again, as it would be on a new piece of this level: most often the best the piece can have, sometimes lower. The numbers stay where they are within the tier.', fam: 'tiers' };
     case 'sacrifice': return { title: 'Sacrifice an affix', desc: 'One random affix is removed. Every other affix rises one tier.', fam: 'tiers' };
     case 'shuffle': return { title: 'Shuffle the order', desc: 'The affixes change places, which changes what "first" and "last" will hit.', fam: 'misc' };
     default: return { title: 'Leave it be', desc: 'Nothing happens.', fam: 'misc' };
@@ -459,6 +469,8 @@ I.cubeApply = function (it, o, tier) {
       res.idxs.push(dn); res.down.push([dn, move(dn, -step())]);
       break; }
     case 'raise': move(tgt[0], 1); res.idxs.push(tgt[0]); res.up = [[tgt[0], 1]]; break;
+    case 'lift': { const i = one(tgt); move(i, 1); res.idxs.push(i); res.up = [[i, 1]]; break; }
+    case 'retier': res.up = []; res.down = []; for (const i of tgt) { const was = I.affixTier(it, A[i]), d = I.rollTier(it.ilvl) - was; A[i].ti = was + d; res.idxs.push(i); if (d) (d > 0 ? res.up : res.down).push([i, d]); } break;
     case 'sacrifice': { removeAt(one(tgt)); res.up = []; for (const i of I.tiered(it)) { const d = move(i, 1); if (d) { res.idxs.push(i); res.up.push([i, d]); } } break; }
     case 'shuffle': {
       const order = A.map((a, i) => i); let tries = 0;

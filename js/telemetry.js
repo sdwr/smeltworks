@@ -88,7 +88,7 @@ T.onGame = function (type, d) {
       T.killer = { name: mob ? mob.def.name : null, boss: !!(t && t.type === 'boss'), room: t ? t.type : null }; break; }
     case 'runOver': T.runEnd(d.why, { area: d.area, tier: d.tier, rooms: d.rooms, boss: !!(T.killer && T.killer.boss) }); break;
     case 'areaClear': T.runEnd('cleared', { area: d.area, tier: d.tier, rooms: G.depthRec(d.area, d.tier).now, boss: true, first: d.first }); break;
-    case 'offer': count('bought'); break;
+    case 'offer': if (!d.free) count('bought'); break;      // a free one is counted when it lands, not again when it is revealed
     case 'freeTransmute': count('free'); break;
     case 'cube': count('pick_' + d.res.op); break;
     case 'forge': count(d.kind === 'transfigure' ? 'transfigure_' + d.res.kind : d.kind === 'enchantPick' ? (d.take ? 'reroll_take' : 'reroll_keep') : d.kind); break;
